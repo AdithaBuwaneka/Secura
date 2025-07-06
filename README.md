@@ -271,11 +271,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Contact
 
 - **Team Leader:** Aditha Buwaneka
-- **Email:** aditha.buwaneka@example.com
-- **Team Email:** team.secura.hacktivate@gmail.com
+- **Email:** adithabuwaneka0@gmail.com
 - **Competition:** Hacktivate '25 - NSBM Green University
-- **Project Demo:** [Live Demo Link](https://secura-demo.vercel.app)
-- **GitHub:** [https://github.com/AdithaBuwaneka/secura](https://github.com/AdithaBuwaneka/secura)
+- **GitHub:** [https://github.com/AdithaBuwaneka/Secura](https://github.com/AdithaBuwaneka/Secura)
 
 ## 🙏 Acknowledgments
 
