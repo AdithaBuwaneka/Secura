@@ -197,7 +197,7 @@ Our comprehensive design system includes:
 - **📱 Mobile PWA** - Cross-platform responsive design
 - **🔄 User Flow Diagrams** - Complete system visualization
 
-View our design system: [Figma Design Link](https://figma.com/your-design-link)
+View our design system: [Figma Design Link]([https://figma.com/your-design-link](https://www.figma.com/design/GtGN1SUy2Y9GyKspuZCeSy/Secura?node-id=0-1&t=JvX3dHyxP0ItHEkY-1))
 
 ## 📊 Performance Metrics
 
