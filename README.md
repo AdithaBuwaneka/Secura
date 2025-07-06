@@ -258,7 +258,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🏆 Team
 
-**Team Secura** - Hacktivate '25 Participants
+**Team QuantumX** - Hacktivate '25 Participants
 
 - **👑 Team Leader:** Aditha Buwaneka - Full Stack Developer & Project Coordinator
 - **🤖 AI/ML Engineer:** Vishwa Jayasanka - Machine Learning & Backend Development
