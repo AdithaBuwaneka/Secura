@@ -272,7 +272,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Team Leader:** Aditha Buwaneka
 - **Email:** adithabuwaneka0@gmail.com
-- **Team Email:** team.secura.hacktivate@gmail.com
 - **Competition:** Hacktivate '25 - NSBM Green University
 - **GitHub:** [https://github.com/AdithaBuwaneka/secura](https://github.com/AdithaBuwaneka/secura)
 - **Figma Design:** [View Design System](https://www.figma.com/design/GtGN1SUy2Y9GyKspuZCeSy/Secura?node-id=0-1&t=JvX3dHyxP0ItHEkY-1)
