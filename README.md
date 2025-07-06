@@ -260,7 +260,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Team QuantumX** - Hacktivate '25 Participants
 
-- **👑 Team Leader:** Aditha Buwaneka - Full Stack Developer & Project Coordinator
+- **👑 Team Leader:** Aditha Buwaneka - Team Leader & Full Stack Developer 
 - **🤖 AI/ML Engineer:** Vishwa Jayasanka - Machine Learning & Backend Development
 - **🎨 UI/UX Designer:** Garuka Satharasinghe - Design & User Experience Lead
 - **🔒 Security Expert:** Rithara Kithmanthie - Cybersecurity & System Architecture
