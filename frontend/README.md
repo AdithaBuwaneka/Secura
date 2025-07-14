@@ -4,12 +4,18 @@ This is the Next.js frontend for the Secura cybersecurity incident reporting pla
 
 ## Setup Instructions
 
-### 1. Install Dependencies
+### 1. Prerequisites
+- **Node.js 18+** (Recommended: Node.js 20 or higher)
+- **npm** or **yarn** package manager
+
+### 2. Install Dependencies
 ```bash
 npm install
+# or
+yarn install
 ```
 
-### 2. Environment Configuration
+### 3. Environment Configuration
 Create a `.env.local` file in the frontend root directory with the following environment variables:
 
 ```env
@@ -32,12 +38,15 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_ENVIRONMENT=development
 ```
 
-### 3. Running the Frontend
+**Note**: The `.env.local` file is already configured for development. Only update the Firebase and ImageKit credentials if needed for your specific project setup.
+
+### 4. Running the Frontend
 
 #### Option 1: Development mode with Turbopack (Recommended)
 ```bash
 npm run dev
 ```
+This will start the development server with Turbopack for faster builds and hot reload.
 
 #### Option 2: Standard development mode
 ```bash
@@ -51,6 +60,8 @@ npm run start
 ```
 
 The application will be available at `http://localhost:3000`
+
+**Backend Dependency**: Ensure the backend server is running on `http://127.0.0.1:8000` for full functionality.
 
 ## Available Scripts
 
@@ -100,35 +111,40 @@ src/
 ## Dependencies
 
 ### Core Dependencies
-- **Next.js 15**: React framework with App Router
-- **React 19**: UI library
-- **TypeScript**: Type-safe JavaScript
-- **Firebase**: Authentication and database
-- **ImageKit React**: File upload and management
-- **Redux Toolkit**: State management
-- **Chart.js**: Data visualization
-- **Tailwind CSS**: Utility-first CSS framework
-- **Lucide React**: Icon library
+- **Next.js 15.3.5**: React framework with App Router and Turbopack
+- **React 19**: Latest UI library with concurrent features
+- **TypeScript 5**: Type-safe JavaScript development
+- **Firebase 11.10.0**: Authentication and Firestore database
+- **ImageKit React 4.3.0**: File upload and image management
+- **Redux Toolkit 2.8.2**: Modern state management
+- **Chart.js 4.5.0**: Data visualization and analytics
+- **Tailwind CSS 3.4.17**: Utility-first CSS framework
+- **Lucide React 0.525.0**: Modern icon library
 
 ### Development Dependencies
-- **ESLint**: Code linting
-- **Autoprefixer**: CSS vendor prefixes
-- **PostCSS**: CSS processing
+- **ESLint 9**: Code linting and quality assurance
+- **Autoprefixer 10.4.21**: CSS vendor prefixes
+- **PostCSS 8.5.6**: CSS processing and transformation
 
 ## Browser Support
 
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+- **Chrome 90+** (Recommended)
+- **Firefox 90+**
+- **Safari 14+**
+- **Edge 90+**
 
 ## Development Notes
 
-1. The frontend communicates with the backend API running on `http://127.0.0.1:8000`
-2. Firebase is configured for both authentication and Firestore database access
-3. ImageKit handles all file uploads and image processing
-4. Turbopack is enabled for faster development builds
-5. The app uses the Next.js App Router for routing and layouts
+1. **Backend Communication**: Frontend is configured to communicate with backend API at `http://127.0.0.1:8000`
+2. **Firebase Integration**: Both authentication and Firestore database are properly configured
+3. **ImageKit Storage**: All file uploads and image processing handled by ImageKit service
+4. **Turbopack**: Enabled by default for faster development builds (can be disabled with `--no-turbopack`)
+5. **Hot Reload**: Automatic page refresh on file changes with Fast Refresh support
+6. **TypeScript**: Strict mode enabled for better type safety
+7. **State Management**: Redux Toolkit configured for scalable state management
+8. **Responsive Design**: Mobile-first approach with Tailwind CSS breakpoints
+9. **Environment Variables**: All public environment variables prefixed with `NEXT_PUBLIC_`
+10. **CORS**: Backend configured to accept requests from `http://localhost:3000`
 
 ## Issues Fixed
 
@@ -138,3 +154,57 @@ src/
 4. ✅ Tailwind CSS setup and configuration
 5. ✅ TypeScript configuration and type definitions
 6. ✅ ESLint configuration for code quality
+7. ✅ Turbopack integration for faster development builds
+8. ✅ Environment variables loading and configuration
+9. ✅ CORS configuration for backend communication
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Module not found errors**
+   - **Solution**: Run `npm install` to ensure all dependencies are installed
+   - **Check**: Verify `node_modules` directory exists
+
+2. **Environment variables not loading**
+   - **Solution**: Ensure `.env.local` file exists in the frontend root directory
+   - **Check**: All environment variables must start with `NEXT_PUBLIC_` for client-side access
+
+3. **Build fails with permission errors**
+   - **Cause**: Development server is running while building
+   - **Solution**: Stop the dev server (`Ctrl+C`) before running `npm run build`
+
+4. **Backend API connection fails**
+   - **Solution**: Ensure backend server is running on `http://127.0.0.1:8000`
+   - **Check**: Verify `NEXT_PUBLIC_API_URL` in `.env.local` matches backend URL
+
+5. **Turbopack build issues**
+   - **Solution**: Use standard mode: `npm run dev -- --no-turbopack`
+   - **Alternative**: Update to latest Next.js version
+
+### Verification Steps
+
+After starting the development server:
+
+1. **Check Terminal Output**: Look for "Ready in [time]" message
+2. **Browser Access**: Navigate to `http://localhost:3000`
+3. **Hot Reload**: Make a change to see if page updates automatically
+4. **Network Tab**: Check if backend API calls are successful (F12 → Network)
+5. **Console Errors**: Check browser console for any JavaScript errors
+
+### Performance Tips
+
+- Use Turbopack for faster development builds
+- Enable Next.js Fast Refresh for instant feedback
+- Use browser dev tools to monitor performance
+- Check bundle analyzer for optimization opportunities
+
+## Current Status: ✅ WORKING
+
+- **Development Server**: Running on `http://localhost:3000`
+- **Build System**: Next.js 15 with Turbopack enabled
+- **Hot Reload**: ✅ Functional
+- **TypeScript**: ✅ Compilation working
+- **Linting**: ✅ No errors
+- **Environment**: ✅ Variables loaded
+- **Backend Connection**: ✅ CORS configured
