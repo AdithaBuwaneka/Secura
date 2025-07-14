@@ -6,7 +6,7 @@ import {
   User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { User, AuthState } from '@/types';
+import { AuthState } from '@/types';
 
 // API base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -74,8 +74,8 @@ export const registerUser = createAsyncThunk(
         userProfile,
         idToken
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message);
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Registration failed');
     }
   }
 );
@@ -117,8 +117,8 @@ export const loginUser = createAsyncThunk(
         userProfile,
         idToken
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message);
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Login failed');
     }
   }
 );
@@ -129,8 +129,8 @@ export const logoutUser = createAsyncThunk(
     try {
       await signOut(auth);
       return null;
-    } catch (error: any) {
-      return rejectWithValue(error.message);
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Logout failed');
     }
   }
 );
@@ -150,8 +150,8 @@ export const verifyToken = createAsyncThunk(
       }
       
       return await response.json();
-    } catch (error: any) {
-      return rejectWithValue(error.message);
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Token verification failed');
     }
   }
 );
