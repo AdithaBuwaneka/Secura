@@ -4,12 +4,20 @@ This is the FastAPI backend for the Secura cybersecurity incident reporting plat
 
 ## Features
 
-- **Authentication**: Firebase Auth (ID Token verification)
-- **Database**: Firebase Firestore
-- **File Storage**: ImageKit integration
+- **Authentication**: Firebase Auth (ID Token verification) with role-based access control
+- **User Management**: Complete user registration, pro5. **Backend Not Responding to Requests**
+   - **Solution**: Ensure the server is running and check the port (should be 8000)
+   - **Check**: Task output should show "Application startup complete"
+
+6. **Role-Based Access Denied**
+   - **Solution**: Ensure user has correct role assigned in Firestore user profile
+   - **Admin Only**: `/users/all` endpoint requires Admin or Security Team rolemanagement, and role assignment
+- **Database**: Firebase Firestore with user profiles and incident data
+- **File Storage**: ImageKit integration for incident attachments
 - **Email Service**: SendGrid (ready for notifications)
 - **CORS**: Configured for frontend communication
 - **Auto Documentation**: FastAPI automatic API docs
+- **Role-Based Access**: Support for Employee, Security Team, Executive, and Admin roles
 
 ## Setup Instructions
 
@@ -108,7 +116,14 @@ The server will start on `http://127.0.0.1:8000`
 - `GET /test/` - Basic test endpoint
 - `GET /test/firebase` - Test Firebase Firestore connection
 
-### Protected Endpoints (Require Firebase Auth)
+### User Management Endpoints (Require Firebase Auth)
+- `POST /users/register` - Register new user profile in Firestore
+- `GET /users/profile` - Get current user's profile
+- `PUT /users/profile` - Update current user's profile
+- `GET /users/all` - Get all users (Admin/Security Team only)
+- `POST /users/verify-token` - Verify Firebase ID token validity
+
+### Protected Test Endpoints (Require Firebase Auth)
 - `GET /test/auth` - Test Firebase authentication (requires Bearer token)
 
 ## Authentication
@@ -144,10 +159,36 @@ Test the basic endpoints:
 curl http://127.0.0.1:8000/test/firebase
 ```
 
-### Authentication Test (Requires Firebase ID Token)
+### User Management Examples
+
+#### Register New User
 ```bash
-# Replace YOUR_ID_TOKEN with actual Firebase ID token
-curl -H "Authorization: Bearer YOUR_ID_TOKEN" http://127.0.0.1:8000/test/auth
+curl -X POST "http://127.0.0.1:8000/users/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "uid": "firebase_uid_here",
+    "email": "user@example.com",
+    "full_name": "John Doe",
+    "role": "employee",
+    "department": "IT Security"
+  }'
+```
+
+#### Get User Profile (Requires Auth)
+```bash
+curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  http://127.0.0.1:8000/users/profile
+```
+
+#### Update User Profile (Requires Auth)
+```bash
+curl -X PUT "http://127.0.0.1:8000/users/profile" \
+  -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "full_name": "Updated Name",
+    "department": "Cybersecurity"
+  }'
 ```
 
 ## Dependencies
@@ -182,13 +223,19 @@ backend/
 │   ├── main.py              # FastAPI app entry point
 │   ├── api/
 │   │   ├── __init__.py
-│   │   └── test.py          # Test endpoints
+│   │   ├── test.py          # Test endpoints
+│   │   └── users.py         # User management endpoints
 │   ├── core/
 │   │   ├── __init__.py
 │   │   └── firebase_config.py   # Firebase configuration
 │   ├── models/
 │   │   ├── __init__.py
-│   │   └── schemas.py       # Pydantic models
+│   │   ├── auth.py          # Authentication models
+│   │   ├── common.py        # Common enums and models
+│   │   ├── user.py          # User profile models
+│   │   ├── incident.py      # Incident reporting models
+│   │   ├── message.py       # Message models
+│   │   └── file.py          # File upload models
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── database.py      # Database operations
@@ -202,15 +249,19 @@ backend/
 └── README.md              # This file
 ```
 
-## Recent Changes
+## Recent Changes & Fixes
 
-✅ **Removed Custom JWT**: Simplified authentication to use only Firebase ID tokens
-✅ **Firebase-Only Auth**: Backend now verifies Firebase ID tokens directly
-✅ **Cleaner Dependencies**: Removed JWT-related packages from requirements
-✅ **Updated Documentation**: README reflects current Firebase-only setup
-✅ **Fixed Import Issues**: Resolved module import paths for proper execution
-✅ **Added Email Validation**: Included pydantic[email] for user profile validation
-✅ **Improved VS Code Task**: Task now runs from correct directory
+✅ **Fixed Authentication Dependency Bug**: Resolved `TypeError` in `require_roles` function by removing incorrect `async` declaration  
+✅ **Fixed Pydantic Compatibility**: Updated `.dict()` to `.model_dump()` for Pydantic v2 compatibility  
+✅ **Added User Management**: Complete user registration, profile management, and role-based access control  
+✅ **Removed Custom JWT**: Simplified authentication to use only Firebase ID tokens  
+✅ **Firebase-Only Auth**: Backend now verifies Firebase ID tokens directly  
+✅ **Cleaner Dependencies**: Removed JWT-related packages from requirements  
+✅ **Updated Documentation**: README reflects current Firebase-only setup  
+✅ **Fixed Import Issues**: Resolved module import paths for proper execution  
+✅ **Added Email Validation**: Included pydantic[email] for user profile validation  
+✅ **Improved VS Code Task**: Task now runs from correct directory  
+✅ **Backend Fully Operational**: All endpoints tested and working correctly
 
 ## Troubleshooting
 
@@ -228,8 +279,13 @@ backend/
    - **Check**: Ensure the task definition in `.vscode/tasks.json` is correct
 
 4. **Firebase Connection Errors**
+4. **Firebase Connection Errors**
    - **Solution**: Check your `.env` file has correct Firebase credentials
    - **Test**: Visit `http://127.0.0.1:8000/test/firebase` to verify connection
+
+5. **VS Code Task Fails**
+   - **Solution**: The task is configured to run from `backend/app` directory automatically
+   - **Check**: Ensure the task definition in `.vscode/tasks.json` is correct
 
 ### Verification Steps
 

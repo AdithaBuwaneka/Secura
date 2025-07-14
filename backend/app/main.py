@@ -7,7 +7,7 @@ import sys
 # Add the parent directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from api import test  # Import test router
+from api import test, users  # Import both routers
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +29,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(test.router)
+app.include_router(users.router)  # Add users router
 
 @app.get("/")
 async def root():

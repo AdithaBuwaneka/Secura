@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from datetime import datetime
-from models.schemas import TestResponse, TokenData
+from models.common import TestResponse
+from models.auth import TokenData
 from utils.auth import get_current_user
 from core.firebase_config import FirebaseConfig
 
