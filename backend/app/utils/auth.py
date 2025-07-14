@@ -1,8 +1,9 @@
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.firebase_config import FirebaseConfig
-from models.schemas import TokenData, UserRole
-from typing import Optional
+from models.auth import TokenData
+from models.common import UserRole
+from typing import List
 
 # Security scheme for Bearer token
 security = HTTPBearer()
@@ -39,7 +40,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         role=UserRole(user_profile.get('role', 'employee'))
     )
 
-async def require_role(required_role: UserRole):
+def require_role(required_role: UserRole):
     """Dependency to require specific role"""
     def role_checker(current_user: TokenData = Depends(get_current_user)) -> TokenData:
         if current_user.role != required_role:
@@ -50,7 +51,7 @@ async def require_role(required_role: UserRole):
         return current_user
     return role_checker
 
-async def require_roles(allowed_roles: list[UserRole]):
+def require_roles(allowed_roles: List[UserRole]):
     """Dependency to require one of multiple roles"""
     def roles_checker(current_user: TokenData = Depends(get_current_user)) -> TokenData:
         if current_user.role not in allowed_roles:
