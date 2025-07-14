@@ -29,38 +29,40 @@ class IncidentStatus(str, Enum):
     RESOLVED = "resolved"
     CLOSED = "closed"
 
-# User Models
-class UserBase(BaseModel):
+# User Models (Firebase-based)
+class UserProfile(BaseModel):
+    uid: str  # Firebase UID
+    email: EmailStr
+    full_name: str
+    role: UserRole
+    department: Optional[str] = None
+    phone_number: Optional[str] = None
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    is_active: bool = True
+
+class UserCreate(BaseModel):
     email: EmailStr
     full_name: str
     role: UserRole
     department: Optional[str] = None
     phone_number: Optional[str] = None
 
-class UserCreate(UserBase):
-    password: str
-
-class UserResponse(UserBase):
-    id: str
-    created_at: datetime
-    last_login: Optional[datetime] = None
-    is_active: bool = True
-
-# Incident Models
+# Incident Models (Firebase-based)
 class IncidentBase(BaseModel):
     incident_type: IncidentType
     subject: str
     description: str
     severity: Optional[IncidentSeverity] = None
-    location: Optional[Dict[str, Any]] = None  # Geolocation data
+    location: Optional[Dict[str, Any]] = None
 
 class IncidentCreate(IncidentBase):
-    files: Optional[List[str]] = []  # File URLs
+    files: Optional[List[str]] = []
 
 class IncidentResponse(IncidentBase):
     id: str
     status: IncidentStatus
-    reporter_id: str
+    reporter_uid: str  # Firebase UID
     assigned_to: Optional[str] = None
     ai_category: Optional[str] = None
     ai_confidence: Optional[float] = None
@@ -68,15 +70,31 @@ class IncidentResponse(IncidentBase):
     updated_at: datetime
     resolved_at: Optional[datetime] = None
 
-# Message Models
+# Message Models (Firebase-based)
 class MessageCreate(BaseModel):
     incident_id: str
     content: str
-    message_type: str = "text"  # text, file, system
+    message_type: str = "text"
 
 class MessageResponse(MessageCreate):
     id: str
-    sender_id: str
+    sender_uid: str  # Firebase UID
     sender_name: str
     created_at: datetime
     is_encrypted: bool = True
+
+# Auth Models
+class TokenData(BaseModel):
+    uid: str
+    email: str
+    role: UserRole
+
+class AuthResponse(BaseModel):
+    message: str
+    user_profile: UserProfile
+
+# Test Models
+class TestResponse(BaseModel):
+    message: str
+    timestamp: datetime
+    status: str = "success"

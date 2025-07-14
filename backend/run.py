@@ -7,7 +7,7 @@ import os
 import sys
 import uvicorn
 
-# Add the backend directory to Python path
+# Add the app directory to Python path
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 app_dir = os.path.join(backend_dir, 'app')
 sys.path.insert(0, app_dir)

@@ -1,26 +1,64 @@
-from fastapi import APIRouter
-from services.database import db_service
-from services.imagekit_service import imagekit_service
+from fastapi import APIRouter, Depends
+from datetime import datetime
+from models.schemas import TestResponse, TokenData
+from utils.auth import get_current_user
+from core.firebase_config import FirebaseConfig
 
 router = APIRouter(prefix="/test", tags=["test"])
 
-@router.get("/database")
-async def test_database():
-    """Test database connection"""
-    result = await db_service.test_connection()
-    return result
+@router.get("/", response_model=TestResponse)
+async def test_endpoint():
+    """Basic test endpoint"""
+    return TestResponse(
+        message="Secura API is running with Firebase-only auth!",
+        status="success",
+        timestamp=datetime.now()
+    )
 
-@router.post("/initialize")
-async def initialize_database():
-    """Initialize all required collections"""
-    result = await db_service.initialize_collections()
-    return {"message": "Database initialization completed", "results": result}
-
-@router.get("/imagekit")
-async def test_imagekit():
-    """Test ImageKit service"""
+@router.get("/firebase")
+async def test_firebase():
+    """Test Firebase connection"""
     try:
-        token_result = imagekit_service.get_upload_token()
-        return {"status": "success", "imagekit_configured": True, "token_generated": "token" in token_result}
+        db = FirebaseConfig.get_firestore()
+        
+        if db:
+            # Test writing to Firestore
+            test_doc = {
+                'test': True,
+                'timestamp': datetime.now(),
+                'message': 'Firebase connection successful'
+            }
+            
+            # Write test document
+            db.collection('test').document('connection_test').set(test_doc)
+            
+            return {
+                "status": "success",
+                "message": "Firebase connected and Firestore working",
+                "timestamp": datetime.now()
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Firebase connection failed",
+                "timestamp": datetime.now()
+            }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error",
+            "message": f"Firebase error: {str(e)}",
+            "timestamp": datetime.now()
+        }
+
+@router.get("/auth")
+async def test_auth(current_user: TokenData = Depends(get_current_user)):
+    """Test authentication with Firebase ID token"""
+    return {
+        "message": "Authentication successful!",
+        "user": {
+            "uid": current_user.uid,
+            "email": current_user.email,
+            "role": current_user.role
+        },
+        "timestamp": datetime.now()
+    }

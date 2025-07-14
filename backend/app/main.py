@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from api import test  # Import test router
 import os
+import sys
+
+# Add the parent directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from api import test  # Import test router
 
 # Load environment variables
 load_dotenv()

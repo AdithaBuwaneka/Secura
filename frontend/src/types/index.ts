@@ -1,5 +1,14 @@
+// Firebase User (from Firebase Auth)
+export interface FirebaseUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  emailVerified: boolean;
+}
+
+// Our User Profile (stored in Firestore)
 export interface User {
-  id: string;
+  uid: string;  // Firebase UID
   email: string;
   full_name: string;
   role: 'employee' | 'security_team' | 'executive' | 'admin';
@@ -10,6 +19,14 @@ export interface User {
   is_active: boolean;
 }
 
+// Auth Context State
+export interface AuthState {
+  user: FirebaseUser | null;
+  userProfile: User | null;
+  loading: boolean;
+  idToken: string | null;
+}
+
 export interface Incident {
   id: string;
   incident_type: 'malware' | 'phishing' | 'data_breach' | 'unauthorized_access' | 'social_engineering' | 'physical_security';
@@ -17,7 +34,7 @@ export interface Incident {
   description: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'investigating' | 'resolved' | 'closed';
-  reporter_id: string;
+  reporter_uid: string;  // Firebase UID instead of reporter_id
   assigned_to?: string;
   ai_category?: string;
   ai_confidence?: number;
@@ -35,7 +52,7 @@ export interface Incident {
 export interface Message {
   id: string;
   incident_id: string;
-  sender_id: string;
+  sender_uid: string;  // Firebase UID
   sender_name: string;
   content: string;
   message_type: 'text' | 'file' | 'system';

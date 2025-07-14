@@ -48,11 +48,10 @@ Secura follows a modern **client-server architecture** with four distinct tiers:
 ### Backend
 - **API:** Python FastAPI
 - **Database:** Google Firestore
-- **Authentication:** Firebase Auth
-- **File Storage:** Firebase Cloud Storage
-- **Email Service:** SendGrid API
-- **Caching:** Redis
-- **Real-time:** WebSocket
+- **Authentication:** Firebase Auth (ID Token verification)
+- **File Storage:** ImageKit (for incident attachments)
+- **Email Service:** SendGrid API (optional)
+- **Real-time:** WebSocket support
 
 ### AI/ML
 - **NLP:** Custom trained models
@@ -61,8 +60,8 @@ Secura follows a modern **client-server architecture** with four distinct tiers:
 - **Text Processing:** Natural Language Understanding
 
 ### Security
-- **Encryption:** Crypto.js + TLS/HTTPS
-- **Authentication:** JWT + Multi-Factor Authentication
+- **Encryption:** TLS/HTTPS
+- **Authentication:** Firebase Auth with ID Token verification
 - **Authorization:** Role-Based Access Control (RBAC)
 - **Audit:** Comprehensive logging system
 
@@ -98,10 +97,10 @@ secura/
 
 ### Prerequisites
 
-- Node.js 18+ and npm/yarn
-- Python 3.9+
-- Firebase project setup
-- SendGrid account for email services
+- **Node.js 18+** (for frontend)
+- **Python 3.8+** (for backend) - Recommended: Python 3.10 or higher
+- **Firebase Account** (for authentication and database)
+- **Git** (for version control)
 
 ### Installation
 
@@ -123,12 +122,17 @@ secura/
 3. **Setup Backend**
    ```bash
    cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   
+   # Install Python dependencies
    pip install -r requirements.txt
+   
+   # Configure environment variables
    cp .env.example .env
-   # Configure your environment variables
-   uvicorn app.main:app --reload
+   # Edit .env with your Firebase and other service credentials
+   
+   # Run the backend server
+   python run.py
+   # Or from VS Code: Run the "Start Backend Server" task
    ```
 
 4. **Configure Firebase**
