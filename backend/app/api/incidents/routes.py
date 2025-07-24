@@ -16,7 +16,7 @@ from app.services.incidents.file_service import FileService
 from app.utils.auth import get_current_user
 from app.models.user import User
 
-router = APIRouter(prefix="/incidents", tags=["Incident Management"])
+router = APIRouter(tags=["Incident Management"])
 
 # WebSocket connection manager for real-time updates
 class ConnectionManager:

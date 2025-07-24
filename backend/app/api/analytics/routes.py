@@ -13,7 +13,7 @@ from app.services.analytics.analytics_service import AnalyticsService
 from app.services.notifications.notification_service import NotificationService
 from app.utils.auth import get_current_user
 
-router = APIRouter(prefix="/analytics", tags=["Analytics & Infrastructure"])
+router = APIRouter(tags=["Analytics & Infrastructure"])
 
 class DashboardMetrics(BaseModel):
     total_incidents: int

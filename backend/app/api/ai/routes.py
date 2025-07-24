@@ -12,7 +12,7 @@ from app.services.ai.ai_service import AIService
 from app.utils.auth import get_current_user
 from app.models.user import User
 
-router = APIRouter(prefix="/ai", tags=["AI Engine"])
+router = APIRouter(tags=["AI Engine"])
 
 class IncidentAnalysisRequest(BaseModel):
     title: str

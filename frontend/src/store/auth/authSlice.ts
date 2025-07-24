@@ -41,7 +41,7 @@ export const registerUser = createAsyncThunk(
       const idToken = await userCredential.user.getIdToken();
       
       // 3. Create user profile in backend
-      const response = await fetch(`${API_URL}/users/register`, {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ export const loginUser = createAsyncThunk(
       const idToken = await userCredential.user.getIdToken();
       
       // 3. Get user profile from backend
-      const response = await fetch(`${API_URL}/users/profile`, {
+      const response = await fetch(`${API_URL}/api/auth/profile`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
@@ -139,7 +139,7 @@ export const verifyToken = createAsyncThunk(
   'auth/verifyToken',
   async (idToken: string, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_URL}/users/verify-token`, {
+      const response = await fetch(`${API_URL}/api/auth/verify-token`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }

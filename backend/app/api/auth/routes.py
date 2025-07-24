@@ -14,7 +14,7 @@ from app.services.auth.auth_service import AuthService
 from app.services.database import DatabaseService
 from app.utils.auth import get_current_user
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(tags=["Authentication"])
 security = HTTPBearer()
 
 @router.post("/register")
