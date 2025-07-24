@@ -82,7 +82,7 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
     }
 
     try {
-      const wsUrl = `${WS_URL}/api/messaging/ws/global?token=${idToken}&user_id=${userProfile?.uid}`;
+      const wsUrl = `${WS_URL}/api/messaging/ws/general?token=${idToken}&user_id=${userProfile?.uid}`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {

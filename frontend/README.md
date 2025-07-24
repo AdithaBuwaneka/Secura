@@ -6,6 +6,7 @@ This is the Next.js frontend for the Secura cybersecurity incident reporting pla
 
 - **User Authentication**: Complete Firebase Auth integration with registration and login
 - **Protected Routes**: Role-based access control (Employee, Security Team, Admin)
+- **Security Applications**: Complete workflow for employees to apply for security team membership
 - **Incident Management**: Comprehensive incident reporting system with file attachments
 - **Real-time Messaging**: WebSocket-based secure communication for incident updates
 - **Analytics Dashboard**: Chart.js visualizations with role-based data access
@@ -94,11 +95,12 @@ The application will be available at `http://localhost:3000`
 
 ### Protected Pages
 - **Dashboard (/dashboard)**: Role-based dashboard interface
-  - **Employee Dashboard**: Incident reporting and personal incident history
+  - **Employee Dashboard**: Incident reporting, security application submission, and personal incident history
   - **Security Team Dashboard**: All incidents management, analytics, and messaging
-  - **Admin Dashboard**: Full system management, user administration, and analytics
-  - Protected route requiring authentication
-  - Role-based component rendering and feature access
+  - **Admin Dashboard**: Full system management, user administration, security application reviews, and analytics
+- **Security Applications**:
+  - **Apply (/applications/apply)**: Employee application form for security team membership
+  - **Status (/applications/status)**: Application status tracking and history
 
 ### Authentication Flow
 1. **Registration**: Users create account with Firebase Auth + backend profile creation (automatic employee role)
@@ -107,6 +109,38 @@ The application will be available at `http://localhost:3000`
 4. **Role Management**: Support for Employee, Security Team, Admin roles
 5. **Token Management**: Automatic Firebase ID token refresh and validation
 6. **Security Team Application**: Employees can apply to join security team through dedicated application system
+
+## 3-Tier Role System
+
+### 1. Employee Role (Default)
+- **Access**: Personal incident reporting, application submission
+- **Features**: 
+  - Submit security incidents with file attachments
+  - View own incident history and status
+  - Apply to join security team with proof documents
+  - Track application status and admin feedback
+- **Restrictions**: Cannot view other users' incidents or access admin functions
+
+### 2. Security Team Role
+- **Access**: All incidents, analytics, messaging, AI tools
+- **Features**:
+  - View and manage all security incidents
+  - Access analytics dashboards and reports
+  - Use AI-powered threat analysis tools
+  - Real-time messaging and incident collaboration
+  - Assign and prioritize incidents
+- **Responsibilities**: Investigate incidents, provide security expertise
+
+### 3. Admin Role
+- **Access**: Full system administration
+- **Features**:
+  - All Security Team features plus:
+  - User management and role assignment
+  - Security application review and approval
+  - Executive analytics and compliance reports
+  - System configuration and settings
+  - Audit logs and system monitoring
+- **Responsibilities**: System oversight, user management, compliance
 
 ## Architecture
 
@@ -126,6 +160,11 @@ The application will be available at `http://localhost:3000`
 ```
 src/
 ├── app/                     # Next.js App Router pages
+│   ├── applications/       # Security application pages
+│   │   ├── apply/         # Application submission form
+│   │   │   └── page.tsx
+│   │   └── status/        # Application status tracking
+│   │       └── page.tsx
 │   ├── auth/               # Authentication pages
 │   │   ├── login/         # Login page
 │   │   │   └── page.tsx
@@ -141,12 +180,17 @@ src/
 │   │   ├── AnalyticsDashboard.tsx
 │   │   ├── IncidentMetrics.tsx
 │   │   └── SecurityReports.tsx
+│   ├── applications/      # Security application components
+│   │   ├── AdminApplicationReview.tsx
+│   │   ├── ApplicationStatus.tsx
+│   │   └── SecurityApplicationForm.tsx
 │   ├── dashboards/        # Role-based dashboard components
 │   │   ├── AdminDashboard.tsx
 │   │   ├── EmployeeDashboard.tsx
 │   │   └── SecurityTeamDashboard.tsx
 │   ├── forms/             # Form components
-│   │   └── IncidentReportForm.tsx
+│   │   ├── IncidentReportForm.tsx
+│   │   └── SecurityApplicationForm.tsx
 │   ├── messaging/         # Real-time messaging system
 │   │   ├── MessagingProvider.tsx
 │   │   ├── MessageThread.tsx
@@ -157,9 +201,11 @@ src/
 │   ├── firebase.ts       # Firebase Auth and Firestore config
 │   └── imagekit.ts       # ImageKit configuration
 ├── store/                # Redux Toolkit store
-│   ├── index.ts          # Store configuration
-│   └── auth/             # Authentication state slice
-│       └── authSlice.ts  # Auth actions and reducers
+│   ├── applications/     # Security applications state
+│   │   └── applicationSlice.ts
+│   ├── auth/             # Authentication state slice
+│   │   └── authSlice.ts  # Auth actions and reducers
+│   └── index.ts          # Store configuration
 └── types/                # TypeScript type definitions
     └── index.ts          # Shared interfaces and types
 ```
@@ -223,8 +269,9 @@ src/
 ✅ **Toast Notifications**: Fixed TypeScript compatibility with react-hot-toast  
 ✅ **Project Cleanup**: Removed unnecessary files and empty directories for cleaner structure  
 ✅ **Registration System**: Updated to remove role selection, automatic employee assignment  
-✅ **Security Applications**: Implemented application system for security team membership  
+✅ **Security Applications**: Implemented complete application system for security team membership  
 ✅ **Type Definitions**: Updated user types to remove executive role and department field
+✅ **Complete Integration**: All frontend components integrated with backend APIs
 
 ## Troubleshooting
 
@@ -307,6 +354,7 @@ After starting the development server:
 - **Analytics Dashboard**: ✅ Chart.js visualization with backend data integration
 - **Role-Based Access**: ✅ Employee/Security/Admin dashboards working
 - **API Endpoints**: ✅ All frontend-backend integrations tested and verified
+- **Security Applications**: ✅ Complete workflow from submission to admin approval
 
 ### Module Integration Test Results
 ✅ **Authentication Module**: Firebase Auth + Backend profile sync working  
@@ -314,6 +362,7 @@ After starting the development server:
 ✅ **Messaging Module**: WebSocket connections + real-time notifications  
 ✅ **Analytics Module**: Data visualization + role-based access control  
 ✅ **Dashboard Modules**: Role-specific interfaces + protected route access  
+✅ **Security Applications Module**: Complete application workflow + admin review system  
 ✅ **API Communication**: All endpoints corrected and functional  
 
 **Ready for feature development and production deployment!** 🚀

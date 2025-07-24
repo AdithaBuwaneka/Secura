@@ -7,7 +7,7 @@ import { RootState } from '@/store';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('employee' | 'security_team' | 'executive' | 'admin')[];
+  allowedRoles?: ('employee' | 'security_team' | 'admin')[];
   redirectTo?: string;
 }
 

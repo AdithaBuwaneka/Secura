@@ -73,15 +73,15 @@ async def create_admin_user():
         
         await auth_service.create_user_profile(admin_user)
         
-        print("✅ Default admin user created successfully!")
+        print("SUCCESS: Default admin user created successfully!")
         print(f"Email: {ADMIN_EMAIL}")
         print(f"Password: {ADMIN_PASSWORD}")
         print(f"UID: {firebase_user.uid}")
         print()
-        print("⚠️  IMPORTANT: Change the default password after first login!")
+        print("IMPORTANT: Change the default password after first login!")
         
     except Exception as e:
-        print(f"❌ Error creating admin user: {str(e)}")
+        print(f"ERROR creating admin user: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
