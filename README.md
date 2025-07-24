@@ -19,7 +19,7 @@ cd Secura
 ```bash
 cd backend
 pip install -r requirements.txt
-python scripts/create_admin.py
+# Note: Admin user already exists, no need to run create_admin.py
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
