@@ -16,7 +16,6 @@ class TestResponse(BaseResponse):
 class UserRole(str, Enum):
     EMPLOYEE = "employee"
     SECURITY_TEAM = "security_team"
-    EXECUTIVE = "executive"
     ADMIN = "admin"
 
 class IncidentType(str, Enum):
