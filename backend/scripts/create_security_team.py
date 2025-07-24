@@ -65,11 +65,11 @@ async def create_security_team_user(user_data):
                 display_name=full_name,
                 email_verified=True
             )
-            print(f"  ✓ Firebase user created with UID: {firebase_user.uid}")
+            print(f"  [SUCCESS] Firebase user created with UID: {firebase_user.uid}")
         except auth.EmailAlreadyExistsError:
             # If user already exists, get existing user
             firebase_user = auth.get_user_by_email(email)
-            print(f"  ⚠ Firebase user already exists with UID: {firebase_user.uid}")
+            print(f"  [INFO] Firebase user already exists with UID: {firebase_user.uid}")
         
         # Create user profile in Firestore
         auth_service = AuthService()
@@ -77,7 +77,7 @@ async def create_security_team_user(user_data):
         # Check if user profile already exists
         existing_user = await auth_service.get_user_profile(firebase_user.uid)
         if existing_user:
-            print(f"  ⚠ User profile already exists in database")
+            print(f"  [INFO] User profile already exists in database")
             return existing_user
         
         # Create new security team member profile
@@ -91,12 +91,12 @@ async def create_security_team_user(user_data):
         )
         
         await auth_service.create_user_profile(security_user)
-        print(f"  ✓ Security team user profile created successfully")
+        print(f"  [SUCCESS] Security team user profile created successfully")
         
         return security_user
         
     except Exception as e:
-        print(f"  ✗ ERROR creating security team user {email}: {str(e)}")
+        print(f"  [ERROR] creating security team user {email}: {str(e)}")
         return None
 
 async def create_all_security_team_users():
