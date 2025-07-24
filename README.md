@@ -1,24 +1,31 @@
-# 🛡️ Secura - AI-Powered Cyber Incident Reporting Platform
+# 🛡️ Secura - AI-Powered Security Incident Management Platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
-[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://python.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-9.0+-orange)](https://firebase.google.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://python.org/)
+[![Firebase](https://img.shields.io/badge/Firebase-11.0+-orange)](https://firebase.google.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green)](https://fastapi.tiangolo.com/)
 
-> **Hacktivate '25 Competition Entry** - Transforming cybersecurity incident management through AI-powered intelligence and user-centric design.
+> **Hacktivate '25 Competition Entry** - Transforming security incident management through AI-powered intelligence and real-time collaboration.
 
 ## 🚀 Overview
 
-Secura is a comprehensive, AI-powered cyber incident reporting platform designed to revolutionize how organizations handle cybersecurity incidents. Built as a Progressive Web Application (PWA), Secura transforms traditional incident reporting from fragmented, manual processes into an intelligent, streamlined system that reduces response times by 75% and improves accuracy by 90%.
+Secura is a comprehensive, AI-powered security incident management platform designed to revolutionize how organizations handle cybersecurity incidents. Built as a Progressive Web Application (PWA), Secura transforms traditional incident reporting from fragmented, manual processes into an intelligent, streamlined system that reduces response times by 75% and improves accuracy by 90%.
 
-### ✨ Key Features
+### 👥 User Roles
 
-- **🤖 AI-Powered Analysis** - Automatic incident categorization, severity assessment, and mitigation recommendations
-- **⚡ Real-Time Communication** - Instant notifications, secure messaging, and collaborative incident response
-- **📊 Smart Dashboards** - Role-based interfaces for employees, security teams, and executives
-- **📱 Mobile-First Design** - Progressive Web App with offline capabilities
-- **🔒 Enterprise Security** - End-to-end encryption, MFA, and comprehensive audit trails
-- **🔗 Seamless Integration** - APIs for SIEM systems, vulnerability scanners, and enterprise tools
+- **👤 EMPLOYEE** - "Report incidents easily" - Submit incidents, upload evidence, track status
+- **🛡️ SECURITY TEAM** - "Investigate and resolve incidents" - Analyze threats, manage investigations  
+- **🔑 ADMIN** - "Manage system and users" - System configuration, user management, compliance
+
+### ✨ Core Features
+
+- **🤖 AI-Powered Incident Analysis** - Automatic categorization, severity assessment, and mitigation suggestions
+- **⚡ Real-Time Collaboration** - WebSocket-based live updates and secure messaging
+- **📊 Role-Based Dashboards** - Specialized interfaces for each user type
+- **📱 Progressive Web App** - Offline incident reporting with auto-sync capabilities
+- **🔒 Enterprise Security** - Firebase Auth with ID tokens, end-to-end encryption
+- **🔗 Enterprise Integration** - SIEM systems, vulnerability scanners, and compliance tools
 
 ## 🏗️ Architecture
 
@@ -37,59 +44,84 @@ Secura follows a modern **client-server architecture** with four distinct tiers:
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Framework:** Next.js 14 with TypeScript
-- **UI Library:** React 18 with Concurrent Features
+### Frontend (Garuka - PWA Development)
+- **Framework:** Next.js 15 with TypeScript
+- **UI Library:** React 19 with Concurrent Features
 - **Styling:** Tailwind CSS
 - **State Management:** Redux Toolkit
-- **Charts:** Chart.js
-- **PWA:** Service Workers
+- **Charts:** Chart.js for analytics visualization
+- **Icons:** Lucide React
+- **File Upload:** ImageKit React
+- **PWA:** Service Workers for offline capabilities
 
-### Backend
-- **API:** Python FastAPI
-- **Database:** Google Firestore
-- **Authentication:** Firebase Auth (ID Token verification)
-- **File Storage:** ImageKit (for incident attachments)
-- **Email Service:** SendGrid API (optional)
-- **Real-time:** WebSocket support
+### Backend (Aditha - Authentication & Security)
+- **API:** FastAPI with automatic documentation
+- **Database:** Firebase Firestore for real-time data
+- **Authentication:** Firebase Admin SDK (ID Token verification ONLY)
+- **File Storage:** ImageKit.io with virus scanning
+- **Email Service:** SendGrid API for notifications
+- **Real-time:** WebSockets for live updates
 
-### AI/ML
-- **NLP:** Custom trained models
+### AI Engine (Rithara - Threat Intelligence)
+- **NLP:** Scikit-learn, Transformers
 - **Pattern Recognition:** Machine Learning algorithms
 - **Predictive Analytics:** Time-series analysis
 - **Text Processing:** Natural Language Understanding
+- **API Integration:** FastAPI endpoints
 
-### Security
-- **Encryption:** TLS/HTTPS
-- **Authentication:** Firebase Auth with ID Token verification
-- **Authorization:** Role-Based Access Control (RBAC)
-- **Audit:** Comprehensive logging system
+### Incident Management (Jayasanka - Real-time Communication)
+- **WebSocket:** Real-time bidirectional communication
+- **Messaging:** End-to-end encryption
+- **File Handling:** ImageKit integration with 10MB limits
+- **Status Tracking:** Real-time incident lifecycle management
+
+### Analytics & Infrastructure (Pramudi - Enterprise Integration)
+- **Visualization:** Chart.js with drill-down capabilities
+- **Notifications:** Firebase Cloud Messaging
+- **Email:** SendGrid for professional notifications
+- **Monitoring:** Comprehensive logging and audit trails
+- **Integration:** SIEM systems and enterprise APIs
 
 ## 📁 Project Structure
 
 ```
 secura/
-├── frontend/                 # Next.js PWA Application
-│   ├── components/          # Reusable UI components
-│   ├── pages/              # Next.js pages and API routes
-│   ├── hooks/              # Custom React hooks
-│   ├── store/              # Redux store configuration
-│   ├── styles/             # Global styles and Tailwind config
-│   └── utils/              # Utility functions
-├── backend/                 # Python FastAPI Backend
-│   ├── app/                # Main application directory
-│   │   ├── api/            # API endpoints
-│   │   ├── core/           # Core configuration
-│   │   ├── models/         # Data models
-│   │   ├── services/       # Business logic
-│   │   └── utils/          # Utility functions
-│   ├── ai_engine/          # AI/ML processing modules
-│   └── tests/              # Backend tests
-├── docs/                   # Documentation and design files
-│   ├── api/                # API documentation
-│   ├── architecture/       # System architecture diagrams
-│   └── ui-mockups/         # UI/UX design files
-├── deployment/             # Deployment configurations
+├── frontend/                    # Next.js PWA Application (Garuka)
+│   ├── src/
+│   │   ├── app/                # Next.js 15 App Router
+│   │   │   ├── auth/           # Authentication pages
+│   │   │   ├── dashboard/      # Role-based dashboards
+│   │   │   ├── incidents/      # Incident management
+│   │   │   └── analytics/      # Data visualization
+│   │   ├── components/         # Reusable UI components
+│   │   │   ├── dashboards/     # Dashboard components
+│   │   │   ├── forms/          # Smart adaptive forms
+│   │   │   └── common/         # Shared components
+│   │   ├── store/              # Redux Toolkit store
+│   │   │   ├── auth/           # Authentication state
+│   │   │   ├── incidents/      # Incident management
+│   │   │   └── analytics/      # Analytics data
+│   │   ├── lib/                # Configuration files
+│   │   └── types/              # TypeScript definitions
+├── backend/                     # Python FastAPI Backend
+│   ├── app/
+│   │   ├── api/                # API endpoints by module
+│   │   │   ├── auth/           # Authentication (Aditha)
+│   │   │   ├── incidents/      # Incident management (Jayasanka)
+│   │   │   ├── ai/             # AI engine endpoints (Rithara)
+│   │   │   └── analytics/      # Analytics APIs (Pramudi)
+│   │   ├── core/               # Core configuration
+│   │   │   ├── firebase_config.py  # Firebase setup
+│   │   │   └── security.py     # Security middleware
+│   │   ├── models/             # Pydantic models
+│   │   ├── services/           # Business logic
+│   │   │   ├── auth_service.py # Firebase Auth integration
+│   │   │   ├── ai_service.py   # AI processing
+│   │   │   └── notification_service.py # SendGrid/FCM
+│   │   └── utils/              # Utility functions
+├── docs/                       # Documentation
+│   ├── architecture/           # System diagrams
+│   └── ui-mockups/            # Design files
 └── README.md
 ```
 
@@ -260,15 +292,31 @@ pytest --cov=app tests/
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🏆 Team
+## 🏆 Team & Responsibilities
 
-**Team QuantumX** - Hacktivate '25 Participants
+**Team Secura** - Hacktivate '25 Participants
 
-- **👑 Team Leader:** Aditha Buwaneka - Team Leader & Full Stack Developer 
-- **🤖 AI/ML Engineer:** Vishwa Jayasanka - Machine Learning & Backend Development
-- **🎨 UI/UX Designer:** Garuka Satharasinghe - Design & User Experience Lead
-- **🔒 Security Expert:** Rithara Kithmanthie - Cybersecurity & System Architecture
-- **💻 Frontend Developer:** Pramudi Piyumika - React/Next.js & PWA Development
+### Core Team Members
+
+- **👑 Aditha Buwaneka** - *Authentication & Security Infrastructure*
+  - Firebase Auth integration, role-based access control, API security
+  - User management, password security, enterprise authentication
+
+- **🎨 Garuka Satharasinghe** - *Frontend Developer & Progressive Web App*
+  - User dashboards, smart adaptive forms, PWA offline capabilities
+  - Real-time UI updates, geolocation integration, cross-platform compatibility
+
+- **🤖 Rithara Kithmanthie** - *AI Engine & Threat Intelligence*
+  - Incident categorization, severity assessment, mitigation strategies
+  - Pattern recognition, predictive analytics, anomaly detection
+
+- **🔧 Jayasanka Vishwa** - *Incident Management & Real-time Communication*
+  - Incident CRUD operations, secure messaging, status tracking
+  - WebSocket integration, team collaboration, advanced workflow
+
+- **📊 Pramudi Piyumika** - *Analytics, Infrastructure & Enterprise Integration*
+  - Data visualization, executive dashboards, email notifications
+  - SIEM integration, compliance reporting, performance monitoring
 
 *A passionate team of computer science students committed to revolutionizing cybersecurity through innovative technology solutions.*
 

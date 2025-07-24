@@ -5,9 +5,12 @@ import os
 import sys
 
 # Add the parent directory to Python path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from api import test, users  # Import both routers
+from api.auth import routes as auth_routes
+from api.incidents import routes as incident_routes
+from api.ai import routes as ai_routes
+from api.analytics import routes as analytics_routes
 
 # Load environment variables
 load_dotenv()
@@ -28,8 +31,10 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(test.router)
-app.include_router(users.router)  # Add users router
+app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(incident_routes.router, prefix="/api/incidents", tags=["Incidents"])
+app.include_router(ai_routes.router, prefix="/api/ai", tags=["AI"])
+app.include_router(analytics_routes.router, prefix="/api/analytics", tags=["Analytics"])
 
 @app.get("/")
 async def root():

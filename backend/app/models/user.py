@@ -1,7 +1,18 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from .common import UserRole
+
+class User(BaseModel):
+    uid: str
+    email: EmailStr
+    full_name: str
+    role: UserRole
+    department: Optional[str] = None
+    phone_number: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
+    is_active: bool = True
 
 class UserProfile(BaseModel):
     uid: str
@@ -28,5 +39,5 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
 
 class UserListResponse(BaseModel):
-    users: list[UserProfile]
+    users: List[UserProfile]
     total: int

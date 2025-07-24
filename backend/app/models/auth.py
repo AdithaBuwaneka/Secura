@@ -1,4 +1,6 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
+from datetime import datetime
 from .common import UserRole
 
 class TokenData(BaseModel):
@@ -6,8 +8,22 @@ class TokenData(BaseModel):
     email: str
     role: UserRole
 
-class LoginRequest(BaseModel):
+class UserRegistration(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    department: Optional[str] = None
+
+class UserLogin(BaseModel):
     id_token: str  # Firebase ID token from frontend
+
+class UserProfile(BaseModel):
+    full_name: Optional[str] = None
+    department: Optional[str] = None
+    phone_number: Optional[str] = None
+
+class TokenVerification(BaseModel):
+    id_token: str
 
 class AuthResponse(BaseModel):
     message: str

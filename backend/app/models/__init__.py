@@ -6,12 +6,12 @@ from .common import (
 
 # Auth models
 from .auth import (
-    TokenData, LoginRequest, AuthResponse, TokenVerificationResponse
+    TokenData, UserLogin, AuthResponse, TokenVerificationResponse, UserRegistration, UserProfile, TokenVerification
 )
 
 # User models
 from .user import (
-    UserProfile, UserCreate, UserUpdate, UserListResponse
+    User, UserProfile, UserCreate, UserUpdate, UserListResponse
 )
 
 # Incident models
@@ -22,12 +22,12 @@ from .incident import (
 
 # Message models
 from .message import (
-    MessageCreate, MessageUpdate, MessageResponse, MessageListResponse
+    Message, MessageCreate, MessageUpdate, MessageResponse, MessageListResponse
 )
 
 # File models
 from .file import (
-    FileUploadResponse, FileMetadata, UploadTokenResponse
+    FileAttachment, FileUploadResponse, FileMetadata, UploadTokenResponse
 )
 
 __all__ = [
@@ -36,18 +36,18 @@ __all__ = [
     "IncidentSeverity", "IncidentStatus", "MessageType",
     
     # Auth
-    "TokenData", "LoginRequest", "AuthResponse", "TokenVerificationResponse",
+    "TokenData", "UserLogin", "AuthResponse", "TokenVerificationResponse", "UserRegistration", "UserProfile", "TokenVerification",
     
     # User
-    "UserProfile", "UserCreate", "UserUpdate", "UserListResponse",
+    "User", "UserProfile", "UserCreate", "UserUpdate", "UserListResponse",
     
     # Incident
     "IncidentLocation", "IncidentBase", "IncidentCreate", "IncidentUpdate",
     "IncidentResponse", "IncidentListResponse", "IncidentStats",
     
     # Message
-    "MessageCreate", "MessageUpdate", "MessageResponse", "MessageListResponse",
+    "Message", "MessageCreate", "MessageUpdate", "MessageResponse", "MessageListResponse",
     
     # File
-    "FileUploadResponse", "FileMetadata", "UploadTokenResponse"
+    "FileAttachment", "FileUploadResponse", "FileMetadata", "UploadTokenResponse"
 ]
