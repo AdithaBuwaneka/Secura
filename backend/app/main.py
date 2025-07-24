@@ -27,13 +27,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware for frontend connection
+# IMPORTANT: Add CORS middleware FIRST, before any other middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Include routers
@@ -54,4 +55,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    # Using reload=True will restart the server automatically when code changes
+    # Using host="0.0.0.0" allows external connections
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
