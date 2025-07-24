@@ -118,23 +118,42 @@ ENVIRONMENT=development
 
 ### 4. Running the Backend
 
-#### Option 1: Using VS Code Task (Recommended)
-Use the "Start Backend Server" task in VS Code for optimal development experience.
+#### Option 1: Using uvicorn (Recommended)
+```bash
+cd backend
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
 #### Option 2: Direct execution
 ```bash
-# Navigate to the app directory
-cd backend/app
-python main.py
+# Navigate to the backend directory
+cd backend
+python -m uvicorn app.main:app --reload
 ```
 
-#### Option 3: Using uvicorn
+#### Option 3: Using the startup script
 ```bash
-cd backend/app
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+# On Windows
+cd backend
+start.bat
+
+# Or using Python
+cd backend
+python run.py
 ```
 
 The server will start on `http://127.0.0.1:8000`
+
+#### Verify Server is Running
+```bash
+# Test basic health check
+curl http://127.0.0.1:8000/health
+# Expected response: {"status":"healthy","service":"Secura Backend"}
+
+# Test API status
+curl http://127.0.0.1:8000/
+# Expected response: {"message":"Secura API is running!","status":"healthy"}
+```
 
 ## 🔌 API Endpoints
 

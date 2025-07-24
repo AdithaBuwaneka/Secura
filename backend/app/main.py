@@ -7,10 +7,10 @@ import sys
 # Add the parent directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from api.auth import routes as auth_routes
-from api.incidents import routes as incident_routes
-from api.ai import routes as ai_routes
-from api.analytics import routes as analytics_routes
+from app.api.auth import routes as auth_routes
+from app.api.incidents import routes as incident_routes
+from app.api.ai import routes as ai_routes
+from app.api.analytics import routes as analytics_routes
 
 # Load environment variables
 load_dotenv()
