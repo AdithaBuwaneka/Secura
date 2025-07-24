@@ -11,18 +11,12 @@ import originalToast from 'react-hot-toast';
 
 // Debug wrapper for toast
 const toast = {
-  success: (message: any, options?: any) => {
+  success: (message: string, options?: Parameters<typeof originalToast.success>[1]) => {
     console.log('REGISTER PAGE TOAST SUCCESS:', message, typeof message);
-    if (typeof message === 'object') {
-      console.log('REGISTER PAGE TOAST SUCCESS OBJECT:', message);
-    }
     return originalToast.success(message, options);
   },
-  error: (message: any, options?: any) => {
+  error: (message: string, options?: Parameters<typeof originalToast.error>[1]) => {
     console.log('REGISTER PAGE TOAST ERROR:', message, typeof message);
-    if (typeof message === 'object') {
-      console.log('REGISTER PAGE TOAST ERROR OBJECT:', message);
-    }
     return originalToast.error(message, options);
   }
 };
@@ -102,12 +96,18 @@ export default function RegisterPage() {
         errorMessage = error;
       } else if (error && typeof error === 'object') {
         // Redux Toolkit rejection values are often nested
-        if (error.message) {
-          errorMessage = error.message;
-        } else if (error.payload) {
-          errorMessage = typeof error.payload === 'string' ? error.payload : 'Registration failed';
-        } else if (error.error && error.error.message) {
-          errorMessage = error.error.message;
+        const errorObj = error as { 
+          message?: string; 
+          payload?: string | object; 
+          error?: { message?: string } 
+        };
+        
+        if (errorObj.message) {
+          errorMessage = errorObj.message;
+        } else if (errorObj.payload) {
+          errorMessage = typeof errorObj.payload === 'string' ? errorObj.payload : 'Registration failed';
+        } else if (errorObj.error && errorObj.error.message) {
+          errorMessage = errorObj.error.message;
         } else {
           errorMessage = 'Registration failed. Please try again.';
         }

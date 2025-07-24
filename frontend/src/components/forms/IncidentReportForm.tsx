@@ -384,6 +384,7 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
                   <div key={index} className="flex items-center justify-between p-3 bg-[#1A1D23] rounded-lg border border-gray-700">
                     <div className="flex items-center space-x-3">
                       {file.type.startsWith('image/') ? (
+                        // eslint-disable-next-line jsx-a11y/alt-text
                         <Image className="h-4 w-4 text-blue-400" />
                       ) : (
                         <FileText className="h-4 w-4 text-gray-400" />

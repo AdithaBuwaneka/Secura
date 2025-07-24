@@ -163,7 +163,7 @@ export default function Home() {
               Built for Every Role
             </h3>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              Tailored experiences that empower every team member to contribute to your organization's security
+              Tailored experiences that empower every team member to contribute to your organization&apos;s security
             </p>
           </div>
           
@@ -261,7 +261,7 @@ export default function Home() {
               Ready to Transform Your Security?
             </h3>
             <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Join thousands of organizations already protecting their digital assets with Secura's intelligent security platform.
+              Join thousands of organizations already protecting their digital assets with Secura&apos;s intelligent security platform.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-6">
               <Link href="/auth/register" className="group bg-gradient-to-r from-[#00D4FF] to-[#0EA5E9] hover:from-[#0EA5E9] hover:to-[#3B82F6] px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 shadow-2xl hover:shadow-[#00D4FF]/30 hover:scale-105 flex items-center justify-center">

@@ -27,6 +27,58 @@ interface IncidentMetricsProps {
   timeRange?: string;
 }
 
+// Mock data for development
+const mockMetrics: MetricCard[] = [
+  {
+    title: 'Total Incidents',
+    value: 167,
+    change: '+12% from last month',
+    trend: 'up',
+    icon: Activity,
+    color: 'blue'
+  },
+  {
+    title: 'Resolution Rate',
+    value: '85%',
+    change: '+5% improvement',
+    trend: 'up',
+    icon: CheckCircle,
+    color: 'green'
+  },
+  {
+    title: 'Avg Response Time',
+    value: '3.2h',
+    change: '-0.5h improvement',
+    trend: 'up',
+    icon: Clock,
+    color: 'orange'
+  },
+  {
+    title: 'Critical Incidents',
+    value: 8,
+    change: '-2 from last month',
+    trend: 'up',
+    icon: AlertTriangle,
+    color: 'red'
+  },
+  {
+    title: 'Active Analysts',
+    value: 6,
+    change: '+1 team member',
+    trend: 'up',
+    icon: Users,
+    color: 'purple'
+  },
+  {
+    title: 'Threat Level',
+    value: 'Medium',
+    change: 'Stable',
+    trend: 'neutral',
+    icon: Shield,
+    color: 'yellow'
+  }
+];
+
 export default function IncidentMetrics({ timeRange = '30d' }: IncidentMetricsProps) {
   const { idToken } = useSelector((state: RootState) => state.auth);
   const [metrics, setMetrics] = useState<MetricCard[]>([]);
@@ -113,57 +165,6 @@ export default function IncidentMetrics({ timeRange = '30d' }: IncidentMetricsPr
       }
     ];
   };
-
-  const mockMetrics: MetricCard[] = [
-    {
-      title: 'Total Incidents',
-      value: 167,
-      change: '+12% from last month',
-      trend: 'up',
-      icon: Activity,
-      color: 'blue'
-    },
-    {
-      title: 'Resolution Rate',
-      value: '85%',
-      change: '+5% improvement',
-      trend: 'up',
-      icon: CheckCircle,
-      color: 'green'
-    },
-    {
-      title: 'Avg Response Time',
-      value: '3.2h',
-      change: '-0.5h improvement',
-      trend: 'up',
-      icon: Clock,
-      color: 'orange'
-    },
-    {
-      title: 'Critical Incidents',
-      value: 8,
-      change: '-2 from last month',
-      trend: 'up',
-      icon: AlertTriangle,
-      color: 'red'
-    },
-    {
-      title: 'Active Analysts',
-      value: 6,
-      change: '+1 team member',
-      trend: 'up',
-      icon: Users,
-      color: 'purple'
-    },
-    {
-      title: 'Threat Level',
-      value: 'Medium',
-      change: 'Stable',
-      trend: 'neutral',
-      icon: Shield,
-      color: 'yellow'
-    }
-  ];
 
   const getColorClasses = (color: string) => {
     const colors = {

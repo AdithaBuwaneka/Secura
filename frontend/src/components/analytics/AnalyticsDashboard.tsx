@@ -68,6 +68,32 @@ interface AnalyticsData {
   };
 }
 
+// Mock data for development
+const mockAnalyticsData: AnalyticsData = {
+  incident_trends: {
+    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+    data: [23, 45, 32, 67]
+  },
+  severity_distribution: {
+    labels: ['Critical', 'High', 'Medium', 'Low'],
+    data: [8, 25, 42, 33]
+  },
+  response_times: {
+    labels: ['Critical', 'High', 'Medium', 'Low'],
+    data: [0.5, 2.1, 4.3, 8.7]
+  },
+  team_performance: {
+    labels: ['Alex Chen', 'Sarah Kim', 'Mike Johnson', 'Emma Wilson', 'David Lee'],
+    data: [34, 28, 31, 25, 29]
+  },
+  monthly_summary: {
+    total_incidents: 167,
+    resolved_incidents: 142,
+    avg_response_time: 3.8,
+    critical_incidents: 8
+  }
+};
+
 export default function AnalyticsDashboard(): React.JSX.Element {
   const { idToken } = useSelector((state: RootState) => state.auth);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -106,32 +132,6 @@ export default function AnalyticsDashboard(): React.JSX.Element {
   useEffect(() => {
     loadAnalyticsData();
   }, [loadAnalyticsData]);
-
-  // Mock data for development
-  const mockAnalyticsData: AnalyticsData = {
-    incident_trends: {
-      labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-      data: [23, 45, 32, 67]
-    },
-    severity_distribution: {
-      labels: ['Critical', 'High', 'Medium', 'Low'],
-      data: [8, 25, 42, 33]
-    },
-    response_times: {
-      labels: ['Critical', 'High', 'Medium', 'Low'],
-      data: [0.5, 2.1, 4.3, 8.7]
-    },
-    team_performance: {
-      labels: ['Alex Chen', 'Sarah Kim', 'Mike Johnson', 'Emma Wilson', 'David Lee'],
-      data: [34, 28, 31, 25, 29]
-    },
-    monthly_summary: {
-      total_incidents: 167,
-      resolved_incidents: 142,
-      avg_response_time: 3.8,
-      critical_incidents: 8
-    }
-  };
 
   const chartOptions = {
     responsive: true,

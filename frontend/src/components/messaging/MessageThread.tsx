@@ -360,6 +360,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
               <div key={index} className="flex items-center justify-between p-2 bg-[#1A1D23] rounded">
                 <div className="flex items-center space-x-2">
                   {file.type.startsWith('image/') ? (
+                    // eslint-disable-next-line jsx-a11y/alt-text
                     <Image className="h-4 w-4 text-blue-400" />
                   ) : (
                     <FileText className="h-4 w-4 text-gray-400" />

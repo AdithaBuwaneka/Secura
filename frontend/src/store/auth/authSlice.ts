@@ -103,7 +103,8 @@ export const registerUser = createAsyncThunk(
       } else if (typeof error === 'string') {
         return rejectWithValue(error);
       } else if (error && typeof error === 'object') {
-        return rejectWithValue(error.message || error.detail || 'Registration failed. Please try again.');
+        const errorObj = error as { message?: string; detail?: string };
+        return rejectWithValue(errorObj.message || errorObj.detail || 'Registration failed. Please try again.');
       } else {
         return rejectWithValue('Registration failed. Please try again.');
       }
@@ -216,7 +217,7 @@ const authSlice = createSlice({
     setIdToken: (state, action: PayloadAction<string | null>) => {
       state.idToken = action.payload;
     },
-    setUserProfile: (state, action: PayloadAction<any>) => {
+    setUserProfile: (state, action: PayloadAction<AuthState['userProfile']>) => {
       state.userProfile = action.payload;
     },
     clearAuth: (state) => {

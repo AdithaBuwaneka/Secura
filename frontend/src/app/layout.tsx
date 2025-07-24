@@ -18,30 +18,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Debug toast calls
-if (typeof window !== 'undefined') {
-  const originalToast = require('react-hot-toast').default;
-  const originalError = originalToast.error;
-  const originalSuccess = originalToast.success;
-  
-  originalToast.error = function(message: any, options?: any) {
-    console.log('TOAST ERROR CALLED WITH:', message, typeof message);
-    if (typeof message === 'object') {
-      console.log('TOAST ERROR OBJECT KEYS:', Object.keys(message));
-      console.log('TOAST ERROR OBJECT:', message);
-    }
-    return originalError.call(this, message, options);
-  };
-  
-  originalToast.success = function(message: any, options?: any) {
-    console.log('TOAST SUCCESS CALLED WITH:', message, typeof message);
-    if (typeof message === 'object') {
-      console.log('TOAST SUCCESS OBJECT:', message);
-    }
-    return originalSuccess.call(this, message, options);
-  };
-}
-
 export default function RootLayout({
   children,
 }: {
