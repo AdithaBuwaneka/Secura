@@ -62,9 +62,14 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
         break;
         
       case 'system_message':
-        toast.success(data.message as string, {
-          duration: 4000,
-        });
+        console.log('MessagingProvider showing system message toast:', data.message, typeof data.message);
+        if (typeof data.message === 'string') {
+          toast.success(data.message, {
+            duration: 4000,
+          });
+        } else {
+          console.log('System message is not a string, skipping toast');
+        }
         break;
         
       case 'unread_count':
@@ -119,8 +124,24 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('Global messaging WebSocket error:', error);
+        // TEMP: Remove console.error to test if it's causing the toast
+        console.log('Global messaging WebSocket error (not using console.error):', error);
+        console.log('WebSocket error object:', error);
+        console.log('WebSocket error type:', typeof error);
+        console.log('WebSocket error stack trace:', new Error().stack);
         setIsConnected(false);
+        
+        // Prevent this error from being passed to any toast
+        // by not allowing it to bubble or be caught elsewhere
+        if (error instanceof Event) {
+          error.preventDefault?.();
+          error.stopPropagation?.();
+        }
+        
+        // Check if anything is calling toast with this error
+        setTimeout(() => {
+          console.log('Checking if this error caused a toast...');
+        }, 100);
       };
     } catch (error) {
       console.error('Failed to initialize global messaging WebSocket:', error);

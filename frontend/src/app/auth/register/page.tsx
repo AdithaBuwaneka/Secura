@@ -7,7 +7,25 @@ import { Eye, EyeOff, Shield, Mail, Lock, User, Phone } from 'lucide-react';
 import { registerUser, clearError } from '@/store/auth/authSlice';
 import { RootState, AppDispatch } from '@/store';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
+import originalToast from 'react-hot-toast';
+
+// Debug wrapper for toast
+const toast = {
+  success: (message: any, options?: any) => {
+    console.log('REGISTER PAGE TOAST SUCCESS:', message, typeof message);
+    if (typeof message === 'object') {
+      console.log('REGISTER PAGE TOAST SUCCESS OBJECT:', message);
+    }
+    return originalToast.success(message, options);
+  },
+  error: (message: any, options?: any) => {
+    console.log('REGISTER PAGE TOAST ERROR:', message, typeof message);
+    if (typeof message === 'object') {
+      console.log('REGISTER PAGE TOAST ERROR OBJECT:', message);
+    }
+    return originalToast.error(message, options);
+  }
+};
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +54,8 @@ export default function RegisterPage() {
     e.preventDefault();
     dispatch(clearError());
     
+    console.log('Starting registration...');
+    
     // Validation
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
@@ -47,18 +67,55 @@ export default function RegisterPage() {
       return;
     }
     
-    try {
-      await dispatch(registerUser({
-        email: formData.email,
-        password: formData.password,
-        fullName: formData.fullName,
-        phoneNumber: formData.phoneNumber || undefined
-      })).unwrap();
-      
+    const result = await dispatch(registerUser({
+      email: formData.email,
+      password: formData.password,
+      fullName: formData.fullName,
+      phoneNumber: formData.phoneNumber || undefined
+    }));
+    
+    if (registerUser.fulfilled.match(result)) {
+      console.log('Registration successful, showing success toast');
       toast.success('Account created successfully!');
+      // Clear any residual errors
+      dispatch(clearError());
       router.push('/dashboard');
-    } catch (error) {
-      toast.error(error as string);
+    } else {
+      const error = result.payload;
+      console.log('Registration error type:', typeof error);
+      console.log('Registration error:', error);
+      console.log('Registration error keys:', error ? Object.keys(error) : 'no keys');
+      
+      // Only show error toast if registration actually failed
+      // Check if user was created despite the error
+      if (isAuthenticated) {
+        console.log('User is authenticated despite error - treating as success');
+        toast.success('Account created successfully!');
+        router.push('/dashboard');
+        return;
+      }
+      
+      // Handle Redux Toolkit rejection value
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        // Redux Toolkit rejection values are often nested
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.payload) {
+          errorMessage = typeof error.payload === 'string' ? error.payload : 'Registration failed';
+        } else if (error.error && error.error.message) {
+          errorMessage = error.error.message;
+        } else {
+          errorMessage = 'Registration failed. Please try again.';
+        }
+      }
+      
+      console.log('Final error message:', errorMessage);
+      console.log('About to show error toast with:', errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -211,7 +268,9 @@ export default function RegisterPage() {
             {/* Error Message */}
             {error && (
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-                <p className="text-red-400 text-sm">{error}</p>
+                <p className="text-red-400 text-sm">
+                  {typeof error === 'string' ? error : 'An error occurred during registration'}
+                </p>
               </div>
             )}
 

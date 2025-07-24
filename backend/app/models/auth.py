@@ -25,6 +25,12 @@ class UserLogin(BaseModel):
     """Model for user login with Firebase ID token"""
     id_token: str  # Firebase ID token from frontend
 
+class UserProfileCreate(BaseModel):
+    """Model for creating user profile"""
+    email: EmailStr
+    full_name: str
+    phone_number: Optional[str] = None
+
 class UserProfile(BaseModel):
     """Model for updating user profile"""
     full_name: str

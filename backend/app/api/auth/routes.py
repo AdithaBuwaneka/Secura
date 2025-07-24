@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth
 from typing import Optional
 
-from app.models.auth import UserRegistration, UserLogin, UserProfile, TokenVerification
+from app.models.auth import UserRegistration, UserLogin, UserProfile, UserProfileCreate, TokenVerification
 from app.models.user import User
 from app.models.common import UserRole
 from app.services.auth.auth_service import AuthService
@@ -17,6 +17,78 @@ from app.utils.auth import get_current_user
 
 router = APIRouter(tags=["Authentication"])
 security = HTTPBearer()
+
+@router.post("/create-profile")
+async def create_profile_for_existing_user(
+    profile_data: UserProfileCreate,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    auth_service: AuthService = Depends()
+):
+    """
+    Create user profile for existing Firebase Auth user
+    This fixes the issue where users are created in Firebase Auth but not in Firestore
+    """
+    print(f"DEBUG: Received profile data: {profile_data}")
+    print(f"DEBUG: Profile data type: {type(profile_data)}")
+    try:
+        # Verify Firebase ID token
+        decoded_token = auth.verify_id_token(credentials.credentials)
+        if not decoded_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+        
+        uid = decoded_token['uid']
+        email = decoded_token.get('email')
+        
+        # Check if profile already exists
+        existing_profile = await auth_service.get_user_profile(uid)
+        if existing_profile:
+            return {
+                "message": "User profile already exists",
+                "uid": uid,
+                "email": email
+            }
+        
+        # Create user profile in Firestore
+        user_profile = User(
+            uid=uid,
+            email=email or profile_data.email,
+            full_name=profile_data.full_name,
+            phone_number=profile_data.phone_number,
+            role=UserRole.EMPLOYEE,  # Default role
+            is_active=True
+        )
+        
+        await auth_service.create_user_profile(user_profile)
+        
+        return {
+            "message": "User profile created successfully",
+            "uid": uid,
+            "email": email or profile_data.email
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Profile creation failed: {str(e)}"
+        )
+
+@router.get("/register-format")
+async def get_register_format():
+    """
+    Get the expected format for registration request
+    """
+    return {
+        "server_status": "UPDATED - Code changes loaded successfully",
+        "expected_format": {
+            "email": "user@example.com",
+            "full_name": "John Doe", 
+            "phone_number": "+1234567890"  # Optional - NO PASSWORD REQUIRED
+        },
+        "note": "phone_number is optional, password NOT required for create-profile"
+    }
 
 @router.post("/register")
 async def register_user(
@@ -30,12 +102,18 @@ async def register_user(
     - Assigns default employee role
     """
     try:
+        print(f"DEBUG: Registration request received for email: {user_data.email}")
+        print(f"DEBUG: Full name: {user_data.full_name}")
+        print(f"DEBUG: Phone: {user_data.phone_number}")
+        
         # Create Firebase user
         firebase_user = auth.create_user(
             email=user_data.email,
             password=user_data.password,
             display_name=user_data.full_name
         )
+        
+        print(f"DEBUG: Firebase user created with UID: {firebase_user.uid}")
         
         # Create user profile in Firestore
         user_profile = User(
@@ -48,6 +126,7 @@ async def register_user(
         )
         
         await auth_service.create_user_profile(user_profile)
+        print(f"DEBUG: User profile created in Firestore")
         
         return {
             "message": "User registered successfully",
@@ -56,11 +135,13 @@ async def register_user(
         }
         
     except auth.EmailAlreadyExistsError:
+        print(f"DEBUG: Email already exists: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already exists"
         )
     except Exception as e:
+        print(f"DEBUG: Registration error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}"
