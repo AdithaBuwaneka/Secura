@@ -1,148 +1,49 @@
 # Secura Frontend
 
-This is the Next.js frontend for the Secura cybersecurity incident reporting platform, built with React, TypeScript, and Tailwind CSS.
+A modern Next.js frontend for the Secura cybersecurity incident reporting platform, built with React, TypeScript, and Tailwind CSS.
 
-## Features
+## 🚀 Quick Start
 
-- **User Authentication**: Complete Firebase Auth integration with registration and login
-- **Protected Routes**: Role-based access control (Employee, Security Team, Admin)
-- **Security Applications**: Complete workflow for employees to apply for security team membership
-- **Incident Management**: Comprehensive incident reporting system with file attachments
-- **Real-time Messaging**: WebSocket-based secure communication for incident updates
-- **Analytics Dashboard**: Chart.js visualizations with role-based data access
-- **Role-Based Dashboards**: Specialized interfaces for different user roles
-- **State Management**: Redux Toolkit with async thunks for API calls
-- **Responsive Design**: Mobile-first responsive UI with Tailwind CSS
-- **File Uploads**: ImageKit integration for secure file handling
-- **Real-time Updates**: Firebase Auth state synchronization and WebSocket messaging
-- **Error Handling**: Comprehensive error states and user feedback
-- **Code Quality**: ESLint, TypeScript strict mode, and modern development practices
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-## Setup Instructions
+2. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-### 1. Prerequisites
-- **Node.js 18+** (Recommended: Node.js 20 or higher)
-- **npm** or **yarn** package manager
+3. **Open browser**
+   ```
+   http://localhost:3000
+   ```
 
-### 2. Install Dependencies
-```bash
-npm install
-# or
-yarn install
-```
+## 🔐 Test Credentials
 
-### 3. Environment Configuration
-Create a `.env.local` file in the frontend root directory with the following environment variables:
+### Admin Account
+- **Email:** `admin@secura.com`
+- **Password:** `SecuraAdmin123!`
 
-```env
-# Firebase Configuration (Frontend)
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+### Security Team Account
+- **Email:** `security.lead@secura.com`
+- **Password:** `SecuraSecLead123!`
 
-# ImageKit Configuration (Frontend)
-NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/your_imagekit_id
-NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
+### Employee Account
+- Register new account at `/auth/register` (automatically assigned employee role)
 
-# Backend API URL
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+## 🎯 Features
 
-# Environment
-NEXT_PUBLIC_ENVIRONMENT=development
-```
+- **🔐 Authentication**: Firebase Auth with role-based access control
+- **📊 Role-Based Dashboards**: Employee, Security Team, and Admin interfaces
+- **🚨 Incident Reporting**: Complete incident management with file uploads
+- **💬 Real-time Messaging**: WebSocket-based secure communication
+- **📈 Analytics**: Chart.js visualizations with role-based data access
+- **👥 Security Applications**: Employee-to-security team application system  
+- **🛡️ Protected Routes**: Role-based access control throughout the app
+- **📱 Responsive Design**: Mobile-first design with Tailwind CSS
 
-**Note**: The `.env.local` file is already configured for development. Only update the Firebase and ImageKit credentials if needed for your specific project setup.
-
-### 4. Running the Frontend
-
-#### Option 1: Development mode with Turbopack (Recommended)
-```bash
-npm run dev
-```
-This will start the development server with Turbopack for faster builds and hot reload.
-
-#### Option 2: Standard development mode
-```bash
-npm run dev -- --no-turbopack
-```
-
-#### Option 3: Production build and start
-```bash
-npm run build
-npm run start
-```
-
-The application will be available at `http://localhost:3000`
-
-**Backend Dependency**: Ensure the backend server is running on `http://127.0.0.1:8000` for full functionality.
-
-## Available Scripts
-
-- `npm run dev` - Start development server with Turbopack (recommended)
-- `npm run build` - Build the application for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint for code quality checks (all issues fixed ✅)
-
-## Application Pages
-
-### Public Pages
-- **Home (/)**: Professional Secura landing page with features and role descriptions
-- **Login (/auth/login)**: User authentication with Firebase Auth
-- **Register (/auth/register)**: New user registration (automatic employee role assignment)
-
-### Protected Pages
-- **Dashboard (/dashboard)**: Role-based dashboard interface
-  - **Employee Dashboard**: Incident reporting, security application submission, and personal incident history
-  - **Security Team Dashboard**: All incidents management, analytics, and messaging
-  - **Admin Dashboard**: Full system management, user administration, security application reviews, and analytics
-- **Security Applications**:
-  - **Apply (/applications/apply)**: Employee application form for security team membership
-  - **Status (/applications/status)**: Application status tracking and history
-
-### Authentication Flow
-1. **Registration**: Users create account with Firebase Auth + backend profile creation (automatic employee role)
-2. **Login**: Firebase authentication + backend profile retrieval
-3. **Protected Access**: Automatic redirect to login if not authenticated
-4. **Role Management**: Support for Employee, Security Team, Admin roles
-5. **Token Management**: Automatic Firebase ID token refresh and validation
-6. **Security Team Application**: Employees can apply to join security team through dedicated application system
-
-## 3-Tier Role System
-
-### 1. Employee Role (Default)
-- **Access**: Personal incident reporting, application submission
-- **Features**: 
-  - Submit security incidents with file attachments
-  - View own incident history and status
-  - Apply to join security team with proof documents
-  - Track application status and admin feedback
-- **Restrictions**: Cannot view other users' incidents or access admin functions
-
-### 2. Security Team Role
-- **Access**: All incidents, analytics, messaging, AI tools
-- **Features**:
-  - View and manage all security incidents
-  - Access analytics dashboards and reports
-  - Use AI-powered threat analysis tools
-  - Real-time messaging and incident collaboration
-  - Assign and prioritize incidents
-- **Responsibilities**: Investigate incidents, provide security expertise
-
-### 3. Admin Role
-- **Access**: Full system administration
-- **Features**:
-  - All Security Team features plus:
-  - User management and role assignment
-  - Security application review and approval
-  - Executive analytics and compliance reports
-  - System configuration and settings
-  - Audit logs and system monitoring
-- **Responsibilities**: System oversight, user management, compliance
-
-## Architecture
+## 🏗️ Architecture
 
 - **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
@@ -153,216 +54,137 @@ The application will be available at `http://localhost:3000`
 - **File Storage**: ImageKit
 - **Charts**: Chart.js with React Chart.js 2
 - **Icons**: Lucide React
-- **Build Tool**: Turbopack (development)
+- **Build Tool**: Turbopack
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 src/
 ├── app/                     # Next.js App Router pages
 │   ├── applications/       # Security application pages
-│   │   ├── apply/         # Application submission form
-│   │   │   └── page.tsx
-│   │   └── status/        # Application status tracking
-│   │       └── page.tsx
 │   ├── auth/               # Authentication pages
-│   │   ├── login/         # Login page
-│   │   │   └── page.tsx
-│   │   └── register/      # Registration page
-│   │       └── page.tsx
 │   ├── dashboard/         # Protected dashboard
-│   │   └── page.tsx
-│   ├── globals.css        # Global styles and Tailwind CSS
-│   ├── layout.tsx         # Root layout with providers
-│   └── page.tsx          # Landing/home page
+│   └── page.tsx          # Landing page
 ├── components/            # Reusable React components
-│   ├── analytics/         # Data visualization components
-│   │   ├── AnalyticsDashboard.tsx
-│   │   ├── IncidentMetrics.tsx
-│   │   └── SecurityReports.tsx
-│   ├── applications/      # Security application components
-│   │   ├── AdminApplicationReview.tsx
-│   │   ├── ApplicationStatus.tsx
-│   │   └── SecurityApplicationForm.tsx
-│   ├── dashboards/        # Role-based dashboard components
-│   │   ├── AdminDashboard.tsx
-│   │   ├── EmployeeDashboard.tsx
-│   │   └── SecurityTeamDashboard.tsx
+│   ├── analytics/         # Data visualization
+│   ├── applications/      # Security applications
+│   ├── dashboards/        # Role-based dashboards
 │   ├── forms/             # Form components
-│   │   ├── IncidentReportForm.tsx
-│   │   └── SecurityApplicationForm.tsx
-│   ├── messaging/         # Real-time messaging system
-│   │   ├── MessagingProvider.tsx
-│   │   ├── MessageThread.tsx
-│   │   └── SecurityMessaging.tsx
-│   ├── AuthProvider.tsx  # Firebase auth state provider
-│   └── ProtectedRoute.tsx # Route protection component
-├── lib/                  # Configuration and utilities
-│   ├── firebase.ts       # Firebase Auth and Firestore config
-│   └── imagekit.ts       # ImageKit configuration
+│   └── messaging/         # Real-time messaging
+├── lib/                  # Configuration
 ├── store/                # Redux Toolkit store
-│   ├── applications/     # Security applications state
-│   │   └── applicationSlice.ts
-│   ├── auth/             # Authentication state slice
-│   │   └── authSlice.ts  # Auth actions and reducers
-│   └── index.ts          # Store configuration
-└── types/                # TypeScript type definitions
-    └── index.ts          # Shared interfaces and types
+└── types/                # TypeScript definitions
 ```
 
-## Dependencies
+## 🌐 Pages & Routes
 
-### Core Dependencies
-- **Next.js 15.3.5**: React framework with App Router and Turbopack
-- **React 19**: Latest UI library with concurrent features
-- **TypeScript 5**: Type-safe JavaScript development
-- **Firebase 11.10.0**: Authentication and Firestore database
-- **ImageKit React 4.3.0**: File upload and image management
-- **Redux Toolkit 2.8.2**: Modern state management
-- **Chart.js 4.5.0**: Data visualization and analytics
-- **Tailwind CSS 3.4.17**: Utility-first CSS framework
-- **Lucide React 0.525.0**: Modern icon library
+### Public Pages
+- **Home (/)**: Landing page with features overview
+- **Login (/auth/login)**: User authentication
+- **Register (/auth/register)**: New user registration
 
-### Development Dependencies
-- **ESLint 9**: Code linting and quality assurance
-- **Autoprefixer 10.4.21**: CSS vendor prefixes
-- **PostCSS 8.5.6**: CSS processing and transformation
+### Protected Pages (Role-Based)
+- **Dashboard (/dashboard)**: Role-specific dashboard
+- **Security Applications (/applications/*)**: Application system
 
-## Browser Support
+## 👤 Role System
 
-- **Chrome 90+** (Recommended)
-- **Firefox 90+**
-- **Safari 14+**
-- **Edge 90+**
+### 1. Employee (Default)
+- Submit security incidents
+- Apply for security team membership
+- View personal incident history
 
-## Development Notes
+### 2. Security Team
+- Manage all security incidents
+- Access analytics and AI tools
+- Real-time messaging and collaboration
 
-1. **Backend Communication**: Frontend is configured to communicate with backend API at `http://127.0.0.1:8000`
-2. **Firebase Integration**: Both authentication and Firestore database are properly configured
-3. **ImageKit Storage**: All file uploads and image processing handled by ImageKit service
-4. **Turbopack**: Enabled by default for faster development builds (can be disabled with `--no-turbopack`)
-5. **Hot Reload**: Automatic page refresh on file changes with Fast Refresh support
-6. **TypeScript**: Strict mode enabled for better type safety
-7. **State Management**: Redux Toolkit configured for scalable state management
-8. **Responsive Design**: Mobile-first approach with Tailwind CSS breakpoints
-9. **Environment Variables**: All public environment variables prefixed with `NEXT_PUBLIC_`
-10. **CORS**: Backend configured to accept requests from `http://localhost:3000`
+### 3. Admin
+- Full system administration
+- User management and role assignment
+- Security application review and approval
+- Executive analytics and compliance
 
-## Recent Fixes & Improvements
+## 📝 Available Scripts
 
-✅ **Fixed ESLint Issues**: Removed unused imports and fixed unescaped HTML entities  
-✅ **Fixed TypeScript Types**: Replaced `any` types with proper error handling patterns  
-✅ **Fixed Layout Import**: Removed unused `Metadata` import from client-side component  
-✅ **Enhanced Auth System**: Complete Firebase Auth integration with backend profile sync  
-✅ **Added Protected Routes**: Role-based access control with ProtectedRoute component  
-✅ **Improved Error Handling**: Proper error states and user feedback throughout the app  
-✅ **Redux Integration**: Full state management with async thunks for API calls  
-✅ **Code Quality**: Zero ESLint warnings, strict TypeScript configuration  
-✅ **Environment Setup**: Proper configuration for development and production  
-✅ **Backend Integration**: Seamless communication with Secura backend API  
-✅ **Incident Management**: Complete incident reporting system with file uploads  
-✅ **Real-time Messaging**: WebSocket-based secure communication system  
-✅ **Analytics Dashboard**: Chart.js integration with comprehensive data visualization  
-✅ **Role-Based Dashboards**: Specialized interfaces for Employee/Security/Admin roles  
-✅ **API Endpoint Fixes**: Corrected all frontend-backend API integration endpoints  
-✅ **WebSocket Security**: Properly secured real-time messaging with authentication  
-✅ **Toast Notifications**: Fixed TypeScript compatibility with react-hot-toast  
-✅ **Project Cleanup**: Removed unnecessary files and empty directories for cleaner structure  
-✅ **Registration System**: Updated to remove role selection, automatic employee assignment  
-✅ **Security Applications**: Implemented complete application system for security team membership  
-✅ **Type Definitions**: Updated user types to remove executive role and department field
-✅ **Complete Integration**: All frontend components integrated with backend APIs
+- `npm run dev` - Start development server with Turbopack
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 
-## Troubleshooting
+## 🔧 Environment Setup
+
+Create `.env.local` file:
+
+```env
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+
+# ImageKit Configuration
+NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/your_id
+NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY=your_public_key
+
+# Backend API
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+```
+
+## 🛠️ Dependencies
+
+### Core
+- Next.js 15.3.5
+- React 19
+- TypeScript 5
+- Firebase 11.10.0
+- Redux Toolkit 2.8.2
+- Tailwind CSS 3.4.17
+
+### Development
+- ESLint 9
+- Turbopack (built-in)
+
+## 🌐 Browser Support
+
+- Chrome 90+
+- Firefox 90+
+- Safari 14+
+- Edge 90+
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Module not found errors**
-   - **Solution**: Run `npm install` to ensure all dependencies are installed
-   - **Check**: Verify `node_modules` directory exists
+1. **Module not found**
+   ```bash
+   npm install
+   ```
 
 2. **Environment variables not loading**
-   - **Solution**: Ensure `.env.local` file exists in the frontend root directory
-   - **Check**: All environment variables must start with `NEXT_PUBLIC_` for client-side access
+   - Check `.env.local` exists
+   - Ensure variables start with `NEXT_PUBLIC_`
 
-3. **Build fails with permission errors**
-   - **Cause**: File system permissions or concurrent processes
-   - **Solution**: Close dev server before building, clear `.next` cache if needed
+3. **Backend connection fails**
+   - Ensure backend runs on `http://127.0.0.1:8000`
+   - Check `NEXT_PUBLIC_API_URL` in `.env.local`
 
-4. **Backend API connection fails**
-   - **Solution**: Ensure backend server is running on `http://127.0.0.1:8000`
-   - **Check**: Verify `NEXT_PUBLIC_API_URL` in `.env.local` matches backend URL
+4. **Authentication issues**
+   - Verify Firebase configuration
+   - Check browser console for errors
 
-5. **Turbopack build issues**
-   - **Solution**: Use standard mode: `npm run dev -- --no-turbopack`
-   - **Alternative**: Clear cache and restart
+## ✅ Status
 
-6. **Authentication not working**
-   - **Check**: Firebase configuration in `.env.local`
-   - **Verify**: Backend Firebase credentials match frontend project
-   - **Debug**: Check browser console and network tab for API errors
-
-7. **ESLint errors during development**
-   - **Status**: All ESLint issues have been fixed ✅
-   - **Solution**: Run `npm run lint` to verify (should show no errors)
-
-### Verification Steps
-
-After starting the development server:
-
-1. **Check Terminal Output**: Look for "Ready in [time]" message
-2. **Browser Access**: Navigate to `http://localhost:3000`
-3. **Authentication Test**: 
-   - Visit `/auth/login` to test login page
-   - Visit `/auth/register` to test registration
-   - Try accessing `/dashboard` (should redirect to login if not authenticated)
-4. **Hot Reload**: Make a change to any file to see if page updates automatically
-5. **Network Tab**: Check if backend API calls are successful (F12 → Network)
-6. **Console Errors**: Check browser console for any JavaScript errors (should be clean ✅)
-7. **ESLint Check**: Run `npm run lint` (should show no warnings or errors ✅)
-
-### Performance Tips
-
-- Use Turbopack for faster development builds (enabled by default)
-- Enable Next.js Fast Refresh for instant feedback
-- Use browser dev tools to monitor performance
-- Check Redux DevTools extension for state debugging
-- Monitor Network tab for API performance
-
-## Current Status: ✅ FULLY OPERATIONAL
-
-- **Development Server**: ✅ Running on `http://localhost:3000`
-- **Build System**: ✅ Next.js 15 with Turbopack enabled
-- **Hot Reload**: ✅ Functional with Fast Refresh
-- **TypeScript**: ✅ Strict mode, zero compilation errors
-- **ESLint**: ✅ Zero warnings or errors
-- **Environment**: ✅ Variables loaded correctly
-- **Authentication**: ✅ Firebase Auth integration working
-- **State Management**: ✅ Redux Toolkit configured and operational
+- **Development**: ✅ Fully operational
+- **Authentication**: ✅ Firebase Auth working
+- **State Management**: ✅ Redux configured
 - **Backend Integration**: ✅ API communication functional
-- **Protected Routes**: ✅ Role-based access control working
-- **Code Quality**: ✅ Production-ready codebase
+- **Role-Based Access**: ✅ All dashboards working
+- **Code Quality**: ✅ Zero ESLint errors
+- **TypeScript**: ✅ Strict mode enabled
 
-### Integration Status
-- **Frontend ↔ Backend**: ✅ Communication established
-- **Firebase Auth**: ✅ User authentication working
-- **Firestore**: ✅ Database connection ready
-- **ImageKit**: ✅ File upload service configured
-- **Redux Store**: ✅ State management operational
-- **Incident Management**: ✅ Complete CRUD operations with backend
-- **Real-time Messaging**: ✅ WebSocket communication secured and functional
-- **Analytics Dashboard**: ✅ Chart.js visualization with backend data integration
-- **Role-Based Access**: ✅ Employee/Security/Admin dashboards working
-- **API Endpoints**: ✅ All frontend-backend integrations tested and verified
-- **Security Applications**: ✅ Complete workflow from submission to admin approval
+## 🚀 Ready for Development!
 
-### Module Integration Test Results
-✅ **Authentication Module**: Firebase Auth + Backend profile sync working  
-✅ **Incident Reporting Module**: Form submission + file uploads + backend storage  
-✅ **Messaging Module**: WebSocket connections + real-time notifications  
-✅ **Analytics Module**: Data visualization + role-based access control  
-✅ **Dashboard Modules**: Role-specific interfaces + protected route access  
-✅ **Security Applications Module**: Complete application workflow + admin review system  
-✅ **API Communication**: All endpoints corrected and functional  
-
-**Ready for feature development and production deployment!** 🚀
+The frontend is fully configured and integrated with the backend. All authentication flows, role-based dashboards, and API integrations are working correctly.
