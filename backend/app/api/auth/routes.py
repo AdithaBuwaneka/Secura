@@ -9,7 +9,8 @@ from firebase_admin import auth
 from typing import Optional
 
 from app.models.auth import UserRegistration, UserLogin, UserProfile, TokenVerification
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.common import UserRole
 from app.services.auth.auth_service import AuthService
 from app.services.database import DatabaseService
 from app.utils.auth import get_current_user
@@ -41,7 +42,7 @@ async def register_user(
             uid=firebase_user.uid,
             email=user_data.email,
             full_name=user_data.full_name,
-            department=user_data.department,
+            phone_number=user_data.phone_number,
             role=UserRole.EMPLOYEE,  # Default role
             is_active=True
         )
@@ -91,7 +92,6 @@ async def verify_token(
             "uid": uid,
             "email": decoded_token.get('email'),
             "role": user_profile.role,
-            "department": user_profile.department,
             "is_active": user_profile.is_active
         }
         
@@ -117,7 +117,7 @@ async def get_user_profile(
         "uid": current_user.uid,
         "email": current_user.email,
         "full_name": current_user.full_name,
-        "department": current_user.department,
+        "phone_number": current_user.phone_number,
         "role": current_user.role,
         "created_at": current_user.created_at,
         "last_login": current_user.last_login

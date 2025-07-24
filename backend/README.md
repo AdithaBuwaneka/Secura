@@ -10,10 +10,11 @@ This is the FastAPI backend for the Secura cybersecurity incident reporting plat
 
 **🔐 Authentication System (Aditha's Module)**
 - Firebase ID token authentication (NO custom JWT)
-- Role-based access control (Employee, Security Team, Admin)
-- User registration, login, and profile management
-- Admin security team member management
-- Department-based user organization
+- Role-based access control (Employee, Security Team, Admin)  
+- User registration with automatic employee role assignment
+- Security team application and approval system
+- Admin user management and role elevation
+- Removed department field for simplified user structure
 
 **📋 Incident Management (Jayasanka's Module)**
 - Full CRUD operations for security incidents
@@ -116,7 +117,22 @@ FROM_EMAIL=noreply@your-domain.com
 ENVIRONMENT=development
 ```
 
-### 4. Running the Backend
+### 4. Create Default Admin User
+After setting up the environment, create the default admin user:
+
+```bash
+cd backend
+python scripts/create_admin.py
+```
+
+This creates an admin user with:
+- **Email**: `admin@secura.com`
+- **Password**: `SecuraAdmin123!`
+- **Role**: Admin
+
+⚠️ **Important**: Change the default password after first login!
+
+### 5. Running the Backend
 
 #### Option 1: Using uvicorn (Recommended)
 ```bash
@@ -158,12 +174,19 @@ curl http://127.0.0.1:8000/
 ## 🔌 API Endpoints
 
 ### Authentication Endpoints (`/api/auth`)
-- `POST /api/auth/register` - Register new user account
+- `POST /api/auth/register` - Register new user account (automatic employee role)
 - `POST /api/auth/verify-token` - Verify Firebase ID token
 - `GET /api/auth/profile` - Get current user profile
 - `PUT /api/auth/profile` - Update user profile
 - `POST /api/auth/admin/manage-security-team` - Add/remove security team members (Admin only)
 - `GET /api/auth/admin/users` - List all users (Admin only)
+
+### Security Applications Endpoints (`/api/security-applications`)
+- `POST /api/security-applications/apply` - Submit security team application
+- `GET /api/security-applications/my-applications` - Get user's applications
+- `GET /api/security-applications/admin/pending` - Get pending applications (Admin only)
+- `PUT /api/security-applications/admin/review/{id}` - Review application (Admin only)
+- `GET /api/security-applications/can-apply` - Check if user can apply
 
 ### Incident Management Endpoints (`/api/incidents`)
 - `POST /api/incidents/` - Create new security incident
@@ -203,6 +226,7 @@ curl http://127.0.0.1:8000/
 - Upload evidence files (10MB max)
 - Communicate with security team via secure messaging
 - Track personal incident status
+- Apply to join security team with supporting documentation
 - Access offline reporting via PWA
 
 ### 🛡️ SECURITY TEAM
@@ -212,15 +236,17 @@ curl http://127.0.0.1:8000/
 - Assign incident priorities and team members
 - Access threat intelligence and predictive analytics
 - Manage incident investigation workflows
+- Must be approved by admin from employee applications
 
 ### 🔑 ADMIN
 **"Manage system and users"**
-- Add/remove security team members
+- Review and approve security team applications
+- Add/remove security team members directly
 - Configure system settings and policies
 - View executive dashboards with KPI monitoring
 - Generate compliance reports (GDPR, HIPAA, SOX)
-- Manage user permissions and departments
-- Access comprehensive audit trails
+- Manage user permissions and role assignments
+- Access comprehensive audit trails and user management
 
 ## 🏗️ Project Structure
 
@@ -231,6 +257,8 @@ backend/
 │   ├── api/                        # API route modules
 │   │   ├── auth/
 │   │   │   └── routes.py          # Authentication endpoints
+│   │   ├── security_applications/
+│   │   │   └── routes.py          # Security team application endpoints
 │   │   ├── incidents/
 │   │   │   └── routes.py          # Incident management endpoints
 │   │   ├── ai/
@@ -242,6 +270,7 @@ backend/
 │   ├── models/                     # Pydantic data models
 │   │   ├── auth.py                # Authentication models
 │   │   ├── user.py                # User profile models
+│   │   ├── security_application.py # Security team application models
 │   │   ├── incident.py            # Incident reporting models
 │   │   ├── message.py             # Messaging system models
 │   │   ├── file.py                # File upload models
@@ -249,6 +278,7 @@ backend/
 │   ├── services/                   # Business logic services
 │   │   ├── auth/
 │   │   │   └── auth_service.py    # User authentication service
+│   │   ├── security_application_service.py # Security team applications
 │   │   ├── incidents/
 │   │   │   ├── incident_service.py    # Incident CRUD operations
 │   │   │   ├── messaging_service.py   # Secure messaging service
@@ -261,6 +291,8 @@ backend/
 │   │       └── notification_service.py # Email and push notifications
 │   └── utils/
 │       └── auth.py                # Authentication utilities and decorators
+├── scripts/                      # Utility scripts
+│   └── create_admin.py          # Create default admin user script
 ├── requirements.txt               # Python dependencies
 ├── run.py                        # Alternative startup script
 ├── start.bat                     # Windows startup script
@@ -448,9 +480,10 @@ uvicorn app.main:app --reload --log-level debug
 **🔐 Authentication System (Aditha's Module)**
 - ✅ Firebase ID token authentication (NO custom JWT)
 - ✅ Role-based access control (Employee, Security Team, Admin)
-- ✅ User registration, login, and profile management
-- ✅ Admin security team member management
-- ✅ Department-based user organization
+- ✅ User registration with automatic employee role assignment
+- ✅ Security team application and approval system
+- ✅ Admin user management and role elevation
+- ✅ Simplified user structure (removed department field)
 
 **📋 Incident Management (Jayasanka's Module)**
 - ✅ Full CRUD operations for security incidents
@@ -480,7 +513,7 @@ uvicorn app.main:app --reload --log-level debug
 
 ### 🚀 **Production Features COMPLETED:**
 
-- ✅ **35+ API Endpoints**: All endpoints implemented and tested
+- ✅ **40+ API Endpoints**: All endpoints implemented and tested (including security applications)
 - ✅ **WebSocket Integration**: Real-time communication ready
 - ✅ **Firebase Integration**: Full Firestore integration with real-time sync
 - ✅ **Server Testing**: Backend verified running correctly on port 8000
@@ -516,14 +549,15 @@ The Secura backend is now **100% ready for frontend development** with:
 
 **Available API Modules:**
 - `/api/auth/` - 6 authentication endpoints
+- `/api/security-applications/` - 5 security team application endpoints
 - `/api/incidents/` - 8 incident management endpoints + WebSocket
 - `/api/ai/` - 7 AI engine endpoints  
 - `/api/analytics/` - 10 analytics & reporting endpoints
 
 ### **👥 Role-Based Frontend Routes**
-- **👤 Employee Dashboard**: Incident reporting, file uploads, messaging
-- **🛡️ Security Team Dashboard**: AI tools, investigation, assignment
-- **🔑 Admin Dashboard**: User management, compliance, analytics
+- **👤 Employee Dashboard**: Incident reporting, file uploads, messaging, security team applications
+- **🛡️ Security Team Dashboard**: AI tools, investigation, assignment (requires admin approval)
+- **🔑 Admin Dashboard**: User management, compliance, analytics, application reviews
 
 ### **🚀 Real-Time Features**
 - WebSocket connection: `ws://127.0.0.1:8000/api/incidents/ws/{user_id}`
@@ -533,7 +567,7 @@ The Secura backend is now **100% ready for frontend development** with:
 ### **📋 Development Status**
 - ✅ **Backend**: COMPLETE & TESTED & VERIFIED WORKING
 - ✅ **Server**: Running successfully on port 8000
-- ✅ **API Endpoints**: All 35+ endpoints operational
+- ✅ **API Endpoints**: All 40+ endpoints operational
 - ✅ **Database**: Firebase connection established and tested
 - ✅ **Services**: All team modules (Auth, AI, Analytics, Notifications) working
 - 🔄 **Frontend**: Ready for development with stable API
@@ -556,16 +590,17 @@ curl http://127.0.0.1:8000/health
 
 ## 📊 **API Endpoint Summary**
 
-The backend provides 35+ fully functional endpoints across 4 main modules:
+The backend provides 40+ fully functional endpoints across 5 main modules:
 
 | Module | Endpoints | Description |
 |--------|-----------|-------------|
 | 🔐 **Authentication** | 6 endpoints | User management, registration, role assignment |
+| 🛡️ **Security Applications** | 5 endpoints | Security team applications and approvals |
 | 📋 **Incidents** | 8 endpoints + WebSocket | CRUD operations, messaging, file uploads |
 | 🤖 **AI Engine** | 7 endpoints | Categorization, severity analysis, threat intelligence |
 | 📊 **Analytics** | 10+ endpoints | Dashboards, reporting, notifications |
 
-**Total: 35+ Production-Ready API Endpoints**
+**Total: 40+ Production-Ready API Endpoints**
 
 ## 🔗 **Integration Guidelines**
 

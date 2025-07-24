@@ -7,7 +7,8 @@ from typing import Optional, List
 from firebase_admin import auth, firestore
 from datetime import datetime
 
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.common import UserRole
 from app.models.auth import UserProfile
 from app.core.firebase_config import FirebaseConfig
 
@@ -22,7 +23,7 @@ class AuthService:
             'uid': user.uid,
             'email': user.email,
             'full_name': user.full_name,
-            'department': user.department,
+            'phone_number': user.phone_number,
             'role': user.role.value,
             'is_active': user.is_active,
             'created_at': datetime.utcnow(),
@@ -44,7 +45,7 @@ class AuthService:
             uid=data['uid'],
             email=data['email'],
             full_name=data['full_name'],
-            department=data['department'],
+            phone_number=data.get('phone_number'),
             role=UserRole(data['role']),
             is_active=data['is_active'],
             created_at=data['created_at'],
@@ -55,7 +56,7 @@ class AuthService:
         """Update user profile"""
         update_data = {
             'full_name': profile_data.full_name,
-            'department': profile_data.department,
+            'phone_number': profile_data.phone_number,
             'updated_at': datetime.utcnow()
         }
         
@@ -95,7 +96,7 @@ class AuthService:
                 uid=data['uid'],
                 email=data['email'],
                 full_name=data['full_name'],
-                department=data['department'],
+                phone_number=data.get('phone_number'),
                 role=UserRole(data['role']),
                 is_active=data['is_active'],
                 created_at=data['created_at'],

@@ -17,7 +17,6 @@ export default function DashboardPage() {
       case 'security_team':
         return <SecurityTeamDashboard />;
       case 'admin':
-      case 'executive':
         return <AdminDashboard />;
       default:
         return <EmployeeDashboard />;

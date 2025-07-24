@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   Shield, 
@@ -11,21 +11,29 @@ import {
   FileText, 
   MessageCircle,
   LogOut,
-  Bell
+  Bell,
+  UserCheck
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
+import { checkCanApply } from '@/store/applications/applicationSlice';
 import IncidentReportForm from '@/components/forms/IncidentReportForm';
 import MessageThread from '@/components/messaging/MessageThread';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 export default function EmployeeDashboard() {
   const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { canApply } = useSelector((state: RootState) => state.applications);
   const dispatch = useDispatch<AppDispatch>();
   const { unreadCount, isConnected } = useMessaging();
   const [showIncidentForm, setShowIncidentForm] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
+
+  useEffect(() => {
+    dispatch(checkCanApply());
+  }, [dispatch]);
 
   const handleLogout = async () => {
     try {
@@ -64,7 +72,7 @@ export default function EmployeeDashboard() {
               <div className="flex items-center space-x-3">
                 <div className="text-right">
                   <p className="text-sm font-medium text-white">{userProfile?.full_name}</p>
-                  <p className="text-xs text-gray-400">{userProfile?.department || 'No Department'}</p>
+                  <p className="text-xs text-gray-400">{userProfile?.email}</p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300">
@@ -191,6 +199,36 @@ export default function EmployeeDashboard() {
                   </div>
                 </div>
               </button>
+
+              {/* Security Team Application Button */}
+              {canApply && (
+                <Link
+                  href="/applications/apply"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-105 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Join Security Team</h4>
+                      <p className="text-sm text-gray-100 mt-1">Apply to become a security team member</p>
+                    </div>
+                    <UserCheck className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                  </div>
+                </Link>
+              )}
+
+              {/* Application Status Button */}
+              <Link
+                href="/applications/status"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">Application Status</h4>
+                    <p className="text-sm text-gray-300 mt-1">Track your security team applications</p>
+                  </div>
+                  <FileText className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                </div>
+              </Link>
             </div>
           </div>
 

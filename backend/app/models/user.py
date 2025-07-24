@@ -8,7 +8,6 @@ class User(BaseModel):
     email: EmailStr
     full_name: str
     role: UserRole
-    department: Optional[str] = None
     phone_number: Optional[str] = None
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
@@ -19,7 +18,6 @@ class UserProfile(BaseModel):
     email: EmailStr
     full_name: str
     role: UserRole
-    department: Optional[str] = None
     phone_number: Optional[str] = None
     created_at: datetime
     last_login: Optional[datetime] = None
@@ -30,12 +28,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: str
     role: UserRole
-    department: Optional[str] = None
     phone_number: Optional[str] = None
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
-    department: Optional[str] = None
     phone_number: Optional[str] = None
 
 class UserListResponse(BaseModel):

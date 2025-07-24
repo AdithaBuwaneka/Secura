@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   Settings, 
@@ -14,17 +14,25 @@ import {
   UserPlus,
   Download,
   Activity,
-  Database
+  Database,
+  ClipboardList
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
+import { fetchPendingApplications } from '@/store/applications/applicationSlice';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
+import AdminApplicationReview from '@/components/applications/AdminApplicationReview';
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
   const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { pendingApplications } = useSelector((state: RootState) => state.applications);
   const dispatch = useDispatch<AppDispatch>();
   const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    dispatch(fetchPendingApplications());
+  }, [dispatch]);
 
   const handleLogout = async () => {
     try {
@@ -88,6 +96,7 @@ export default function AdminDashboard() {
             {[
               { id: 'overview', label: 'Overview', icon: BarChart3 },
               { id: 'users', label: 'User Management', icon: Users },
+              { id: 'applications', label: `Applications ${pendingApplications.length > 0 ? `(${pendingApplications.length})` : ''}`, icon: ClipboardList },
               { id: 'system', label: 'System Config', icon: Settings },
               { id: 'analytics', label: 'Analytics', icon: TrendingUp },
             ].map((tab) => (
@@ -113,7 +122,7 @@ export default function AdminDashboard() {
         {activeTab === 'overview' && (
           <>
             {/* Executive Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
               <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
@@ -156,6 +165,21 @@ export default function AdminDashboard() {
               <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
+                    <p className="text-gray-400 text-sm">Pending Applications</p>
+                    <p className="text-3xl font-bold text-white">{pendingApplications.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {pendingApplications.length === 0 ? 'All reviewed' : 'Awaiting review'}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-purple-500/20 rounded-lg">
+                    <ClipboardList className="h-8 w-8 text-purple-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-gray-400 text-sm">System Health</p>
                     <p className="text-3xl font-bold text-green-400">98.5%</p>
                     <p className="text-xs text-gray-500 mt-1">All systems operational</p>
@@ -186,13 +210,27 @@ export default function AdminDashboard() {
                     </div>
                   </button>
                   
-                  <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group">
+                  <button 
+                    onClick={() => setActiveTab('applications')}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-105 group"
+                  >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium">Department Assignment</h4>
-                        <p className="text-sm text-gray-300 mt-1">Assign users to departments</p>
+                        <h4 className="font-medium">Review Applications</h4>
+                        <p className="text-sm text-gray-100 mt-1">
+                          {pendingApplications.length > 0 
+                            ? `${pendingApplications.length} pending review` 
+                            : 'No pending applications'}
+                        </p>
                       </div>
-                      <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                      <div className="relative">
+                        {pendingApplications.length > 0 && (
+                          <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center">
+                            <span className="text-xs text-white font-bold">{pendingApplications.length}</span>
+                          </span>
+                        )}
+                        <ClipboardList className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                      </div>
                     </div>
                   </button>
                   
@@ -279,12 +317,19 @@ export default function AdminDashboard() {
 
         {/* Other tab content would go here */}
         {activeTab !== 'overview' && (
-          <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700 text-center">
-            <p className="text-gray-400">
-              {activeTab === 'users' && 'User Management interface would be implemented here'}
-              {activeTab === 'system' && 'System Configuration panel would be implemented here'}
-              {activeTab === 'analytics' && <AnalyticsDashboard />}
-            </p>
+          <div>
+            {activeTab === 'users' && (
+              <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700 text-center">
+                <p className="text-gray-400">User Management interface would be implemented here</p>
+              </div>
+            )}
+            {activeTab === 'applications' && <AdminApplicationReview />}
+            {activeTab === 'system' && (
+              <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700 text-center">
+                <p className="text-gray-400">System Configuration panel would be implemented here</p>
+              </div>
+            )}
+            {activeTab === 'analytics' && <AnalyticsDashboard />}
           </div>
         )}
       </main>

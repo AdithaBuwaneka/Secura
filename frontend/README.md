@@ -5,7 +5,7 @@ This is the Next.js frontend for the Secura cybersecurity incident reporting pla
 ## Features
 
 - **User Authentication**: Complete Firebase Auth integration with registration and login
-- **Protected Routes**: Role-based access control (Employee, Security Team, Executive, Admin)
+- **Protected Routes**: Role-based access control (Employee, Security Team, Admin)
 - **Incident Management**: Comprehensive incident reporting system with file attachments
 - **Real-time Messaging**: WebSocket-based secure communication for incident updates
 - **Analytics Dashboard**: Chart.js visualizations with role-based data access
@@ -90,7 +90,7 @@ The application will be available at `http://localhost:3000`
 ### Public Pages
 - **Home (/)**: Professional Secura landing page with features and role descriptions
 - **Login (/auth/login)**: User authentication with Firebase Auth
-- **Register (/auth/register)**: New user registration with role selection
+- **Register (/auth/register)**: New user registration (automatic employee role assignment)
 
 ### Protected Pages
 - **Dashboard (/dashboard)**: Role-based dashboard interface
@@ -101,11 +101,12 @@ The application will be available at `http://localhost:3000`
   - Role-based component rendering and feature access
 
 ### Authentication Flow
-1. **Registration**: Users create account with Firebase Auth + backend profile creation
+1. **Registration**: Users create account with Firebase Auth + backend profile creation (automatic employee role)
 2. **Login**: Firebase authentication + backend profile retrieval
 3. **Protected Access**: Automatic redirect to login if not authenticated
-4. **Role Management**: Support for Employee, Security Team, Executive, Admin roles
+4. **Role Management**: Support for Employee, Security Team, Admin roles
 5. **Token Management**: Automatic Firebase ID token refresh and validation
+6. **Security Team Application**: Employees can apply to join security team through dedicated application system
 
 ## Architecture
 
@@ -220,7 +221,10 @@ src/
 ✅ **API Endpoint Fixes**: Corrected all frontend-backend API integration endpoints  
 ✅ **WebSocket Security**: Properly secured real-time messaging with authentication  
 ✅ **Toast Notifications**: Fixed TypeScript compatibility with react-hot-toast  
-✅ **Project Cleanup**: Removed unnecessary files and empty directories for cleaner structure
+✅ **Project Cleanup**: Removed unnecessary files and empty directories for cleaner structure  
+✅ **Registration System**: Updated to remove role selection, automatic employee assignment  
+✅ **Security Applications**: Implemented application system for security team membership  
+✅ **Type Definitions**: Updated user types to remove executive role and department field
 
 ## Troubleshooting
 

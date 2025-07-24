@@ -19,7 +19,6 @@ class UserRegistration(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    department: Optional[str] = None
     phone_number: Optional[str] = None
 
 class UserLogin(BaseModel):
@@ -29,7 +28,6 @@ class UserLogin(BaseModel):
 class UserProfile(BaseModel):
     """Model for updating user profile"""
     full_name: str
-    department: Optional[str] = None
     phone_number: Optional[str] = None
 
 class TokenVerification(BaseModel):
@@ -41,7 +39,6 @@ class TokenVerificationResponse(BaseModel):
     uid: str
     email: str
     role: UserRole
-    department: Optional[str] = None
     is_active: bool
 
 class PasswordReset(BaseModel):

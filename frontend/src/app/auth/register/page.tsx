@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
-import { Eye, EyeOff, Shield, Mail, Lock, User, Building, Phone } from 'lucide-react';
+import { Eye, EyeOff, Shield, Mail, Lock, User, Phone } from 'lucide-react';
 import { registerUser, clearError } from '@/store/auth/authSlice';
 import { RootState, AppDispatch } from '@/store';
 import Link from 'next/link';
@@ -17,8 +17,6 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
     fullName: '',
-    role: 'employee' as 'employee' | 'security_team' | 'executive' | 'admin',
-    department: '',
     phoneNumber: ''
   });
   
@@ -54,8 +52,6 @@ export default function RegisterPage() {
         email: formData.email,
         password: formData.password,
         fullName: formData.fullName,
-        role: formData.role,
-        department: formData.department || undefined,
         phoneNumber: formData.phoneNumber || undefined
       })).unwrap();
       
@@ -129,44 +125,13 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Role and Department Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-white mb-2">
-                  Role *
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
-                >
-                  <option value="employee">👤 Employee</option>
-                  <option value="security_team">🛡️ Security Team</option>
-                  <option value="executive">👔 Executive</option>
-                  <option value="admin">🔑 Admin</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="department" className="block text-sm font-medium text-white mb-2">
-                  Department
-                </label>
-                <div className="relative">
-                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    id="department"
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                    className="w-full pl-12 pr-4 py-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
-                    placeholder="IT Department"
-                  />
-                </div>
-              </div>
+            {/* Info about roles */}
+            <div className="bg-[#1A1D23] p-4 rounded-lg border border-gray-600">
+              <p className="text-gray-300 text-sm">
+                <strong>Note:</strong> New registrations are automatically assigned as employees. 
+                To join the security team, you must submit an application with proof documents after registration. 
+                An admin will review and approve your role change.
+              </p>
             </div>
 
             {/* Phone Number */}

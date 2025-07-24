@@ -12,11 +12,36 @@
 
 Secura is a comprehensive, AI-powered security incident management platform designed to revolutionize how organizations handle cybersecurity incidents. Built as a Progressive Web Application (PWA), Secura transforms traditional incident reporting from fragmented, manual processes into an intelligent, streamlined system that reduces response times by 75% and improves accuracy by 90%.
 
-### 👥 User Roles
+### 👥 User Roles & Registration System
+
+The platform uses a secure, three-tier role system:
 
 - **👤 EMPLOYEE** - "Report incidents easily" - Submit incidents, upload evidence, track status
 - **🛡️ SECURITY TEAM** - "Investigate and resolve incidents" - Analyze threats, manage investigations  
 - **🔑 ADMIN** - "Manage system and users" - System configuration, user management, compliance
+
+#### Registration Process
+
+**New User Registration:**
+- All new registrations are automatically assigned as **Employee** role
+- No role selection during registration - only basic profile information required
+- Registration form collects: full name, email, password, and optional phone number
+
+**Joining Security Team:**
+- Employees can apply to join the security team after registration
+- Application process requires:
+  - Reason for joining security team
+  - Relevant experience description
+  - Certifications (optional)
+  - Proof documents upload
+- Admin review and approval required for role elevation
+- Applications tracked with status: pending, approved, rejected
+
+**Admin Access:**
+- Default admin created via database script: `python scripts/create_admin.py`
+- Admin credentials: `admin@secura.com` / `SecuraAdmin123!`
+- Admins manage user roles and approve security team applications
+- Change default password after first login for security
 
 ### ✨ Core Features
 
@@ -109,7 +134,8 @@ secura/
 │   │   │   ├── auth/           # Authentication (Aditha)
 │   │   │   ├── incidents/      # Incident management (Jayasanka)
 │   │   │   ├── ai/             # AI engine endpoints (Rithara)
-│   │   │   └── analytics/      # Analytics APIs (Pramudi)
+│   │   │   ├── analytics/      # Analytics APIs (Pramudi)
+│   │   │   └── security_applications/  # Security team applications
 │   │   ├── core/               # Core configuration
 │   │   │   ├── firebase_config.py  # Firebase setup
 │   │   │   └── security.py     # Security middleware
@@ -119,6 +145,8 @@ secura/
 │   │   │   ├── ai_service.py   # AI processing
 │   │   │   └── notification_service.py # SendGrid/FCM
 │   │   └── utils/              # Utility functions
+│   └── scripts/                # Utility scripts
+│       └── create_admin.py     # Create default admin user
 ├── docs/                       # Documentation
 │   ├── architecture/           # System diagrams
 │   └── ui-mockups/            # Design files
@@ -162,17 +190,26 @@ secura/
    cp .env.example .env
    # Edit .env with your Firebase and other service credentials
    
+   # Create default admin user (run once)
+   python scripts/create_admin.py
+   
    # Run the backend server
    python run.py
    # Or from VS Code: Run the "Start Backend Server" task
    ```
 
-4. **Configure Firebase**
+5. **Initial Setup Complete**
+   - Frontend: `http://localhost:3000`
+   - Backend: `http://127.0.0.1:8000`
+   - API Documentation: `http://127.0.0.1:8000/docs`
+   - Default Admin: `admin@secura.com` / `SecuraAdmin123!`
+
+6. **Configure Firebase**
    - Create a Firebase project
    - Enable Authentication, Firestore, and Cloud Storage
    - Download service account key and update configuration
 
-5. **Setup SendGrid**
+7. **Setup SendGrid**
    - Create SendGrid account
    - Generate API key
    - Configure email templates
@@ -197,11 +234,11 @@ AI_MODEL_PATH=path_to_ai_models
 ## 📖 Usage
 
 ### For Employees
-1. **Login** with your organizational credentials
+1. **Register** with automatic employee role assignment
 2. **Report Incidents** using the intuitive smart form
 3. **Upload Evidence** via drag-and-drop interface
 4. **Track Progress** with real-time status updates
-5. **Communicate** directly with security teams
+5. **Apply for Security Team** with detailed application process
 
 ### For Security Teams
 1. **Monitor Dashboard** for real-time incident alerts
@@ -209,6 +246,13 @@ AI_MODEL_PATH=path_to_ai_models
 3. **Coordinate Response** with team collaboration tools
 4. **Manage Cases** through complete incident lifecycle
 5. **Generate Reports** for compliance and analytics
+
+### For Admins
+1. **User Management** - View all users and their roles
+2. **Application Review** - Approve/reject security team applications
+3. **Role Management** - Assign and modify user permissions
+4. **System Configuration** - Manage platform settings
+5. **Compliance Oversight** - Monitor security compliance
 
 ## 🎯 Competition Context
 
@@ -235,12 +279,39 @@ Our comprehensive design system includes:
 
 View our design system: [Figma Design Link](https://www.figma.com/design/GtGN1SUy2Y9GyKspuZCeSy/Secura?node-id=0-1&t=JvX3dHyxP0ItHEkY-1)
 
-## 📊 Performance Metrics
+## 📊 Performance Metrics & System Status
 
+### Key Performance Indicators
 - **Response Time Improvement:** 75% faster incident response
-- **Accuracy Enhancement:** 90% improvement in categorization
+- **Accuracy Enhancement:** 90% improvement in categorization  
 - **User Adoption:** 95% employee participation rate
 - **Cost Reduction:** 60% decrease in incident management costs
+
+### Current System Status ✅
+
+**Frontend (Next.js PWA):**
+- ✅ Registration system updated (employee-only)
+- ✅ Role-based dashboards operational
+- ✅ Real-time messaging integrated
+- ✅ Security application workflow implemented
+
+**Backend (FastAPI):**
+- ✅ 40+ API endpoints operational
+- ✅ Firebase authentication integrated
+- ✅ Security team application system complete
+- ✅ Admin user management functional
+- ✅ Default admin user creation script ready
+
+**Database & Authentication:**
+- ✅ Firebase Firestore configured
+- ✅ Role-based access control (Employee → Security Team → Admin)
+- ✅ Application approval workflow implemented
+- ✅ User registration restricted to employee role
+
+**API Documentation:**
+- ✅ Interactive Swagger UI available at `/docs`
+- ✅ All endpoints documented and tested
+- ✅ Authentication flows verified
 
 ## 🤝 Contributing
 
@@ -254,7 +325,36 @@ We welcome contributions to Secura! Please read our [Contributing Guidelines](CO
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 🧪 Testing
+## 🧪 Testing & Verification
+
+### Quick Health Checks
+
+**Frontend Status Check:**
+```bash
+cd frontend
+npm run dev
+# Visit http://localhost:3000 - should show Secura landing page
+```
+
+**Backend Status Check:**
+```bash
+cd backend
+python scripts/create_admin.py  # Create admin (run once)
+uvicorn app.main:app --reload
+# Visit http://127.0.0.1:8000/docs - should show API documentation
+```
+
+**Integration Test:**
+```bash
+# Test admin login workflow
+curl -X GET http://127.0.0.1:8000/health
+# Expected: {"status":"healthy","service":"Secura Backend"}
+
+# Frontend should connect to backend at http://127.0.0.1:8000
+# Admin login: admin@secura.com / SecuraAdmin123!
+```
+
+### Component Testing
 
 ```bash
 # Frontend tests

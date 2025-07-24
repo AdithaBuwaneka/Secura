@@ -15,8 +15,6 @@ interface RegisterData {
   email: string;
   password: string;
   fullName: string;
-  role: 'employee' | 'security_team' | 'executive' | 'admin';
-  department?: string;
   phoneNumber?: string;
 }
 
@@ -51,8 +49,6 @@ export const registerUser = createAsyncThunk(
           uid: userCredential.user.uid,
           email: data.email,
           full_name: data.fullName,
-          role: data.role,
-          department: data.department,
           phone_number: data.phoneNumber
         })
       });
