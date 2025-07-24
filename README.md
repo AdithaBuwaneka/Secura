@@ -41,9 +41,23 @@ npm run dev
 - **Email:** `admin@secura.com`
 - **Password:** `SecuraAdmin123!`
 
-### Security Team (Created via script)
+### Security Team (Created via `python scripts/create_security_team.py`)
+
+**1. Security Team Lead**
 - **Email:** `security.lead@secura.com`
 - **Password:** `SecuraSecLead123!`
+
+**2. Security Analyst 1**
+- **Email:** `analyst1@secura.com`
+- **Password:** `SecuraAnalyst123!`
+
+**3. Security Analyst 2**
+- **Email:** `analyst2@secura.com`
+- **Password:** `SecuraAnalyst234!`
+
+**4. Incident Response Specialist**
+- **Email:** `incident.response@secura.com`
+- **Password:** `SecuraIncident123!`
 
 ### Employee Users
 Register new accounts at `/auth/register` - automatically assigned employee role
