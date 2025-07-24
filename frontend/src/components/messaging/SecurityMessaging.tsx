@@ -41,6 +41,53 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   const loadConversations = useCallback(async () => {
+    // Mock data for development
+    const mockConversationsData: Conversation[] = [
+      {
+        id: '1',
+        incident_id: 'INC-2024-001',
+        participant_name: 'John Doe',
+        participant_role: 'employee',
+        last_message: 'I think this might be a phishing email. Can you help me verify?',
+        last_message_time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        unread_count: 2,
+        status: 'active',
+        priority: 'high'
+      },
+      {
+        id: '2',
+        incident_id: 'INC-2024-002',
+        participant_name: 'Sarah Wilson',
+        participant_role: 'employee',
+        last_message: 'Thank you for the quick response! The issue is resolved.',
+        last_message_time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        unread_count: 0,
+        status: 'resolved',
+        priority: 'medium'
+      },
+      {
+        id: '3',
+        incident_id: 'INC-2024-003',
+        participant_name: 'Mike Johnson',
+        participant_role: 'employee',
+        last_message: 'I found some suspicious files on my computer.',
+        last_message_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        unread_count: 1,
+        status: 'pending',
+        priority: 'critical'
+      },
+      {
+        id: '4',
+        participant_name: 'Emily Chen',
+        participant_role: 'employee',
+        last_message: 'Hi, I need help with password reset procedures.',
+        last_message_time: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        unread_count: 0,
+        status: 'active',
+        priority: 'low'
+      }
+    ];
+
     try {
       const response = await fetch(`${API_URL}/api/messaging/conversations`, {
         headers: {
@@ -50,14 +97,14 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
 
       if (response.ok) {
         const data = await response.json();
-        setConversations(data.conversations || mockConversations);
+        setConversations(data.conversations || mockConversationsData);
       } else {
         // Use mock data if API fails
-        setConversations(mockConversations);
+        setConversations(mockConversationsData);
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
-      setConversations(mockConversations);
+      setConversations(mockConversationsData);
     } finally {
       setIsLoading(false);
     }
@@ -67,52 +114,6 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
     loadConversations();
   }, [loadConversations]);
 
-  // Mock data for development
-  const mockConversations: Conversation[] = [
-    {
-      id: '1',
-      incident_id: 'INC-2024-001',
-      participant_name: 'John Doe',
-      participant_role: 'employee',
-      last_message: 'I think this might be a phishing email. Can you help me verify?',
-      last_message_time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-      unread_count: 2,
-      status: 'active',
-      priority: 'high'
-    },
-    {
-      id: '2',
-      incident_id: 'INC-2024-002',
-      participant_name: 'Sarah Wilson',
-      participant_role: 'employee',
-      last_message: 'Thank you for the quick response! The issue is resolved.',
-      last_message_time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      unread_count: 0,
-      status: 'resolved',
-      priority: 'medium'
-    },
-    {
-      id: '3',
-      incident_id: 'INC-2024-003',
-      participant_name: 'Mike Johnson',
-      participant_role: 'employee',
-      last_message: 'I found some suspicious files on my computer.',
-      last_message_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      unread_count: 1,
-      status: 'pending',
-      priority: 'critical'
-    },
-    {
-      id: '4',
-      participant_name: 'Emily Chen',
-      participant_role: 'employee',
-      last_message: 'Hi, I need help with password reset procedures.',
-      last_message_time: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-      unread_count: 0,
-      status: 'active',
-      priority: 'low'
-    }
-  ];
 
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = conv.participant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

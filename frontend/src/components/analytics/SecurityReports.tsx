@@ -32,6 +32,46 @@ export default function SecurityReports(): React.JSX.Element {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   const loadReports = useCallback(async () => {
+    // Mock data for development
+    const mockReportsData: Report[] = [
+      {
+        id: 'RPT-2024-001',
+        title: 'Monthly Security Overview',
+        type: 'monthly',
+        generated_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        period: 'January 2024',
+        file_size: '2.3 MB',
+        status: 'ready'
+      },
+      {
+        id: 'RPT-2024-002',
+        title: 'Weekly Incident Analysis',
+        type: 'weekly',
+        generated_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        period: 'Week 3, January 2024',
+        file_size: '1.8 MB',
+        status: 'ready'
+      },
+      {
+        id: 'RPT-2024-003',
+        title: 'Quarterly Threat Assessment',
+        type: 'quarterly',
+        generated_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        period: 'Q4 2023',
+        file_size: '4.7 MB',
+        status: 'ready'
+      },
+      {
+        id: 'RPT-2024-004',
+        title: 'Custom Phishing Analysis',
+        type: 'custom',
+        generated_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        period: 'December 2023',
+        file_size: '1.2 MB',
+        status: 'ready'
+      }
+    ];
+
     try {
       const response = await fetch(`${API_URL}/api/analytics/reports`, {
         headers: {
@@ -41,13 +81,13 @@ export default function SecurityReports(): React.JSX.Element {
 
       if (response.ok) {
         const data = await response.json();
-        setReports(data.reports || mockReports);
+        setReports(data.reports || mockReportsData);
       } else {
-        setReports(mockReports);
+        setReports(mockReportsData);
       }
     } catch (error) {
       console.error('Failed to load reports:', error);
-      setReports(mockReports);
+      setReports(mockReportsData);
     } finally {
       setIsLoading(false);
     }
@@ -105,45 +145,6 @@ export default function SecurityReports(): React.JSX.Element {
     }
   };
 
-  // Mock data for development
-  const mockReports: Report[] = [
-    {
-      id: 'RPT-2024-001',
-      title: 'Monthly Security Overview',
-      type: 'monthly',
-      generated_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      period: 'January 2024',
-      file_size: '2.3 MB',
-      status: 'ready'
-    },
-    {
-      id: 'RPT-2024-002',
-      title: 'Weekly Incident Analysis',
-      type: 'weekly',
-      generated_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      period: 'Week 3, January 2024',
-      file_size: '1.8 MB',
-      status: 'ready'
-    },
-    {
-      id: 'RPT-2024-003',
-      title: 'Quarterly Threat Assessment',
-      type: 'quarterly',
-      generated_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      period: 'Q4 2023',
-      file_size: '4.7 MB',
-      status: 'ready'
-    },
-    {
-      id: 'RPT-2024-004',
-      title: 'Custom Phishing Analysis',
-      type: 'custom',
-      generated_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      period: 'December 2023',
-      file_size: '1.2 MB',
-      status: 'ready'
-    }
-  ];
 
   const filteredReports = reports.filter(report => 
     selectedType === 'all' || report.type === selectedType

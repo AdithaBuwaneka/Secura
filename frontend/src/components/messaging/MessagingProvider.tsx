@@ -36,17 +36,45 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const WS_URL = API_URL.replace('http', 'ws');
 
-  useEffect(() => {
-    if (isAuthenticated && idToken && userProfile) {
-      initializeWebSocket();
-    } else {
-      disconnect();
+  const handleWebSocketMessage = useCallback((data: Record<string, unknown>) => {
+    switch (data.type) {
+      case 'notification':
+        // Show toast notification for new messages
+        if (data.sender_id !== userProfile?.uid) {
+          toast.success(`New message from ${data.sender_name}`, {
+            duration: 4000,
+            position: 'top-right',
+          });
+          setUnreadCount(prev => prev + 1);
+        }
+        break;
+        
+      case 'incident_update':
+        toast.success(`Incident ${data.incident_id} status updated: ${data.status}`, {
+          duration: 5000,
+        });
+        break;
+        
+      case 'security_alert':
+        toast.error(`Security Alert: ${data.message}`, {
+          duration: 7000,
+        });
+        break;
+        
+      case 'system_message':
+        toast.success(data.message as string, {
+          duration: 4000,
+        });
+        break;
+        
+      case 'unread_count':
+        setUnreadCount(data.count as number);
+        break;
+        
+      default:
+        console.log('Unhandled message type:', data.type);
     }
-
-    return () => {
-      disconnect();
-    };
-  }, [isAuthenticated, idToken, userProfile]);
+  }, [userProfile?.uid]);
 
   const initializeWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -97,47 +125,19 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
     } catch (error) {
       console.error('Failed to initialize global messaging WebSocket:', error);
     }
-  }, [idToken, userProfile?.uid, WS_URL, isAuthenticated]);
+  }, [idToken, userProfile?.uid, WS_URL, isAuthenticated, handleWebSocketMessage]);
 
-  const handleWebSocketMessage = useCallback((data: Record<string, unknown>) => {
-    switch (data.type) {
-      case 'notification':
-        // Show toast notification for new messages
-        if (data.sender_id !== userProfile?.uid) {
-          toast.success(`New message from ${data.sender_name}`, {
-            duration: 4000,
-            position: 'top-right',
-          });
-          setUnreadCount(prev => prev + 1);
-        }
-        break;
-        
-      case 'incident_update':
-        toast.success(`Incident ${data.incident_id} status updated: ${data.status}`, {
-          duration: 5000,
-        });
-        break;
-        
-      case 'security_alert':
-        toast.error(`Security Alert: ${data.message}`, {
-          duration: 7000,
-        });
-        break;
-        
-      case 'system_message':
-        toast.success(data.message as string, {
-          duration: 4000,
-        });
-        break;
-        
-      case 'unread_count':
-        setUnreadCount(data.count as number);
-        break;
-        
-      default:
-        console.log('Unhandled message type:', data.type);
+  useEffect(() => {
+    if (isAuthenticated && idToken && userProfile) {
+      initializeWebSocket();
+    } else {
+      disconnect();
     }
-  }, [userProfile?.uid]);
+
+    return () => {
+      disconnect();
+    };
+  }, [isAuthenticated, idToken, userProfile, initializeWebSocket]);
 
   const sendMessage = (message: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

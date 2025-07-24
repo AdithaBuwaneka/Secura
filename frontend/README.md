@@ -88,7 +88,7 @@ The application will be available at `http://localhost:3000`
 ## Application Pages
 
 ### Public Pages
-- **Home (/)**: Landing page with basic "Hello world" placeholder
+- **Home (/)**: Professional Secura landing page with features and role descriptions
 - **Login (/auth/login)**: User authentication with Firebase Auth
 - **Register (/auth/register)**: New user registration with role selection
 

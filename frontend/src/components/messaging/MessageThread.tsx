@@ -47,24 +47,6 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const WS_URL = API_URL.replace('http', 'ws');
 
-  useEffect(() => {
-    // Initialize WebSocket connection
-    initializeWebSocket();
-    
-    // Load existing messages
-    loadMessages();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [incidentId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   const initializeWebSocket = useCallback(() => {
     try {
       const wsUrl = `${WS_URL}/api/messaging/ws/${incidentId || 'general'}?token=${idToken}`;
@@ -127,6 +109,24 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
       setIsLoading(false);
     }
   }, [incidentId, idToken, API_URL]);
+
+  useEffect(() => {
+    // Initialize WebSocket connection
+    initializeWebSocket();
+    
+    // Load existing messages
+    loadMessages();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [incidentId, initializeWebSocket, loadMessages]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() && attachments.length === 0) return;
