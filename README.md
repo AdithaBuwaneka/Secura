@@ -7,12 +7,12 @@ An enterprise-grade cybersecurity incident reporting platform with AI-powered th
 ### Prerequisites
 - Node.js 18+ 
 - Python 3.8+
-- Firebase project with Firestore enabled
+- **Note**: Team members use the same shared Firebase database for consistency
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/AdithaBuwaneka/secura.git
-cd secura
+git clone https://github.com/AdithaBuwaneka/Secura.git
+cd Secura
 ```
 
 ### 2. Setup Backend
@@ -267,7 +267,7 @@ docker run -p 8000:8000 secura-backend
 - **API Documentation**: http://127.0.0.1:8000/docs
 - **Frontend README**: [frontend/README.md](frontend/README.md)
 - **Backend README**: [backend/README.md](backend/README.md)
-- **Issues**: [GitHub Issues](https://github.com/AdithaBuwaneka/secura/issues)
+- **Issues**: [GitHub Issues](https://github.com/AdithaBuwaneka/Secura/issues)
 
 ## 🏆 Team
 
