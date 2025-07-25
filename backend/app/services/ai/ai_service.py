@@ -18,38 +18,70 @@ from app.models.common import IncidentType, IncidentSeverity
 
 class AIService:
     def __init__(self):
+        # Enhanced keyword patterns with weighted scoring
         self.category_keywords = {
-            IncidentType.PHISHING: [
-                'phishing', 'email', 'suspicious link', 'fake email', 
-                'scam', 'impersonation', 'credential theft'
-            ],
-            IncidentType.MALWARE: [
-                'malware', 'virus', 'trojan', 'ransomware', 'infected',
-                'suspicious file', 'antivirus', 'quarantine'
-            ],
-            IncidentType.UNAUTHORIZED_ACCESS: [
-                'unauthorized', 'breach', 'hacked', 'compromised account',
-                'login attempt', 'access denied', 'privilege escalation'
-            ],
-            IncidentType.DATA_BREACH: [
-                'data breach', 'data leak', 'exposed data', 'confidential',
-                'personal information', 'database', 'exfiltration'
-            ],
-            IncidentType.SOCIAL_ENGINEERING: [
-                'social engineering', 'manipulation', 'pretexting',
-                'phone scam', 'impersonation', 'psychological'
-            ],
-            IncidentType.PHYSICAL_SECURITY: [
-                'physical security', 'unauthorized entry', 'tailgating',
-                'badge theft', 'facility breach', 'access control'
-            ]
+            IncidentType.PHISHING: {
+                'high_confidence': ['phishing', 'spear phishing', 'credential harvesting', 'fake login page'],
+                'medium_confidence': ['suspicious email', 'fake email', 'scam email', 'impersonation'],
+                'indicators': ['click here', 'verify account', 'urgent action', 'suspended account', 'prize winner'],
+                'domains': ['suspicious link', 'shortened url', 'fake website', 'lookalike domain']
+            },
+            IncidentType.MALWARE: {
+                'high_confidence': ['malware', 'ransomware', 'trojan', 'virus detected'],
+                'medium_confidence': ['suspicious file', 'infected system', 'antivirus alert'],
+                'indicators': ['file encrypted', 'system slow', 'popup ads', 'unknown process'],
+                'file_types': ['.exe', '.bat', '.scr', '.zip attachment']
+            },
+            IncidentType.UNAUTHORIZED_ACCESS: {
+                'high_confidence': ['unauthorized access', 'account compromised', 'hacked account'],
+                'medium_confidence': ['suspicious login', 'failed login attempts', 'access denied'],
+                'indicators': ['unknown location', 'unusual activity', 'password changed', 'sessions active'],
+                'systems': ['server breach', 'database access', 'admin panel', 'privileged account']
+            },
+            IncidentType.DATA_BREACH: {
+                'high_confidence': ['data breach', 'data leak', 'sensitive data exposed'],
+                'medium_confidence': ['confidential information', 'personal data', 'customer records'],
+                'indicators': ['database dump', 'files stolen', 'data exfiltration', 'information disclosed'],
+                'data_types': ['credit card', 'social security', 'medical records', 'financial data']
+            },
+            IncidentType.SOCIAL_ENGINEERING: {
+                'high_confidence': ['social engineering', 'pretexting', 'baiting attack'],
+                'medium_confidence': ['manipulation', 'impersonation', 'psychological pressure'],
+                'indicators': ['urgent request', 'authority figure', 'fear tactics', 'trust exploitation'],
+                'methods': ['phone scam', 'fake support', 'CEO fraud', 'invoice fraud']
+            },
+            IncidentType.PHYSICAL_SECURITY: {
+                'high_confidence': ['unauthorized entry', 'facility breach', 'physical intrusion'],
+                'medium_confidence': ['tailgating', 'badge theft', 'access control'],
+                'indicators': ['door propped open', 'unknown person', 'security bypass', 'surveillance blind spot'],
+                'areas': ['server room', 'restricted area', 'emergency exit', 'loading dock']
+            }
         }
         
+        # Enhanced severity assessment with weighted indicators
         self.severity_indicators = {
-            'critical': ['system down', 'complete breach', 'ransomware', 'data stolen'],
-            'high': ['multiple users', 'sensitive data', 'financial', 'executive'],
-            'medium': ['single user', 'suspicious activity', 'potential threat'],
-            'low': ['false positive', 'minor', 'informational', 'awareness']
+            'critical': {
+                'system_impact': ['system down', 'complete outage', 'network offline', 'servers compromised'],
+                'data_impact': ['data stolen', 'complete breach', 'database dump', 'mass exfiltration'],
+                'ransomware': ['encrypted files', 'ransom demand', 'all files locked', 'payment demanded'],
+                'infrastructure': ['critical system', 'production down', 'business stopped']
+            },
+            'high': {
+                'scope': ['multiple users', 'department wide', 'company wide', 'all employees'],
+                'data_type': ['sensitive data', 'financial records', 'customer data', 'confidential'],
+                'targets': ['executive', 'admin account', 'privileged user', 'c-level'],
+                'impact': ['significant loss', 'regulatory violation', 'reputation damage']
+            },
+            'medium': {
+                'scope': ['single user', 'small group', 'one department', 'limited access'],
+                'activity': ['suspicious activity', 'unusual behavior', 'potential threat', 'investigation needed'],
+                'containment': ['isolated incident', 'contained threat', 'blocked attack']
+            },
+            'low': {
+                'classification': ['false positive', 'false alarm', 'benign activity'],
+                'severity': ['minor issue', 'informational', 'awareness only', 'no impact'],
+                'status': ['resolved', 'no action needed', 'monitoring only']
+            }
         }
 
     async def analyze_incident(
@@ -93,36 +125,77 @@ class AIService:
 
     async def categorize_incident(self, title: str, description: str) -> List[Dict[str, Any]]:
         """
-        Categorize incident using keyword matching and NLP
+        Enhanced categorization using weighted keyword matching
         """
         text = f"{title} {description}".lower()
         suggestions = []
         
-        for category, keywords in self.category_keywords.items():
+        for category, keyword_groups in self.category_keywords.items():
             score = 0
             matched_keywords = []
+            confidence_factors = []
             
-            for keyword in keywords:
-                if keyword in text:
+            # High confidence keywords (weight: 3)
+            for keyword in keyword_groups.get('high_confidence', []):
+                if keyword.lower() in text:
+                    score += 3
+                    matched_keywords.append(keyword)
+                    confidence_factors.append(f"High: {keyword}")
+            
+            # Medium confidence keywords (weight: 2)
+            for keyword in keyword_groups.get('medium_confidence', []):
+                if keyword.lower() in text:
+                    score += 2
+                    matched_keywords.append(keyword)
+                    confidence_factors.append(f"Medium: {keyword}")
+            
+            # Indicator keywords (weight: 1)
+            for keyword in keyword_groups.get('indicators', []):
+                if keyword.lower() in text:
                     score += 1
                     matched_keywords.append(keyword)
+                    confidence_factors.append(f"Indicator: {keyword}")
+            
+            # Domain/type specific keywords (weight: 1.5)
+            for group_name in ['domains', 'file_types', 'systems', 'data_types', 'methods', 'areas']:
+                for keyword in keyword_groups.get(group_name, []):
+                    if keyword.lower() in text:
+                        score += 1.5
+                        matched_keywords.append(keyword)
+                        confidence_factors.append(f"{group_name.title()}: {keyword}")
             
             if score > 0:
-                confidence = min(score / len(keywords), 0.95)
+                # Normalize confidence score (max possible score varies by category)
+                max_possible = (len(keyword_groups.get('high_confidence', [])) * 3 + 
+                               len(keyword_groups.get('medium_confidence', [])) * 2 + 
+                               len(keyword_groups.get('indicators', [])) * 1)
+                
+                # Add bonus for file types, domains, etc.
+                for group_name in ['domains', 'file_types', 'systems', 'data_types', 'methods', 'areas']:
+                    max_possible += len(keyword_groups.get(group_name, [])) * 1.5
+                
+                raw_confidence = score / max(max_possible, 1)
+                # Apply scaling to get reasonable confidence values
+                confidence = min(0.5 + (raw_confidence * 0.45), 0.95)
+                
                 suggestions.append({
                     'category': category,
                     'confidence': confidence,
-                    'reasoning': f"Keywords found: {', '.join(matched_keywords[:3])}"
+                    'reasoning': f"Matched: {', '.join(confidence_factors[:3])}",
+                    'score': score,
+                    'matched_keywords': matched_keywords[:5]
                 })
         
-        # Sort by confidence
+        # Sort by confidence score
         suggestions.sort(key=lambda x: x['confidence'], reverse=True)
         
-        # Return top 3 suggestions
+        # Return top 3 suggestions, or default if none found
         return suggestions[:3] if suggestions else [{
             'category': IncidentType.MALWARE,  # Default fallback
             'confidence': 0.3,
-            'reasoning': "No specific keywords found"
+            'reasoning': "No specific security keywords found - using general category",
+            'score': 0,
+            'matched_keywords': []
         }]
 
     async def assess_severity(
@@ -132,42 +205,81 @@ class AIService:
         category: Optional[IncidentType] = None
     ) -> Dict[str, Any]:
         """
-        Assess incident severity level
+        Enhanced severity assessment with weighted indicators
         """
         text = f"{title} {description}".lower()
         severity_scores = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        matched_factors = {'critical': [], 'high': [], 'medium': [], 'low': []}
         
-        # Keyword-based scoring
-        for level, indicators in self.severity_indicators.items():
-            for indicator in indicators:
-                if indicator in text:
-                    severity_scores[level] += 1
+        # Enhanced keyword-based scoring with weights
+        for level, indicator_groups in self.severity_indicators.items():
+            for group_name, indicators in indicator_groups.items():
+                for indicator in indicators:
+                    if indicator.lower() in text:
+                        # Different weights for different groups
+                        weight = {
+                            'system_impact': 4, 'data_impact': 4, 'ransomware': 5, 'infrastructure': 4,
+                            'scope': 3, 'data_type': 3, 'targets': 3, 'impact': 3,
+                            'activity': 2, 'containment': 2,
+                            'classification': 1, 'severity': 1, 'status': 1
+                        }.get(group_name, 2)
+                        
+                        severity_scores[level] += weight
+                        matched_factors[level].append(f"{group_name}: {indicator}")
         
-        # Category-based adjustments
-        if category == IncidentType.DATA_BREACH:
-            severity_scores['critical'] += 2
-        elif category == IncidentType.MALWARE:
-            severity_scores['high'] += 1
-        elif category == IncidentType.PHISHING:
-            severity_scores['medium'] += 1
+        # Category-based adjustments (enhanced)
+        category_adjustments = {
+            IncidentType.DATA_BREACH: {'critical': 3, 'high': 2},
+            IncidentType.MALWARE: {'critical': 2, 'high': 2},
+            IncidentType.UNAUTHORIZED_ACCESS: {'high': 2, 'medium': 1},
+            IncidentType.PHISHING: {'medium': 2, 'low': 1},
+            IncidentType.SOCIAL_ENGINEERING: {'medium': 1, 'low': 1},
+            IncidentType.PHYSICAL_SECURITY: {'high': 1, 'medium': 1}
+        }
+        
+        if category and category in category_adjustments:
+            for level, adjustment in category_adjustments[category].items():
+                severity_scores[level] += adjustment
+                matched_factors[level].append(f"Category: {category.value}")
+        
+        # Time-based urgency indicators
+        urgency_keywords = ['urgent', 'immediate', 'asap', 'emergency', 'critical', 'now']
+        for keyword in urgency_keywords:
+            if keyword in text:
+                severity_scores['high'] += 1
+                matched_factors['high'].append(f"Urgency: {keyword}")
+        
+        # Business impact indicators
+        business_keywords = ['production', 'revenue', 'customer', 'business critical', 'operations']
+        for keyword in business_keywords:
+            if keyword in text:
+                severity_scores['high'] += 2
+                matched_factors['high'].append(f"Business impact: {keyword}")
         
         # Determine final severity
         max_score = max(severity_scores.values())
         if max_score == 0:
             severity_level = IncidentSeverity.LOW
             confidence = 0.4
+            reasoning = "No severity indicators found"
         else:
             severity_level = IncidentSeverity(
-                max(severity_scores, key=severity_scores.get).upper()
+                max(severity_scores, key=severity_scores.get)  # Already lowercase
             )
-            confidence = min(max_score / 3, 0.9)
-        
-        factors = [f"{k}: {v}" for k, v in severity_scores.items() if v > 0]
+            # Calculate confidence based on score distribution
+            total_score = sum(severity_scores.values())
+            confidence = min(max_score / max(total_score, 1), 0.95)
+            
+            # Get reasoning from matched factors
+            winning_level = max(severity_scores, key=severity_scores.get)
+            reasoning = f"Score: {max_score}, Factors: {', '.join(matched_factors[winning_level][:3])}"
         
         return {
             'severity': severity_level,
             'confidence': confidence,
-            'factors': factors
+            'reasoning': reasoning,
+            'score_breakdown': severity_scores,
+            'matched_factors': {k: v[:3] for k, v in matched_factors.items() if v}
         }
 
     async def generate_mitigation_strategies(

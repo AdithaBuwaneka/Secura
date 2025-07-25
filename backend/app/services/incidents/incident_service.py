@@ -21,6 +21,7 @@ class IncidentService:
         incident_data: IncidentCreate, 
         reporter_id: str,
         reporter_email: str,
+        reporter_name: str = None,
         reporter_department: str = None
     ) -> IncidentResponse:
         """Create a new security incident"""
@@ -28,23 +29,29 @@ class IncidentService:
         
         incident_doc = {
             'id': incident_id,
-            'incident_type': incident_data.incident_type.value,
-            'subject': incident_data.subject,
+            'title': incident_data.title,
+            'incident_type': incident_data.incident_type.value if incident_data.incident_type else None,
             'description': incident_data.description,
-            'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.MEDIUM.value,
+            'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.LOW.value,
             'status': IncidentStatus.PENDING.value,
-            'reporter_uid': reporter_id,
+            'reporter_id': reporter_id,
+            'reporter_name': reporter_name or 'Unknown',
             'reporter_email': reporter_email,
             'reporter_department': reporter_department,
             'assigned_to': None,
             'assigned_to_name': None,
-            'ai_category': None,
-            'ai_confidence': None,
+            'assigned_at': None,
+            'assigned_by': None,
+            'ai_analysis': None,
             'location': incident_data.location.dict() if incident_data.location else None,
-            'files': incident_data.files or [],
+            'attachments': incident_data.attachments or [],
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
-            'resolved_at': None
+            'resolved_at': None,
+            'closed_at': None,
+            'additional_context': incident_data.additional_context or {},
+            'last_activity': datetime.utcnow(),
+            'priority_score': None
         }
         
         self.incidents_collection.document(incident_id).set(incident_doc)
@@ -90,7 +97,7 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get incidents for specific user (Employee view)"""
-        query = self.incidents_collection.where('reporter_uid', '==', user_id).order_by('created_at', direction='desc')
+        query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='desc')
         
         if status_filter:
             query = query.where('status', '==', status_filter.value)
@@ -116,8 +123,8 @@ class IncidentService:
             'updated_by': updated_by
         }
         
-        if incident_data.subject:
-            update_data['subject'] = incident_data.subject
+        if incident_data.title:
+            update_data['title'] = incident_data.title
         if incident_data.description:
             update_data['description'] = incident_data.description
         if incident_data.severity:

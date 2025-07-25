@@ -60,7 +60,8 @@ async def create_incident(
             incident_data, 
             reporter_id=current_user.uid,
             reporter_email=current_user.email,
-            reporter_department=current_user.department
+            reporter_name=current_user.full_name,
+            reporter_department=getattr(current_user, 'department', None)
         )
         
         # Broadcast real-time notification to security team
@@ -175,7 +176,7 @@ async def update_incident(
         # Check permissions
         if current_user.role.value == "employee":
             if (incident.reporter_id != current_user.uid or 
-                incident.status != IncidentStatus.OPEN):
+                incident.status != IncidentStatus.PENDING):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Cannot modify this incident"
@@ -256,6 +257,7 @@ async def send_message(
             incident_id=incident_id,
             sender_id=current_user.uid,
             sender_name=current_user.full_name,
+            sender_role=current_user.role.value,
             content=message_data.content,
             message_type=message_data.message_type
         )
