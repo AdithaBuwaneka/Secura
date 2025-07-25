@@ -22,7 +22,7 @@ interface Message {
   sender_name: string;
   sender_role: 'employee' | 'security_team' | 'admin';
   content: string;
-  timestamp: string;
+  created_at: string;
   attachments?: File[];
   is_read: boolean;
   message_type: 'text' | 'file' | 'system';
@@ -49,7 +49,9 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
 
   const initializeWebSocket = useCallback(() => {
     try {
-      const wsUrl = `${WS_URL}/api/messaging/ws/${incidentId || 'general'}?token=${idToken}`;
+      const wsUrl = incidentId 
+        ? `${WS_URL}/api/messaging/ws/${incidentId}?token=${idToken}`
+        : `${WS_URL}/api/messaging/ws/general?token=${idToken}&user_id=${userProfile?.uid}`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
@@ -88,10 +90,13 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
   }, [incidentId, idToken, userProfile?.uid, WS_URL]);
 
   const loadMessages = useCallback(async () => {
+    if (!incidentId) {
+      setIsLoading(false);
+      return; // No general messaging endpoint yet
+    }
+    
     try {
-      const endpoint = incidentId 
-        ? `/api/messaging/incident/${incidentId}/messages`
-        : '/api/messaging/general';
+      const endpoint = `/api/incidents/${incidentId}/messages`;
         
       const response = await fetch(`${API_URL}${endpoint}`, {
         headers: {
@@ -100,8 +105,8 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setMessages(data.messages || []);
+        const messages = await response.json();
+        setMessages(messages || []);
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -130,31 +135,42 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
 
   const sendMessage = async () => {
     if (!newMessage.trim() && attachments.length === 0) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      toast.error('Connection lost. Please try again.');
+    if (!incidentId) {
+      toast.error('No incident selected');
       return;
     }
 
     try {
+      // Send message via API
       const messageData = {
-        type: 'send_message',
         content: newMessage.trim(),
-        incident_id: incidentId,
-        sender_id: userProfile?.uid,
-        sender_name: userProfile?.full_name,
-        sender_role: userProfile?.role,
-        attachments: attachments.length > 0 ? attachments.map(f => f.name) : undefined
+        message_type: 'text'
       };
 
-      wsRef.current.send(JSON.stringify(messageData));
+      const response = await fetch(`${API_URL}/api/incidents/${incidentId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(messageData)
+      });
 
-      // Handle file uploads separately
-      if (attachments.length > 0) {
-        await uploadAttachments();
+      if (response.ok) {
+        const message = await response.json();
+        setMessages(prev => [...prev, message]);
+        
+        // Handle file uploads separately
+        if (attachments.length > 0) {
+          await uploadAttachments();
+        }
+
+        setNewMessage('');
+        setAttachments([]);
+        toast.success('Message sent');
+      } else {
+        toast.error('Failed to send message');
       }
-
-      setNewMessage('');
-      setAttachments([]);
     } catch (error) {
       toast.error('Failed to send message');
       console.error('Send message error:', error);
@@ -168,7 +184,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
         formData.append('file', file);
         formData.append('incident_id', incidentId || '');
 
-        await fetch(`${API_URL}/api/messaging/upload`, {
+        await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`
@@ -318,7 +334,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
                     
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs opacity-70">
-                        {formatTimestamp(message.timestamp)}
+                        {formatTimestamp(message.created_at)}
                       </span>
                       {message.sender_id === userProfile?.uid && (
                         <CheckCheck className={`h-3 w-3 ${message.is_read ? 'text-green-400' : 'opacity-50'}`} />

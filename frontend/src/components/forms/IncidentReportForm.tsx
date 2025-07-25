@@ -9,8 +9,8 @@ import toast from 'react-hot-toast';
 interface IncidentFormData {
   title: string;
   description: string;
-  category: string;
-  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  incident_type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
   location: string;
   attachments: File[];
   timestamp: string;
@@ -27,13 +27,13 @@ interface IncidentReportFormProps {
 }
 
 export default function IncidentReportForm({ onClose }: IncidentReportFormProps) {
-  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
+  const { idToken } = useSelector((state: RootState) => state.auth);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const [formData, setFormData] = useState<IncidentFormData>({
     title: '',
     description: '',
-    category: '',
-    severity: 'Low',
+    incident_type: '',
+    severity: 'low',
     location: '',
     attachments: [],
     timestamp: new Date().toISOString(),
@@ -44,28 +44,58 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
   const [dragActive, setDragActive] = useState(false);
 
   // AI-powered suggestions based on description
-  const handleDescriptionChange = useCallback((description: string) => {
+  const handleDescriptionChange = useCallback(async (description: string) => {
     setFormData(prev => ({ ...prev, description }));
     
-    // Simulate AI categorization suggestions
-    if (description.length > 20) {
-      const suggestions: AISuggestion[] = [];
-      
-      if (description.toLowerCase().includes('phishing') || description.toLowerCase().includes('email')) {
-        suggestions.push({ category: 'Phishing Attack', confidence: 0.92, reason: 'Keywords: phishing, email' });
+    // Call real AI API for categorization suggestions
+    if (description.length > 20 && idToken) {
+      try {
+        const response = await fetch(`${API_URL}/api/ai/categorize?title=${encodeURIComponent(formData.title)}&description=${encodeURIComponent(description)}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const suggestions: AISuggestion[] = data.categories?.map((cat: {category: string, confidence: number, reasoning: string}) => ({
+            category: cat.category,
+            confidence: cat.confidence,
+            reason: cat.reasoning
+          })) || [];
+          
+          setAISuggestions(suggestions);
+        } else {
+          // Fallback to keyword-based suggestions if API fails
+          const suggestions: AISuggestion[] = [];
+          const text = description.toLowerCase();
+          
+          if (text.includes('phishing') || text.includes('email') || text.includes('suspicious link')) {
+            suggestions.push({ category: 'phishing', confidence: 0.92, reason: 'Keywords: phishing, email' });
+          }
+          if (text.includes('malware') || text.includes('virus') || text.includes('ransomware')) {
+            suggestions.push({ category: 'malware', confidence: 0.88, reason: 'Keywords: malware, virus' });
+          }
+          if (text.includes('unauthorized') || text.includes('access') || text.includes('hacked')) {
+            suggestions.push({ category: 'unauthorized_access', confidence: 0.85, reason: 'Keywords: unauthorized, access' });
+          }
+          if (text.includes('data breach') || text.includes('leak') || text.includes('exposed')) {
+            suggestions.push({ category: 'data_breach', confidence: 0.87, reason: 'Keywords: data breach, leak' });
+          }
+          
+          setAISuggestions(suggestions);
+        }
+      } catch (error) {
+        console.error('AI categorization failed:', error);
+        // Fallback to basic keyword matching
+        setAISuggestions([]);
       }
-      if (description.toLowerCase().includes('malware') || description.toLowerCase().includes('virus')) {
-        suggestions.push({ category: 'Malware Detection', confidence: 0.88, reason: 'Keywords: malware, virus' });
-      }
-      if (description.toLowerCase().includes('unauthorized') || description.toLowerCase().includes('access')) {
-        suggestions.push({ category: 'Unauthorized Access', confidence: 0.85, reason: 'Keywords: unauthorized, access' });
-      }
-      
-      setAISuggestions(suggestions);
     } else {
       setAISuggestions([]);
     }
-  }, []);
+  }, [formData.title, idToken, API_URL]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -111,16 +141,20 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
     setIsSubmitting(true);
     
     try {
-      // Create incident payload
+      // Create incident payload matching backend IncidentCreate model
       const incidentData = {
         title: formData.title,
         description: formData.description,
-        category: formData.category || 'Other',
+        incident_type: formData.incident_type || null,
         severity: formData.severity,
-        location: formData.location,
-        reporter_id: userProfile?.uid,
-        reported_at: formData.timestamp,
-        status: 'open'
+        location: formData.location ? {
+          address: formData.location
+        } : null,
+        additional_context: {
+          timestamp: formData.timestamp,
+          reporter_client: 'web'
+        },
+        attachments: [] // File IDs will be populated after upload
       };
 
       // Submit incident to backend
@@ -151,8 +185,8 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
       setFormData({
         title: '',
         description: '',
-        category: '',
-        severity: 'Low',
+        incident_type: '',
+        severity: 'low',
         location: '',
         attachments: [],
         timestamp: new Date().toISOString(),
@@ -256,11 +290,11 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
                   <button
                     key={index}
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, category: suggestion.category }))}
+                    onClick={() => setFormData(prev => ({ ...prev, incident_type: suggestion.category }))}
                     className="block w-full text-left p-3 bg-[#1A1D23] hover:bg-[#374151] rounded-lg mb-2 transition-colors border border-gray-700 hover:border-[#00D4FF]/50"
                   >
                     <div className="flex justify-between items-center">
-                      <span className="font-medium text-white">{suggestion.category}</span>
+                      <span className="font-medium text-white">{suggestion.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
                       <span className="text-xs text-[#00D4FF] bg-[#00D4FF]/20 px-2 py-1 rounded">
                         {Math.round(suggestion.confidence * 100)}% confidence
                       </span>
@@ -275,26 +309,26 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
           {/* Category and Severity */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Category</label>
+              <label className="block text-sm font-medium mb-2">Incident Type</label>
               <select
-                value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                value={formData.incident_type}
+                onChange={(e) => setFormData(prev => ({ ...prev, incident_type: e.target.value }))}
                 className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
               >
-                <option value="">Select category</option>
-                <option value="Phishing Attack">Phishing Attack</option>
-                <option value="Malware Detection">Malware Detection</option>
-                <option value="Unauthorized Access">Unauthorized Access</option>
-                <option value="Data Breach">Data Breach</option>
-                <option value="Social Engineering">Social Engineering</option>
-                <option value="Other">Other</option>
+                <option value="">Select incident type</option>
+                <option value="phishing">Phishing Attack</option>
+                <option value="malware">Malware Detection</option>
+                <option value="unauthorized_access">Unauthorized Access</option>
+                <option value="data_breach">Data Breach</option>
+                <option value="social_engineering">Social Engineering</option>
+                <option value="physical_security">Physical Security</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Severity Level</label>
               <div className="flex space-x-2">
-                {(['Low', 'Medium', 'High', 'Critical'] as const).map((level) => (
+                {(['low', 'medium', 'high', 'critical'] as const).map((level) => (
                   <button
                     key={level}
                     type="button"
@@ -306,8 +340,8 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
                     }`}
                   >
                     <div className="flex items-center justify-center space-x-2">
-                      <div className={`h-2 w-2 rounded-full ${getSeverityColor(level)}`}></div>
-                      <span className="text-sm">{level}</span>
+                      <div className={`h-2 w-2 rounded-full ${getSeverityColor(level.charAt(0).toUpperCase() + level.slice(1))}`}></div>
+                      <span className="text-sm">{level.charAt(0).toUpperCase() + level.slice(1)}</span>
                     </div>
                   </button>
                 ))}
@@ -317,7 +351,7 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
 
           {/* Location Field */}
           <div>
-            <label className="block text-sm font-medium mb-2 flex items-center">
+            <label className="text-sm font-medium mb-2 flex items-center">
               <MapPin className="h-4 w-4 mr-1" />
               Location
             </label>

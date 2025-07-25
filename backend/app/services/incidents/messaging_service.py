@@ -21,6 +21,7 @@ class MessagingService:
         incident_id: str,
         sender_id: str,
         sender_name: str,
+        sender_role: str,
         content: str,
         message_type: MessageType = MessageType.TEXT
     ) -> Message:
@@ -32,11 +33,25 @@ class MessagingService:
             'incident_id': incident_id,
             'sender_id': sender_id,
             'sender_name': sender_name,
+            'sender_role': sender_role,
             'content': content,
             'message_type': message_type.value,
             'created_at': datetime.utcnow(),
+            'updated_at': None,
             'is_read': False,
-            'encrypted': False  # Can be enhanced with E2E encryption
+            'read_by': [],
+            'attachments': [],
+            'reply_to': None,
+            'thread_id': None,
+            'priority': 'normal',
+            'metadata': {},
+            'is_system_message': False,
+            'system_event_type': None,
+            'encrypted_content': None,
+            'encryption_key_id': None,
+            'is_encrypted': False,
+            'read_at': None,
+            'deleted_at': None
         }
         
         self.messages_collection.document(message_id).set(message_doc)

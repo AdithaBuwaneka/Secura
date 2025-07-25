@@ -16,13 +16,15 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  X
+  X,
+  Brain
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
 import SecurityMessaging from '@/components/messaging/SecurityMessaging';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
+import AIAnalysisDashboard from '@/components/ai/AIAnalysisDashboard';
 import toast from 'react-hot-toast';
 
 export default function SecurityTeamDashboard() {
@@ -32,6 +34,7 @@ export default function SecurityTeamDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showMessaging, setShowMessaging] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showAI, setShowAI] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -93,6 +96,14 @@ export default function SecurityTeamDashboard() {
                 title="Analytics"
               >
                 <TrendingUp className="h-5 w-5" />
+              </button>
+              
+              <button 
+                onClick={() => setShowAI(true)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+                title="AI Analysis"
+              >
+                <Brain className="h-5 w-5" />
               </button>
               
               <button 
@@ -330,6 +341,26 @@ export default function SecurityTeamDashboard() {
                 </button>
               </div>
               <AnalyticsDashboard />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Analysis Modal */}
+      {showAI && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] overflow-y-auto bg-[#1A1D23] rounded-lg">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white">AI Security Analysis</h2>
+                <button
+                  onClick={() => setShowAI(false)}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <AIAnalysisDashboard />
             </div>
           </div>
         </div>
