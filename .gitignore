@@ -73,3 +73,38 @@ coverage/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Backend specific
+backend/venv/
+backend/env/
+backend/*.pyc
+backend/__pycache__/
+backend/.pytest_cache/
+
+# Frontend specific
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel
+frontend/.env.local
+
+# Firebase
+*service-account*.json
+firebase-adminsdk*.json
+.firebase/
+*-debug.log
+.runtimeconfig.json
+
+# AI Models and Data
+*.pkl
+*.model
+ai_models/
+ml_data/
+data/
+
+# Testing
+*.coverage
+.pytest_cache/
+
+# Documentation builds
+docs/_build/

@@ -11,8 +11,7 @@ export interface User {
   uid: string;  // Firebase UID
   email: string;
   full_name: string;
-  role: 'employee' | 'security_team' | 'executive' | 'admin';
-  department?: string;
+  role: 'employee' | 'security_team' | 'admin';
   phone_number?: string;
   created_at: Date;
   last_login?: Date;

@@ -31,11 +31,11 @@ class FirebaseConfig:
                 cls._app = firebase_admin.initialize_app(cred)
                 cls._db = firestore.client()
                 
-                print("✅ Firebase initialized successfully")
+                print("Firebase initialized successfully")
                 return cls._db
                 
             except Exception as e:
-                print(f"⚠️ Firebase initialization failed: {e}")
+                print(f"Firebase initialization failed: {e}")
                 cls._db = None
                 return None
         else:

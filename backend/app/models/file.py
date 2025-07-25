@@ -20,6 +20,21 @@ class FileMetadata(BaseModel):
     uploaded_at: datetime
     incident_id: Optional[str] = None
 
+class FileAttachment(BaseModel):
+    id: str
+    incident_id: str
+    filename: str
+    content_type: str
+    size: int
+    imagekit_file_id: str
+    imagekit_url: str
+    imagekit_thumbnail_url: Optional[str] = None
+    uploader_id: str
+    created_at: datetime
+    is_scanned: bool = False
+    scan_result: Optional[str] = None
+    scanned_at: Optional[datetime] = None
+
 class UploadTokenResponse(BaseModel):
     signature: str
     expire: int
