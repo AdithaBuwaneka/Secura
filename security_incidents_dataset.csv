@@ -1,0 +1,103 @@
+Incident_Description,Attack_Type,Severity
+"User reported receiving suspicious email asking to verify bank account details with embedded link to fake banking site",phishing,high
+"Multiple employees received emails claiming to be from IT department requesting password reset through external link",phishing,high
+"Employee clicked on attachment in email supposedly from shipping company, computer now running slowly with popup ads",malware,medium
+"Website experiencing intermittent outages, server logs show massive traffic spike from multiple IP addresses",DDoS,high
+"Suspicious login attempts detected from unknown IP address in foreign country on admin account",unauthorized_access,medium
+"Employee laptop screen showing message demanding bitcoin payment to unlock files",ransomware,high
+"Security scan detected unauthorized software installed on marketing department computers",malware,low
+"Customer data found posted on dark web forum, appears to match our database structure",data_breach,high
+"Firewall logs show repeated connection attempts to command and control server",malware,high
+"Employee reported their email sending messages they didn't write to entire contact list",account_compromise,medium
+"Network monitoring detected large data transfer to unknown external IP address after hours",data_exfiltration,high
+"Users reporting inability to access company website, showing 'Service Unavailable' error",DDoS,medium
+"Antivirus detected trojan horse in downloaded software on finance computer",malware,high
+"Multiple failed login attempts on VPN from various geographical locations",brute_force,medium
+"Employee received call from someone claiming to be tech support asking for remote access",social_engineering,medium
+"Discovered bitcoin mining software running on several company servers",cryptojacking,medium
+"USB device found in parking lot was plugged into reception computer",malware,high
+"Abnormal database queries detected accessing customer payment information",SQL_injection,high
+"Email server sending thousands of spam messages, IP blacklisted",account_compromise,high
+"Employee reported fake job posting on external site using company branding",brand_abuse,low
+"Security certificate on internal application expired causing access issues",misconfiguration,low
+"Suspicious browser extension installed requesting access to all web traffic",malware,medium
+"Customer reported fraudulent charges after using our payment system",payment_fraud,high
+"Network scan revealed several systems running outdated vulnerable software versions",vulnerability,medium
+"Employee social media account compromised and posting company confidential information",account_compromise,medium
+"Wireless access point detected broadcasting company SSID but not managed by IT",rogue_device,medium
+"Log analysis shows privilege escalation attempt on database server",privilege_escalation,high
+"Fake mobile app using company logo discovered on third-party app store",brand_abuse,medium
+"Employee reported laptop stolen from coffee shop with customer data",physical_security,high
+"Automated script attempting to create multiple fake user accounts detected",bot_attack,low
+"Source code repository access logs show downloads from terminated employee account",insider_threat,high
+"Production server CPU at 100% due to process spawning infinite child processes",resource_exhaustion,medium
+"Phishing campaign targeting C-level executives with fake board meeting invites",spear_phishing,high
+"Network traffic analysis revealed data being sent to known malicious IP",malware,high
+"User reported popup claiming computer infected and providing fake tech support number",scareware,low
+"API experiencing unusual traffic pattern suggesting credential stuffing attack",credential_stuffing,medium
+"Discovered keylogger software on CFO's computer during routine maintenance",malware,high
+"Email quarantine caught message with malicious macro-enabled document",malware,medium
+"Physical security breach: unauthorized person tailgated into server room",physical_security,high
+"DNS logs show multiple lookups to newly registered suspicious domains",DNS_hijacking,medium
+"Employee fell for tech support scam and gave remote access to their computer",social_engineering,high
+"Backup system not running for past week due to ransomware encryption",ransomware,high
+"Marketing email platform account sending phishing emails to customer list",account_compromise,high
+"Detected modification of critical system files without authorization",rootkit,high
+"Customer support tickets system defaced with political messages",website_defacement,medium
+"Load balancer logs show traffic pattern consistent with slowloris attack",DDoS,medium
+"Financial application showing signs of form jacking code injection",web_skimming,high
+"Suspicious PowerShell commands executed on multiple domain computers",fileless_malware,high
+"Third-party vendor breach exposed our customer email addresses",supply_chain,medium
+"Employee reported receiving USB drive in mail claiming to contain invoice",malware,medium
+"Mobile device management detected jailbroken device accessing corporate email",policy_violation,low
+"Web application firewall blocked multiple XSS attempts on customer portal",XSS,medium
+"Unusual pattern of password reset requests for executive accounts",account_takeover,high
+"Network segment showing signs of lateral movement after initial compromise",APT,high
+"Public S3 bucket found containing sensitive internal documents",misconfiguration,high
+"Employee reported voice phishing call asking for VPN credentials",vishing,medium
+"Detected unauthorized wireless device performing man-in-the-middle attack",MITM,high
+"System logs show someone attempted to disable antivirus on multiple machines",malware,medium
+"Fake LinkedIn profile impersonating CEO sending connection requests",social_engineering,low
+"Database backup files found exposed on public file sharing service",data_exposure,high
+"Network printer accessed remotely and printing threatening messages",unauthorized_access,low
+"Suspicious Chrome extension stealing cookies and session tokens detected",session_hijacking,high
+"Email gateway detected business email compromise attempt on vendor payment",BEC,high
+"Temperature sensors in server room manipulated causing HVAC failure",physical_security,medium
+"Discovered rogue DHCP server on network assigning malicious DNS servers",rogue_device,high
+"Application logs show LDAP injection attempts on authentication system",LDAP_injection,medium
+"Employee laptop camera activated without user knowledge or consent",spyware,medium
+"Detected cryptocurrency wallet addresses replaced in clipboard by malware",clipboard_hijacking,medium
+"Office 365 account sending phishing emails after credential compromise",account_compromise,high
+"Network traffic shows beaconing behavior to command and control server",malware,high
+"Discovered credit card skimmer on e-commerce checkout page",web_skimming,high
+"Building access card cloned and used for unauthorized entry",physical_security,medium
+"Suspicious process injection detected in legitimate Windows processes",process_injection,high
+"Employee reported deepfake video call impersonating company executive",deepfake,high
+"Cloud storage bucket permissions changed to public without authorization",misconfiguration,high
+"Detected attempts to exploit recently disclosed zero-day vulnerability",zero_day,high
+"Malicious QR code posted in break room leading to credential harvesting site",phishing,medium
+"Network shares encrypted with ransom note demanding cryptocurrency payment",ransomware,high
+"IoT security camera in office streaming to unauthorized external server",IoT_compromise,medium
+"Discovered backdoor account in critical production application",backdoor,high
+"SMS phishing campaign targeting employees with fake IT security alerts",smishing,medium
+"Unauthorized modification of DNS records pointing to attacker infrastructure",DNS_hijacking,high
+"Employee reported blackmail attempt using stolen personal information",extortion,high
+"Detected watering hole attack on industry news website frequently visited",watering_hole,medium
+"Suspicious registry modifications detected across multiple workstations",malware,medium
+"Fake security update popup installed remote access trojan on user machine",trojan,high
+"API key exposed in public GitHub repository being actively exploited",secret_exposure,high
+"Network forensics revealed data staging in preparation for exfiltration",data_theft,high
+"Employee badge used to access building during non-business hours",insider_threat,medium
+"Detected attempts to bypass web application firewall using encoding tricks",WAF_bypass,medium
+"Malicious browser redirect sending users to tech support scam page",browser_hijack,low
+"Supply chain partner system compromise led to malware in software update",supply_chain,high
+"Discovered listening device in executive conference room",physical_security,high
+"Email impersonation attack targeting accounts payable for wire transfer",BEC,high
+"Detected living-off-the-land attack using legitimate Windows tools",fileless_malware,high
+"Customer reported SIM swapping attack to bypass two-factor authentication",SIM_swapping,high
+"Malicious insider downloaded entire customer database before resignation",insider_threat,high
+"DDoS attack using IoT botnet causing website outage during sales event",DDoS,high
+"Discovered formjacking code on payment processing page stealing card data",formjacking,high
+"Security researcher reported vulnerability in our mobile application",vulnerability_disclosure,medium
+"Detected cryptomining malware using 90% of server resources",cryptojacking,medium
+"Fake browser update popup delivered banking trojan to accounting department",trojan,high
