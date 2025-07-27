@@ -48,32 +48,52 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
   const WS_URL = API_URL.replace('http', 'ws');
 
   const initializeWebSocket = useCallback(() => {
+    // Don't initialize if we don't have required data
+    if (!idToken || !userProfile?.uid) {
+      console.log('WebSocket: Missing required data for connection');
+      console.log('WebSocket: idToken present:', !!idToken);
+      console.log('WebSocket: userProfile?.uid present:', !!userProfile?.uid);
+      return;
+    }
+
     try {
       const wsUrl = incidentId 
         ? `${WS_URL}/api/messaging/ws/${incidentId}?token=${idToken}`
         : `${WS_URL}/api/messaging/ws/general?token=${idToken}&user_id=${userProfile?.uid}`;
+      
+      console.log('WebSocket: Attempting to connect to:', wsUrl);
+      console.log('WebSocket: WS_URL:', WS_URL);
+      console.log('WebSocket: API_URL:', API_URL);
+      
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
-        console.log('WebSocket connected');
+        console.log('WebSocket connected successfully');
       };
 
       wsRef.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'message') {
-          setMessages(prev => [...prev, data.message]);
-        } else if (data.type === 'typing') {
-          setIsTyping(data.is_typing && data.user_id !== userProfile?.uid);
-        } else if (data.type === 'status') {
-          toast.success(data.message);
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket: Received message:', data);
+          
+          if (data.type === 'message') {
+            setMessages(prev => [...prev, data.message]);
+          } else if (data.type === 'typing') {
+            setIsTyping(data.is_typing && data.user_id !== userProfile?.uid);
+          } else if (data.type === 'status') {
+            toast.success(data.message);
+          } else if (data.type === 'connection_established') {
+            console.log('WebSocket: Connection confirmed by server');
+          }
+        } catch (error) {
+          console.error('WebSocket: Failed to parse message:', error);
         }
       };
 
-      wsRef.current.onclose = () => {
+      wsRef.current.onclose = (event) => {
         setIsConnected(false);
-        console.log('WebSocket disconnected');
+        console.log('WebSocket disconnected:', event.code, event.reason);
         // Attempt to reconnect after 3 seconds
         setTimeout(() => {
           initializeWebSocket();
@@ -81,7 +101,12 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.log('WebSocket error occurred:', error);
+        console.log('WebSocket error type:', typeof error);
+        console.log('WebSocket error details:', {
+          readyState: wsRef.current?.readyState,
+          url: wsRef.current?.url
+        });
         setIsConnected(false);
       };
     } catch (error) {
@@ -107,9 +132,20 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
       if (response.ok) {
         const messages = await response.json();
         setMessages(messages || []);
+        console.log(`Loaded ${messages.length} messages for incident ${incidentId}`);
+      } else if (response.status === 404) {
+        console.log(`Incident ${incidentId} not found or access denied`);
+        toast.error(`Incident ${incidentId} not found. Please check the incident ID.`);
+      } else if (response.status === 401) {
+        console.log('Authentication failed when loading messages');
+        toast.error('Authentication failed. Please log in again.');
+      } else {
+        console.log(`Failed to load messages: ${response.status} ${response.statusText}`);
+        toast.error('Failed to load messages. Please try again.');
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
+      toast.error('Network error while loading messages.');
     } finally {
       setIsLoading(false);
     }
@@ -287,11 +323,11 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF]"></div>
           </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            <Shield className="h-8 w-8 mb-2" />
-            <p className="text-sm">No messages yet. Start the conversation!</p>
-          </div>
+                          ) : messages.length === 0 ? (
+           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+             <Shield className="h-8 w-8 mb-2" />
+             <p className="text-sm">No messages yet. Start the conversation!</p>
+           </div>
         ) : (
           <div className="space-y-4">
             {messages.map((message) => (

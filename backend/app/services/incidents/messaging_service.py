@@ -60,15 +60,34 @@ class MessagingService:
 
     async def get_incident_messages(self, incident_id: str) -> List[Message]:
         """Get all messages for an incident"""
-        query = self.messages_collection.where('incident_id', '==', incident_id).order_by('created_at')
-        docs = query.stream()
-        
-        messages = []
-        for doc in docs:
-            data = doc.to_dict()
-            messages.append(Message(**data))
-        
-        return messages
+        try:
+            # First try with ordering
+            query = self.messages_collection.where('incident_id', '==', incident_id).order_by('created_at')
+            docs = query.stream()
+            
+            messages = []
+            for doc in docs:
+                data = doc.to_dict()
+                messages.append(Message(**data))
+            
+            return messages
+        except Exception as e:
+            if "index" in str(e).lower():
+                # Fallback: get messages without ordering
+                print(f"Warning: Using fallback query for incident {incident_id} due to missing index")
+                query = self.messages_collection.where('incident_id', '==', incident_id)
+                docs = query.stream()
+                
+                messages = []
+                for doc in docs:
+                    data = doc.to_dict()
+                    messages.append(Message(**data))
+                
+                # Sort in Python instead of Firestore
+                messages.sort(key=lambda x: x.created_at if x.created_at else datetime.min)
+                return messages
+            else:
+                raise e
 
     async def mark_message_read(self, message_id: str, user_id: str) -> bool:
         """Mark message as read by user"""

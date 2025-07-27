@@ -3,14 +3,18 @@ Messaging WebSocket Routes
 Handles real-time messaging connections with authentication
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status, Query, Depends
 from firebase_admin import auth
-from typing import Optional
+from typing import Optional, List
 import json
 import time
 from collections import defaultdict
 
 from app.services.messaging.connection_manager import ConnectionManager
+from app.services.incidents.messaging_service import MessagingService
+from app.models.message import Message
+from app.utils.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter(tags=["Messaging"])
 
@@ -19,6 +23,22 @@ manager = ConnectionManager()
 
 # Rate limiting for connections (user_id -> last_connection_time)
 connection_attempts = defaultdict(list)
+
+@router.get("/conversations")
+async def get_conversations(
+    current_user: User = Depends(get_current_user),
+    messaging_service: MessagingService = Depends()
+):
+    """Get all conversations for the current user"""
+    try:
+        # For now, return empty list since we don't have a general conversations feature
+        # This endpoint is called by the frontend but not used in the current implementation
+        return []
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve conversations: {str(e)}"
+        )
 
 @router.get("/ws/test")
 async def test_websocket_connection():
