@@ -54,6 +54,13 @@ async def create_incident(
     Create a new security incident report
     Available to all authenticated users
     """
+    # Validate that at least one of title or description is provided
+    if (not incident_data.title or incident_data.title == "") and (not incident_data.description or incident_data.description == ""):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one of title or description must be provided"
+        )
+    
     try:
         # Create incident with user information
         incident = await incident_service.create_incident(
@@ -81,7 +88,7 @@ async def create_incident(
             detail=f"Failed to create incident: {str(e)}"
         )
 
-@router.get("/", response_model=List[IncidentResponse])
+@router.get("/")
 async def get_incidents(
     status_filter: Optional[IncidentStatus] = None,
     limit: int = 20,
@@ -107,9 +114,34 @@ async def get_incidents(
                 status_filter, limit, offset
             )
         
+        # The service now returns dicts with attachments included
+        # Just ensure enums are strings if they're still objects
+        for incident in incidents:
+            if isinstance(incident, dict):
+                # Already a dict from the service
+                if 'status' in incident and hasattr(incident['status'], 'value'):
+                    incident['status'] = incident['status'].value
+                if 'severity' in incident and hasattr(incident['severity'], 'value'):
+                    incident['severity'] = incident['severity'].value
+                if 'incident_type' in incident and hasattr(incident['incident_type'], 'value'):
+                    incident['incident_type'] = incident['incident_type'].value
+            else:
+                # Convert to dict if it's still a Pydantic model
+                incident_dict = incident.dict()
+                if 'status' in incident_dict and hasattr(incident_dict['status'], 'value'):
+                    incident_dict['status'] = incident_dict['status'].value
+                if 'severity' in incident_dict and hasattr(incident_dict['severity'], 'value'):
+                    incident_dict['severity'] = incident_dict['severity'].value
+                if 'incident_type' in incident_dict and hasattr(incident_dict['incident_type'], 'value'):
+                    incident_dict['incident_type'] = incident_dict['incident_type'].value
+                incidents[incidents.index(incident)] = incident_dict
+        
         return incidents
         
     except Exception as e:
+        import traceback
+        print(f"Error retrieving incidents: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve incidents: {str(e)}"
@@ -328,6 +360,9 @@ async def upload_attachment(
     Upload file attachment to incident (Max 10MB)
     """
     try:
+        print(f"Uploading attachment for incident {incident_id}")
+        print(f"File: {file.filename}, Size: {file.size}, Type: {file.content_type}")
+        
         # Validate file size (10MB limit)
         if file.size > 10 * 1024 * 1024:
             raise HTTPException(
@@ -342,9 +377,11 @@ async def upload_attachment(
             uploader_id=current_user.uid
         )
         
+        print(f"File uploaded successfully: {attachment}")
+        
         return {
             "message": "File uploaded successfully",
-            "attachment": attachment
+            "attachment": attachment.dict() if hasattr(attachment, 'dict') else attachment
         }
         
     except HTTPException:

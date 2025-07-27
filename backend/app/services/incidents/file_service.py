@@ -39,16 +39,22 @@ class FileService:
             folder="incident-attachments"
         )
         
+        print(f"ImageKit upload result: {upload_result}")
+        
+        # Check if upload was successful
+        if not upload_result.get('success', False):
+            raise Exception(f"ImageKit upload failed: {upload_result.get('error', 'Unknown error')}")
+        
         # Store file metadata in Firestore
         file_doc = {
             'id': file_id,
             'incident_id': incident_id,
             'filename': file.filename,
             'content_type': file.content_type,
-            'size': upload_result.get('size', len(file_content)),
-            'imagekit_file_id': upload_result.get('file_id'),
-            'imagekit_url': upload_result.get('url'),
-            'imagekit_thumbnail_url': upload_result.get('thumbnail_url'),
+            'size': upload_result.get('size', file.size),
+            'imagekit_file_id': upload_result.get('file_id', ''),
+            'imagekit_url': upload_result.get('url', ''),
+            'imagekit_thumbnail_url': upload_result.get('thumbnail_url', ''),
             'uploader_id': uploader_id,
             'created_at': datetime.utcnow(),
             'is_scanned': False,  # For virus scanning
@@ -56,13 +62,17 @@ class FileService:
             'scanned_at': None
         }
         
+        # Make sure we have required fields
+        if not file_doc['imagekit_file_id'] or not file_doc['imagekit_url']:
+            raise Exception("ImageKit did not return file_id or url")
+        
         self.files_collection.document(file_id).set(file_doc)
         
         return FileAttachment(**file_doc)
 
     async def get_incident_files(self, incident_id: str) -> list[FileAttachment]:
         """Get all files for an incident"""
-        query = self.files_collection.where('incident_id', '==', incident_id).order_by('created_at')
+        query = self.files_collection.where('incident_id', '==', incident_id).order_by('created_at', direction='DESCENDING')
         docs = query.stream()
         
         files = []

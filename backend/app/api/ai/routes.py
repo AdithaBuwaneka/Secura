@@ -4,7 +4,7 @@ Handles incident categorization, severity assessment, and mitigation strategies
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.models.common import IncidentType, IncidentSeverity
@@ -15,17 +15,17 @@ from app.models.user import User
 router = APIRouter(tags=["AI Engine"])
 
 class IncidentAnalysisRequest(BaseModel):
-    title: str
-    description: str
+    title: Optional[str] = ""
+    description: Optional[str] = ""
     context: Dict[str, Any] = {}
 
 class CategorySuggestion(BaseModel):
-    category: IncidentType
+    category: str  # Changed from IncidentType to str
     confidence: float
     reasoning: str
 
 class SeverityAssessment(BaseModel):
-    severity: IncidentSeverity
+    severity: str  # Changed from IncidentSeverity to str
     confidence: float
     factors: List[str]
 
@@ -64,7 +64,7 @@ async def analyze_incident(
             title=request.title,
             description=request.description,
             context=request.context,
-            user_department=current_user.department
+            user_department=None  # User model doesn't have department
         )
         
         return analysis_result
@@ -164,6 +164,36 @@ async def get_threat_intelligence(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Threat intelligence retrieval failed: {str(e)}"
+        )
+
+@router.post("/predict-incident", response_model=AIAnalysisResponse)
+async def predict_incident(
+    request: IncidentAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    ai_service: AIService = Depends()
+):
+    """
+    Predict incident type and severity for incident reporting
+    Available to all authenticated users
+    """
+    try:
+        # Perform AI analysis for prediction
+        analysis_result = await ai_service.analyze_incident(
+            title=request.title,
+            description=request.description,
+            context=request.context,
+            user_department=None  # User model doesn't have department
+        )
+        
+        return analysis_result
+        
+    except Exception as e:
+        import traceback
+        print(f"AI prediction error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI prediction failed: {str(e)}"
         )
 
 @router.get("/predictive-analytics")

@@ -34,7 +34,9 @@ class IncidentSeverity(str, Enum):
 
 class IncidentStatus(str, Enum):
     PENDING = "pending"
+    ASSIGNED = "assigned"
     INVESTIGATING = "investigating"
+    IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
     CLOSED = "closed"
 

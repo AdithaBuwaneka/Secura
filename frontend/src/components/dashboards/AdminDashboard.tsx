@@ -25,14 +25,38 @@ import AdminApplicationReview from '@/components/applications/AdminApplicationRe
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
-  const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
   const { pendingApplications } = useSelector((state: RootState) => state.applications);
   const dispatch = useDispatch<AppDispatch>();
   const [activeTab, setActiveTab] = useState('overview');
+  const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
     dispatch(fetchPendingApplications());
-  }, [dispatch]);
+    
+    // Fetch recent incidents
+    const fetchRecentIncidents = async () => {
+      if (idToken) {
+        try {
+          const response = await fetch(`${API_URL}/api/incidents/?limit=5`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const incidents = await response.json();
+            setRecentIncidents(incidents);
+          }
+        } catch (error) {
+          console.error('Failed to fetch recent incidents:', error);
+        }
+      }
+    };
+    
+    fetchRecentIncidents();
+  }, [dispatch, idToken, API_URL]);
 
   const handleLogout = async () => {
     try {
