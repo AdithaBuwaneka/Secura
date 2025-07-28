@@ -150,10 +150,10 @@ export default function EmployeeDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <button
                 onClick={() => setShowIncidentForm(true)}
-                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] hover:scale-105 group"
+                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] hover:scale-[1.02] hover:shadow-lg group"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -164,7 +164,7 @@ export default function EmployeeDashboard() {
                 </div>
               </button>
               
-              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group">
+              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium">View My Incidents</h4>
@@ -176,10 +176,10 @@ export default function EmployeeDashboard() {
               
               <button 
                 onClick={() => setShowMessaging(true)}
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group relative"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group relative overflow-visible"
               >
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 pr-4">
                     <h4 className="font-medium">Security Chat</h4>
                     <p className="text-sm text-gray-300 mt-1">Chat with security team</p>
                     <div className="flex items-center mt-1">
@@ -189,13 +189,13 @@ export default function EmployeeDashboard() {
                       </span>
                     </div>
                   </div>
-                  <div className="relative">
+                  <div className="relative flex-shrink-0 ml-4">
                     {unreadCount > 0 && (
-                      <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center">
-                        <span className="text-xs text-white font-bold">{unreadCount}</span>
+                      <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center z-10 text-xs text-white font-bold min-w-[16px]">
+                        {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     )}
-                    <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                    <MessageCircle className="h-6 w-6 text-gray-300 group-hover:text-white transition-colors" />
                   </div>
                 </div>
               </button>
@@ -204,7 +204,7 @@ export default function EmployeeDashboard() {
               {canApply && (
                 <Link
                   href="/applications/apply"
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-105 group"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-[1.02] hover:shadow-lg group block"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -219,7 +219,7 @@ export default function EmployeeDashboard() {
               {/* Application Status Button */}
               <Link
                 href="/applications/status"
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group block"
               >
                 <div className="flex items-center justify-between">
                   <div>
