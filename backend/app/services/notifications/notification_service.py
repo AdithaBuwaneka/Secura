@@ -235,7 +235,7 @@ class NotificationService:
     ) -> List[Dict[str, Any]]:
         """Get notification history"""
         try:
-            query = self.notifications_collection.order_by('sent_at', direction='desc').limit(limit)
+            query = self.notifications_collection.order_by('sent_at', direction='DESCENDING').limit(limit)
             
             if user_id:
                 query = query.where('user_id', '==', user_id)

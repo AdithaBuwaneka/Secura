@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { Upload, AlertTriangle, MapPin, Clock, X, FileText, Image, Send } from 'lucide-react';
-import { RootState } from '@/store';
+import { RootState, AppDispatch } from '@/store';
+import { createIncident } from '@/store/incidents/incidentSlice';
 import toast from 'react-hot-toast';
 
 interface IncidentFormData {
@@ -28,6 +29,7 @@ interface IncidentReportFormProps {
 
 export default function IncidentReportForm({ onClose }: IncidentReportFormProps) {
   const { idToken } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const [formData, setFormData] = useState<IncidentFormData>({
     title: '',
@@ -157,25 +159,11 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
         attachments: [] // File IDs will be populated after upload
       };
 
-      // Submit incident to backend
-      const response = await fetch(`${API_URL}/api/incidents/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify(incidentData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to submit incident');
-      }
-
-      const result = await response.json();
+      // Submit incident via Redux store
+      const result = await dispatch(createIncident(incidentData)).unwrap();
       
       // If we have files, upload them
-      if (formData.attachments.length > 0) {
+      if (formData.attachments.length > 0 && result.incident_id) {
         await uploadAttachments(result.incident_id);
       }
 

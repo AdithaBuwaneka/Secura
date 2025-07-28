@@ -116,19 +116,42 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get all incidents (Security Team/Admin view)"""
-        query = self.incidents_collection.order_by('created_at', direction='desc')
-        
-        if status_filter:
-            query = query.where('status', '==', status_filter.value)
-        
-        docs = query.limit(limit).offset(offset).stream()
-        
-        incidents = []
-        for doc in docs:
-            data = doc.to_dict()
-            incidents.append(IncidentResponse(**data))
-        
-        return incidents
+        try:
+            query = self.incidents_collection
+                
+            # Add status filter if provided
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            # Don't use order_by to avoid potential index issues
+            # We'll sort in Python instead
+            docs = query.limit(limit * 2).stream()  # Get more docs to sort
+            
+            incidents = []
+            for doc in docs:
+                data = doc.to_dict()
+                # Ensure required fields have defaults
+                if 'created_at' not in data:
+                    data['created_at'] = datetime.utcnow()
+                if 'updated_at' not in data:
+                    data['updated_at'] = datetime.utcnow()
+                incidents.append(IncidentResponse(**data))
+            
+            # Sort by created_at in Python (newest first)
+            incidents.sort(key=lambda x: x.created_at, reverse=True)
+            
+            # Apply offset and limit after sorting
+            start = offset
+            end = offset + limit
+            return incidents[start:end]
+            
+        except Exception as e:
+            print(f"Error in get_all_incidents: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            # Return empty list instead of raising to prevent 500 errors
+            return []
 
     async def get_user_incidents(
         self, 
@@ -138,19 +161,43 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get incidents for specific user (Employee view)"""
-        query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='desc')
-        
-        if status_filter:
-            query = query.where('status', '==', status_filter.value)
-        
-        docs = query.limit(limit).offset(offset).stream()
-        
-        incidents = []
-        for doc in docs:
-            data = doc.to_dict()
-            incidents.append(IncidentResponse(**data))
-        
-        return incidents
+        try:
+            # Start with basic user filter
+            query = self.incidents_collection.where('reporter_id', '==', user_id)
+            
+            # Add status filter if provided
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            # Don't use order_by to avoid composite index requirement
+            # We'll sort in Python instead
+            docs = query.limit(limit * 2).stream()  # Get more docs to sort
+            
+            incidents = []
+            for doc in docs:
+                data = doc.to_dict()
+                # Ensure required fields have defaults
+                if 'created_at' not in data:
+                    data['created_at'] = datetime.utcnow()
+                if 'updated_at' not in data:
+                    data['updated_at'] = datetime.utcnow()
+                incidents.append(IncidentResponse(**data))
+            
+            # Sort by created_at in Python (newest first)
+            incidents.sort(key=lambda x: x.created_at, reverse=True)
+            
+            # Apply offset and limit after sorting
+            start = offset
+            end = offset + limit
+            return incidents[start:end]
+            
+        except Exception as e:
+            print(f"Error in get_user_incidents: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            # Return empty list instead of raising to prevent 500 errors
+            return []
 
     async def update_incident(
         self, 

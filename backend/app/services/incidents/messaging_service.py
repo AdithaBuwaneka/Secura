@@ -62,7 +62,7 @@ class MessagingService:
         """Get all messages for an incident"""
         try:
             # First try with ordering
-            query = self.messages_collection.where('incident_id', '==', incident_id).order_by('created_at')
+            query = self.messages_collection.where('incident_id', '==', incident_id).order_by('created_at', direction='ASCENDING')
             docs = query.stream()
             
             messages = []

@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './auth/authSlice';
 import applicationReducer from './applications/applicationSlice';
+import incidentReducer from './incidents/incidentSlice';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     applications: applicationReducer,
+    incidents: incidentReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

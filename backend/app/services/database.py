@@ -69,7 +69,7 @@ class DatabaseService:
             
             # Apply ordering
             if order_by:
-                direction = 'desc' if order_direction.lower() == 'desc' else 'asc'
+                direction = 'DESCENDING' if order_direction.lower() == 'desc' else 'ASCENDING'
                 query = query.order_by(order_by, direction=direction)
             
             # Apply pagination

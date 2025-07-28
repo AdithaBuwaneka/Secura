@@ -62,7 +62,7 @@ class FileService:
 
     async def get_incident_files(self, incident_id: str) -> list[FileAttachment]:
         """Get all files for an incident"""
-        query = self.files_collection.where('incident_id', '==', incident_id).order_by('created_at')
+        query = self.files_collection.where('incident_id', '==', incident_id).order_by('created_at', direction='ASCENDING')
         docs = query.stream()
         
         files = []

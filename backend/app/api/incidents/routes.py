@@ -110,6 +110,10 @@ async def get_incidents(
         return incidents
         
     except Exception as e:
+        print(f"ERROR in get_incidents: {str(e)}")
+        print(f"ERROR type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve incidents: {str(e)}"

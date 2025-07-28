@@ -17,6 +17,7 @@ import {
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
 import { checkCanApply } from '@/store/applications/applicationSlice';
+import { fetchUserIncidents } from '@/store/incidents/incidentSlice';
 import IncidentReportForm from '@/components/forms/IncidentReportForm';
 import MessageThread from '@/components/messaging/MessageThread';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
@@ -24,16 +25,24 @@ import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 export default function EmployeeDashboard() {
-  const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { userProfile, idToken, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const { canApply } = useSelector((state: RootState) => state.applications);
+  const { userIncidents, stats, loading } = useSelector((state: RootState) => state.incidents);
   const dispatch = useDispatch<AppDispatch>();
   const { unreadCount, isConnected } = useMessaging();
   const [showIncidentForm, setShowIncidentForm] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
 
   useEffect(() => {
-    dispatch(checkCanApply());
-  }, [dispatch]);
+    // Only fetch data when user is authenticated and has idToken
+    if (isAuthenticated && idToken && userProfile) {
+      console.log('Dashboard: Fetching data for authenticated user');
+      dispatch(checkCanApply());
+      dispatch(fetchUserIncidents());
+    } else {
+      console.log('Dashboard: User not fully authenticated yet', { isAuthenticated, hasToken: !!idToken, hasProfile: !!userProfile });
+    }
+  }, [dispatch, isAuthenticated, idToken, userProfile]);
 
   const handleLogout = async () => {
     try {
@@ -42,6 +51,12 @@ export default function EmployeeDashboard() {
     } catch {
       toast.error('Logout failed');
     }
+  };
+
+  const handleIncidentFormClose = () => {
+    setShowIncidentForm(false);
+    // Refresh incidents after form submission
+    dispatch(fetchUserIncidents());
   };
   return (
     <div className="min-h-screen bg-[#1A1D23]">
@@ -110,8 +125,8 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">My Open Incidents</p>
-                <p className="text-3xl font-bold text-white">3</p>
-                <p className="text-xs text-gray-500 mt-1">2 new this week</p>
+                <p className="text-3xl font-bold text-white">{stats.pending}</p>
+                <p className="text-xs text-gray-500 mt-1">{stats.total} total incidents</p>
               </div>
               <div className="p-3 bg-yellow-500/20 rounded-lg">
                 <AlertTriangle className="h-8 w-8 text-yellow-400" />
@@ -123,7 +138,7 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Under Investigation</p>
-                <p className="text-3xl font-bold text-white">1</p>
+                <p className="text-3xl font-bold text-white">{stats.investigating}</p>
                 <p className="text-xs text-gray-500 mt-1">Security team assigned</p>
               </div>
               <div className="p-3 bg-orange-500/20 rounded-lg">
@@ -135,9 +150,9 @@ export default function EmployeeDashboard() {
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Resolved This Month</p>
-                <p className="text-3xl font-bold text-white">12</p>
-                <p className="text-xs text-gray-500 mt-1">Average: 2.3 days</p>
+                <p className="text-gray-400 text-sm">Resolved Total</p>
+                <p className="text-3xl font-bold text-white">{stats.resolved}</p>
+                <p className="text-xs text-gray-500 mt-1">Successfully handled</p>
               </div>
               <div className="p-3 bg-green-500/20 rounded-lg">
                 <CheckCircle className="h-8 w-8 text-green-400" />
@@ -235,31 +250,57 @@ export default function EmployeeDashboard() {
           {/* Recent Activity */}
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <h3 className="text-lg font-semibold text-white mb-4">Recent Activity</h3>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm text-white">Incident #INC-2024-001 resolved</p>
-                  <p className="text-xs text-gray-400">2 hours ago</p>
-                </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF]"></div>
               </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
-                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm text-white">Security team responded to #INC-2024-002</p>
-                  <p className="text-xs text-gray-400">1 day ago</p>
-                </div>
+            ) : userIncidents.length > 0 ? (
+              <div className="space-y-4">
+                {userIncidents.slice(0, 5).map((incident) => {
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'resolved': case 'closed': return 'bg-green-400';
+                      case 'investigating': return 'bg-orange-400';
+                      case 'pending': return 'bg-yellow-400';
+                      default: return 'bg-gray-400';
+                    }
+                  };
+
+                  const getTimeAgo = (dateString: string) => {
+                    const date = new Date(dateString);
+                    const now = new Date();
+                    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+                    
+                    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+                    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
+                    return `${Math.floor(diffInMinutes / 1440)} days ago`;
+                  };
+
+                  return (
+                    <div key={incident.id} className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
+                      <div className={`w-2 h-2 rounded-full ${getStatusColor(incident.status)}`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white">
+                          {incident.status === 'resolved' || incident.status === 'closed' 
+                            ? `Incident "${incident.title}" resolved`
+                            : incident.status === 'investigating'
+                            ? `Security team investigating "${incident.title}"`
+                            : `New incident "${incident.title}" submitted`
+                          }
+                        </p>
+                        <p className="text-xs text-gray-400">{getTimeAgo(incident.updated_at)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm text-white">New incident report submitted</p>
-                  <p className="text-xs text-gray-400">3 days ago</p>
-                </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-gray-500 mx-auto mb-4" />
+                <p className="text-gray-400">No incidents reported yet</p>
+                <p className="text-sm text-gray-500 mt-1">Submit your first incident report above</p>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -283,7 +324,7 @@ export default function EmployeeDashboard() {
       {showIncidentForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <IncidentReportForm onClose={() => setShowIncidentForm(false)} />
+            <IncidentReportForm onClose={handleIncidentFormClose} />
           </div>
         </div>
       )}
