@@ -113,21 +113,18 @@ class ImageKitService:
             unique_filename = f"{incident_id}_{timestamp}_{file_hash[:8]}{file_extension}"
             
             # Upload to ImageKit
+            from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
+            
+            options = UploadFileRequestOptions(
+                folder=f"/{folder}/{incident_id}/",
+                is_private_file=True,  # Keep files private for security
+                use_unique_file_name=False  # We're providing our own unique name
+            )
+            
             upload_result = self.imagekit.upload_file(
                 file=file_content,
                 file_name=unique_filename,
-                options={
-                    "folder": f"/{folder}/{incident_id}/",
-                    "is_private_file": True,  # Keep files private for security
-                    "use_unique_file_name": False,  # We're providing our own unique name
-                    "custom_metadata": {
-                        "incident_id": incident_id,
-                        "uploader_id": uploader_id,
-                        "original_filename": file.filename,
-                        "upload_timestamp": datetime.now().isoformat(),
-                        "file_hash": file_hash
-                    }
-                }
+                options=options
             )
             
             return {
