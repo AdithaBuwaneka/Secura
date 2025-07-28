@@ -7,10 +7,10 @@ from typing import Optional, List
 from firebase_admin import auth, firestore
 from datetime import datetime
 
-from app.models.user import User
-from app.models.common import UserRole
-from app.models.auth import UserProfile
-from app.core.firebase_config import FirebaseConfig
+from models.user import User
+from models.common import UserRole
+from models.auth import UserProfile
+from core.firebase_config import FirebaseConfig
 
 class AuthService:
     def __init__(self):
@@ -87,11 +87,13 @@ class AuthService:
 
     async def get_all_users(self) -> List[User]:
         """Get all users (Admin only)"""
+        print("AuthService: Getting all users from Firestore...")
         docs = self.users_collection.stream()
         users = []
         
         for doc in docs:
             data = doc.to_dict()
+            print(f"AuthService: Found user {data.get('email', 'unknown')} with role {data.get('role', 'unknown')}")
             users.append(User(
                 uid=data['uid'],
                 email=data['email'],
@@ -103,6 +105,7 @@ class AuthService:
                 last_login=data.get('last_login')
             ))
         
+        print(f"AuthService: Total users found: {len(users)}")
         return users
 
     async def update_last_login(self, uid: str):
@@ -110,3 +113,14 @@ class AuthService:
         self.users_collection.document(uid).update({
             'last_login': datetime.utcnow()
         })
+
+    async def update_user_status(self, uid: str, is_active: bool) -> bool:
+        """Update user active status"""
+        try:
+            self.users_collection.document(uid).update({
+                'is_active': is_active,
+                'updated_at': datetime.utcnow()
+            })
+            return True
+        except Exception:
+            return False

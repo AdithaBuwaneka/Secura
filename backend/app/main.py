@@ -8,6 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.api.auth import routes as auth_routes
+from app.api.admin import routes as admin_routes
 from app.api.incidents import routes as incident_routes
 from app.api.ai import routes as ai_routes
 from app.api.analytics import routes as analytics_routes
@@ -39,6 +40,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(admin_routes.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(incident_routes.router, prefix="/api/incidents", tags=["Incidents"])
 app.include_router(ai_routes.router, prefix="/api/ai", tags=["AI"])
 app.include_router(analytics_routes.router, prefix="/api/analytics", tags=["Analytics"])
