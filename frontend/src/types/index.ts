@@ -24,6 +24,7 @@ export interface AuthState {
   userProfile: User | null;
   loading: boolean;
   idToken: string | null;
+  isInitialized: boolean; // Track if Firebase auth has initialized
 }
 
 export interface Incident {

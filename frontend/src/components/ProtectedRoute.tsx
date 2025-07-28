@@ -16,11 +16,12 @@ export default function ProtectedRoute({
   allowedRoles = [],
   redirectTo = '/auth/login' 
 }: ProtectedRouteProps) {
-  const { isAuthenticated, userProfile, loading } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, userProfile, loading, isInitialized } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
+    // Only check auth after Firebase has initialized
+    if (isInitialized && !loading) {
       if (!isAuthenticated) {
         router.push(redirectTo);
         return;
@@ -31,9 +32,10 @@ export default function ProtectedRoute({
         return;
       }
     }
-  }, [isAuthenticated, userProfile, loading, allowedRoles, router, redirectTo]);
+  }, [isAuthenticated, userProfile, loading, isInitialized, allowedRoles, router, redirectTo]);
 
-  if (loading) {
+  // Show loading while Firebase is initializing or auth state is being determined
+  if (!isInitialized || loading) {
     return (
       <div className="min-h-screen bg-[#1A1D23] flex items-center justify-center">
         <div className="flex flex-col items-center">
