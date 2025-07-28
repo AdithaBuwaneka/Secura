@@ -159,9 +159,9 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
   };
 
   return (
-    <div className="flex h-[600px] bg-[#2A2D35] border border-gray-700 rounded-lg overflow-hidden">
+    <div className="flex h-[600px] bg-[#2A2D35] border border-gray-700 rounded-lg overflow-hidden min-h-0">
       {/* Conversations List */}
-      <div className="w-1/3 border-r border-gray-700 flex flex-col">
+      <div className="w-1/3 border-r border-gray-700 flex flex-col min-h-0 overflow-hidden" style={{ height: '600px' }}>
         {/* Header */}
         <div className="p-4 border-b border-gray-700">
           <div className="flex items-center justify-between mb-4">
@@ -218,7 +218,7 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
         </div>
 
         {/* Conversations */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0" style={{ maxHeight: '300px', height: '300px' }}>
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00D4FF]"></div>
@@ -286,7 +286,7 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
       </div>
 
       {/* Message Thread */}
-      <div className="flex-1">
+      <div className="flex-1 min-h-0">
         {selectedConversation ? (
           <MessageThread 
             incidentId={selectedConversation.incident_id}
