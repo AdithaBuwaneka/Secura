@@ -325,26 +325,33 @@ async def get_messages(
 async def upload_attachment(
     incident_id: str,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    file_service: FileService = Depends()
+    current_user: User = Depends(get_current_user)
 ):
     """
     Upload file attachment to incident (Max 10MB)
     """
     try:
+        print(f"DEBUG: File upload attempt - filename: {file.filename}, size: {file.size}, content_type: {file.content_type}")
+        
         # Validate file size (10MB limit)
-        if file.size > 10 * 1024 * 1024:
+        if file.size and file.size > 10 * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="File size exceeds 10MB limit"
             )
         
+        # Create file service instance
+        file_service = FileService()
+        
         # Upload file using ImageKit
+        print(f"DEBUG: Uploading file to ImageKit for incident {incident_id}")
         attachment = await file_service.upload_file(
             file=file,
             incident_id=incident_id,
             uploader_id=current_user.uid
         )
+        
+        print(f"DEBUG: File upload result: {attachment}")
         
         return {
             "message": "File uploaded successfully",

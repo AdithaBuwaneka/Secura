@@ -28,16 +28,25 @@ class FileService:
         """Upload file using ImageKit and store metadata"""
         file_id = str(uuid4())
         
+        print(f"DEBUG FileService: Starting upload for file {file.filename}")
+        
         # Read file content
         file_content = await file.read()
+        print(f"DEBUG FileService: Read {len(file_content)} bytes from file")
+        
+        # Reset file pointer for ImageKit upload
+        await file.seek(0)
         
         # Upload to ImageKit
+        print(f"DEBUG FileService: Calling ImageKit upload_file")
         upload_result = await self.imagekit_service.upload_file(
             file=file,
             incident_id=incident_id,
             uploader_id=uploader_id,
             folder="incident-attachments"
         )
+        
+        print(f"DEBUG FileService: ImageKit upload result: {upload_result}")
         
         # Store file metadata in Firestore
         file_doc = {

@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '../index';
 
 // API base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -10,7 +11,9 @@ export interface Incident {
   incident_type: 'malware' | 'phishing' | 'data_breach' | 'unauthorized_access' | 'social_engineering' | 'physical_security' | null;
   severity: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'investigating' | 'resolved' | 'closed';
-  reporter_uid: string;
+  reporter_id: string;
+  reporter_name: string;
+  reporter_email: string;
   assigned_to?: string;
   location?: {
     address: string;
@@ -19,6 +22,8 @@ export interface Incident {
   updated_at: string;
   ai_category?: string;
   ai_confidence?: number;
+  attachments?: string[];
+  additional_context?: Record<string, unknown>;
 }
 
 interface IncidentState {
@@ -48,11 +53,15 @@ const initialState: IncidentState = {
 };
 
 // Async thunks
-export const fetchUserIncidents = createAsyncThunk(
+export const fetchUserIncidents = createAsyncThunk<
+  Incident[],
+  void,
+  { rejectValue: string }
+>(
   'incidents/fetchUserIncidents',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const idToken = state.auth.idToken;
       
       if (!idToken) {
@@ -82,7 +91,7 @@ export const fetchUserIncidents = createAsyncThunk(
         throw new Error(error.detail || 'Failed to fetch incidents');
       }
 
-      const data = await response.json();
+      const data: Incident[] = await response.json();
       console.log('Incidents data:', data);
       return data || [];
     } catch (error) {
@@ -92,16 +101,28 @@ export const fetchUserIncidents = createAsyncThunk(
   }
 );
 
+interface CreateIncidentData {
+  title: string;
+  description: string;
+  incident_type: string | null;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  location: { address: string } | null;
+  additional_context: Record<string, unknown>;
+  attachments: string[];
+}
+
 export const createIncident = createAsyncThunk(
   'incidents/createIncident',
-  async (incidentData: any, { rejectWithValue, getState }) => {
+  async (incidentData: CreateIncidentData, { rejectWithValue, getState }) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const idToken = state.auth.idToken;
       
       if (!idToken) {
         throw new Error('No authentication token');
       }
+
+      console.log('Creating incident with data:', incidentData);
 
       const response = await fetch(`${API_URL}/api/incidents/`, {
         method: 'POST',
@@ -112,15 +133,28 @@ export const createIncident = createAsyncThunk(
         body: JSON.stringify(incidentData)
       });
 
+      console.log('API Response status:', response.status);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to create incident');
+        let errorMessage = `HTTP ${response.status}: Failed to create incident`;
+        try {
+          const error = await response.json();
+          errorMessage = error.detail || error.message || errorMessage;
+        } catch {
+          // If can't parse JSON, use status text
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        console.error('API Error:', errorMessage);
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
+      const result: Incident = await response.json();
+      console.log('Incident created successfully:', result);
       return result;
     } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to create incident');
+      console.error('Redux createIncident error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create incident';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -180,8 +214,8 @@ const incidentSlice = createSlice({
       .addCase(createIncident.fulfilled, (state, action) => {
         state.loading = false;
         // Add the new incident to the list
-        if (action.payload.incident) {
-          state.userIncidents.unshift(action.payload.incident);
+        if (action.payload) {
+          state.userIncidents.unshift(action.payload);
           state.stats.total += 1;
           state.stats.pending += 1;
         }

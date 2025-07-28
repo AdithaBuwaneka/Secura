@@ -96,13 +96,19 @@ class ImageKitService:
     ) -> Dict[str, Any]:
         """Upload file to ImageKit with security validation"""
         try:
+            print(f"DEBUG ImageKitService: Starting upload for file {file.filename}")
+            
             # Validate file
             validation = self.validate_file(file)
             if not validation['valid']:
+                print(f"DEBUG ImageKitService: File validation failed: {validation['errors']}")
                 raise HTTPException(status_code=400, detail=validation['errors'])
+            
+            print(f"DEBUG ImageKitService: File validation passed")
             
             # Read file content
             file_content = await file.read()
+            print(f"DEBUG ImageKitService: Read {len(file_content)} bytes")
             
             # Generate file hash for integrity
             file_hash = hashlib.sha256(file_content).hexdigest()
@@ -111,6 +117,8 @@ class ImageKitService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_extension = os.path.splitext(file.filename)[1]
             unique_filename = f"{incident_id}_{timestamp}_{file_hash[:8]}{file_extension}"
+            
+            print(f"DEBUG ImageKitService: Generated unique filename: {unique_filename}")
             
             # Upload to ImageKit
             from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
@@ -121,11 +129,15 @@ class ImageKitService:
                 use_unique_file_name=False  # We're providing our own unique name
             )
             
+            print(f"DEBUG ImageKitService: Uploading to ImageKit with options: folder={options.folder}")
+            
             upload_result = self.imagekit.upload_file(
                 file=file_content,
                 file_name=unique_filename,
                 options=options
             )
+            
+            print(f"DEBUG ImageKitService: ImageKit upload successful - file_id: {upload_result.file_id}")
             
             return {
                 "success": True,
@@ -142,6 +154,10 @@ class ImageKitService:
         except HTTPException:
             raise
         except Exception as e:
+            print(f"DEBUG ImageKitService: Upload failed with error: {str(e)}")
+            print(f"DEBUG ImageKitService: Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             return {
                 "success": False, 
                 "error": f"File upload failed: {str(e)}"

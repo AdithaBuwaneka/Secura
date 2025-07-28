@@ -143,14 +143,31 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
     setIsSubmitting(true);
     
     try {
+      // Validate required fields
+      if (!formData.title.trim()) {
+        toast.error('Title is required');
+        return;
+      }
+      if (!formData.description.trim()) {
+        toast.error('Description is required');
+        return;
+      }
+      if (formData.title.trim().length < 5) {
+        toast.error('Title must be at least 5 characters long');
+        return;
+      }
+      if (formData.description.trim().length < 10) {
+        toast.error('Description must be at least 10 characters long');
+        return;
+      }
       // Create incident payload matching backend IncidentCreate model
       const incidentData = {
-        title: formData.title,
-        description: formData.description,
-        incident_type: formData.incident_type || null,
-        severity: formData.severity,
-        location: formData.location ? {
-          address: formData.location
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        incident_type: formData.incident_type && formData.incident_type.trim() !== '' ? formData.incident_type : null,
+        severity: formData.severity || 'low',
+        location: formData.location && formData.location.trim() !== '' ? {
+          address: formData.location.trim()
         } : null,
         additional_context: {
           timestamp: formData.timestamp,
@@ -159,12 +176,15 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
         attachments: [] // File IDs will be populated after upload
       };
 
+      console.log('Prepared incident data:', JSON.stringify(incidentData, null, 2));
+
       // Submit incident via Redux store
       const result = await dispatch(createIncident(incidentData)).unwrap();
       
       // If we have files, upload them
-      if (formData.attachments.length > 0 && result.incident_id) {
-        await uploadAttachments(result.incident_id);
+      if (formData.attachments.length > 0 && result.id) {
+        console.log(`Uploading ${formData.attachments.length} attachments for incident ${result.id}`);
+        await uploadAttachments(result.id);
       }
 
       toast.success('Incident reported successfully!');
@@ -188,7 +208,26 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
 
     } catch (error) {
       console.error('Failed to submit incident:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit incident');
+      
+      // Better error message extraction
+      let errorMessage = 'Failed to submit incident';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        // Handle Redux rejection or API error objects
+        if ('message' in error) {
+          errorMessage = error.message;
+        } else if ('detail' in error) {
+          errorMessage = error.detail;
+        } else {
+          errorMessage = JSON.stringify(error);
+        }
+      }
+      
+      console.error('Processed error message:', errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -196,19 +235,37 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
 
   const uploadAttachments = async (incidentId: string) => {
     try {
-      for (const file of formData.attachments) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('incident_id', incidentId);
+      console.log(`Starting upload process for incident ${incidentId} with ${formData.attachments.length} files`);
+      
+      for (let i = 0; i < formData.attachments.length; i++) {
+        const file = formData.attachments[i];
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
+        uploadFormData.append('incident_id', incidentId);
 
-        await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
+        console.log(`Uploading file ${i + 1}/${formData.attachments.length}: ${file.name} (${file.size} bytes) to incident ${incidentId}`);
+        
+        const response = await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`
           },
-          body: formData
+          body: uploadFormData
         });
+
+        console.log(`Upload response status for ${file.name}: ${response.status}`);
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('File upload failed:', error);
+          throw new Error(error.detail || 'File upload failed');
+        }
+
+        const result = await response.json();
+        console.log('File upload success:', result);
       }
+      
+      console.log('All files uploaded successfully');
     } catch (error) {
       console.error('Failed to upload attachments:', error);
       toast.error('Incident submitted but some files failed to upload');
