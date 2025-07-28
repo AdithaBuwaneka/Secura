@@ -217,9 +217,9 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
         errorMessage = error;
       } else if (error && typeof error === 'object') {
         // Handle Redux rejection or API error objects
-        if ('message' in error) {
+        if ('message' in error && typeof error.message === 'string') {
           errorMessage = error.message;
-        } else if ('detail' in error) {
+        } else if ('detail' in error && typeof error.detail === 'string') {
           errorMessage = error.detail;
         } else {
           errorMessage = JSON.stringify(error);
