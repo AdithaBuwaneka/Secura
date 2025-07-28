@@ -93,20 +93,39 @@ export const checkCanApply = createAsyncThunk(
   async (_, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { idToken: string } };
+      
+      if (!state.auth.idToken) {
+        console.log('No idToken available for checkCanApply');
+        return rejectWithValue('No authentication token available');
+      }
+      
+      console.log('Checking can apply with token:', state.auth.idToken ? 'present' : 'missing');
+      
       const response = await fetch(`${API_URL}/api/security-applications/can-apply`, {
         headers: {
-          'Authorization': `Bearer ${state.auth.idToken}`
+          'Authorization': `Bearer ${state.auth.idToken}`,
+          'Content-Type': 'application/json'
         }
       });
 
+      console.log('Can apply response status:', response.status);
+      
+      if (response.status === 401) {
+        console.log('Authentication failed for can-apply endpoint');
+        return rejectWithValue('Authentication failed');
+      }
+
       if (!response.ok) {
         const error = await response.json();
+        console.log('Can apply error:', error);
         throw new Error(error.detail || 'Failed to check application eligibility');
       }
 
       const result = await response.json();
+      console.log('Can apply result:', result);
       return result.can_apply;
     } catch (error) {
+      console.error('checkCanApply error:', error);
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to check eligibility');
     }
   }
