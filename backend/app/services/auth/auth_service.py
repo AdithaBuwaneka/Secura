@@ -7,10 +7,10 @@ from typing import Optional, List
 from firebase_admin import auth, firestore
 from datetime import datetime
 
-from models.user import User
-from models.common import UserRole
-from models.auth import UserProfile
-from core.firebase_config import FirebaseConfig
+from app.models.user import User
+from app.models.common import UserRole
+from app.models.auth import UserProfile
+from app.core.firebase_config import FirebaseConfig
 
 class AuthService:
     def __init__(self):

@@ -8,10 +8,22 @@ import SecurityTeamDashboard from '@/components/dashboards/SecurityTeamDashboard
 import AdminDashboard from '@/components/dashboards/AdminDashboard';
 
 export default function DashboardPage() {
-  const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { userProfile, loading, isInitialized } = useSelector((state: RootState) => state.auth);
 
   const renderDashboard = () => {
-    switch (userProfile?.role) {
+    // Show loading state if auth is not initialized or still loading, or if userProfile is not yet loaded
+    if (!isInitialized || loading || !userProfile) {
+      return (
+        <div className="min-h-screen bg-[#1A1D23] flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00D4FF] mb-4"></div>
+            <p className="text-gray-400">Loading dashboard...</p>
+          </div>
+        </div>
+      );
+    }
+
+    switch (userProfile.role) {
       case 'employee':
         return <EmployeeDashboard />;
       case 'security_team':

@@ -1,10 +1,10 @@
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from core.firebase_config import FirebaseConfig
-from models.auth import TokenData
-from models.common import UserRole
-from models.user import User
-from services.auth.auth_service import AuthService
+from app.core.firebase_config import FirebaseConfig
+from app.models.auth import TokenData
+from app.models.common import UserRole
+from app.models.user import User
+from app.services.auth.auth_service import AuthService
 from typing import List
 
 # Security scheme for Bearer token

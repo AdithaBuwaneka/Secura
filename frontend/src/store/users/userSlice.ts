@@ -42,7 +42,7 @@ export const fetchUsers = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/admin/users`, {
+      const response = await fetch(`${API_URL}/api/auth/admin/users`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
@@ -57,9 +57,10 @@ export const fetchUsers = createAsyncThunk(
         throw new Error(`Failed to fetch users: ${response.status} ${errorText}`);
       }
 
-      const users = await response.json();
-      console.log('Users fetched:', users);
-      return users;
+      const data = await response.json();
+      console.log('Users fetched:', data);
+      // Extract users array from the response object
+      return data.users || data;
     } catch (error) {
       console.error('Fetch users error:', error);
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -78,7 +79,7 @@ export const updateUserRole = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/admin/users/${uid}/role`, {
+      const response = await fetch(`${API_URL}/api/auth/admin/users/${uid}/role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +111,7 @@ export const toggleUserStatus = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/admin/users/${uid}/status`, {
+      const response = await fetch(`${API_URL}/api/auth/admin/users/${uid}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

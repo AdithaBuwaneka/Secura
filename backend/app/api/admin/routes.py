@@ -5,11 +5,11 @@ Handles admin-only operations for user management
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from models.auth import UserProfile
-from models.common import UserRole
-from services.auth.auth_service import AuthService
-from utils.auth import get_current_user
-from models.user import User
+from app.models.auth import UserProfile
+from app.models.common import UserRole
+from app.services.auth.auth_service import AuthService
+from app.utils.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 
