@@ -7,7 +7,7 @@ import { auth } from '@/lib/firebase';
 import { setFirebaseUser, setIdToken, setUserProfile, clearAuth } from '@/store/auth/authSlice';
 import { AppDispatch } from '@/store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch<AppDispatch>();

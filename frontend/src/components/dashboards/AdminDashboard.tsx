@@ -22,6 +22,7 @@ import { logoutUser } from '@/store/auth/authSlice';
 import { fetchPendingApplications } from '@/store/applications/applicationSlice';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AdminApplicationReview from '@/components/applications/AdminApplicationReview';
+import UserManagement from '@/components/users/UserManagement';
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
@@ -318,11 +319,7 @@ export default function AdminDashboard() {
         {/* Other tab content would go here */}
         {activeTab !== 'overview' && (
           <div>
-            {activeTab === 'users' && (
-              <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700 text-center">
-                <p className="text-gray-400">User Management interface would be implemented here</p>
-              </div>
-            )}
+            {activeTab === 'users' && <UserManagement />}
             {activeTab === 'applications' && <AdminApplicationReview />}
             {activeTab === 'system' && (
               <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700 text-center">
