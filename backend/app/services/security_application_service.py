@@ -68,7 +68,36 @@ class SecurityApplicationService:
         
         for doc in docs:
             data = doc.to_dict()
-            applications.append(SecurityTeamApplication(**data))
+            application = SecurityTeamApplication(**data)
+            
+            # Fetch applicant name
+            try:
+                user_profile = await self.auth_service.get_user_profile(application.applicant_uid)
+                application.applicant_name = user_profile.full_name if user_profile else "Unknown User"
+            except Exception:
+                application.applicant_name = "Unknown User"
+            
+            applications.append(application)
+        
+        return applications
+
+    async def get_all_applications(self) -> List[SecurityTeamApplication]:
+        """Get all applications regardless of status (Admin only)"""
+        docs = self.applications_collection.order_by('created_at', direction='DESCENDING').stream()
+        applications = []
+        
+        for doc in docs:
+            data = doc.to_dict()
+            application = SecurityTeamApplication(**data)
+            
+            # Fetch applicant name
+            try:
+                user_profile = await self.auth_service.get_user_profile(application.applicant_uid)
+                application.applicant_name = user_profile.full_name if user_profile else "Unknown User"
+            except Exception:
+                application.applicant_name = "Unknown User"
+            
+            applications.append(application)
         
         return applications
 

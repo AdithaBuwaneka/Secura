@@ -87,11 +87,13 @@ class AuthService:
 
     async def get_all_users(self) -> List[User]:
         """Get all users (Admin only)"""
+        print("AuthService: Getting all users from Firestore...")
         docs = self.users_collection.stream()
         users = []
         
         for doc in docs:
             data = doc.to_dict()
+            print(f"AuthService: Found user {data.get('email', 'unknown')} with role {data.get('role', 'unknown')}")
             users.append(User(
                 uid=data['uid'],
                 email=data['email'],
@@ -103,6 +105,7 @@ class AuthService:
                 last_login=data.get('last_login')
             ))
         
+        print(f"AuthService: Total users found: {len(users)}")
         return users
 
     async def update_last_login(self, uid: str):
@@ -110,3 +113,14 @@ class AuthService:
         self.users_collection.document(uid).update({
             'last_login': datetime.utcnow()
         })
+
+    async def update_user_status(self, uid: str, is_active: bool) -> bool:
+        """Update user active status"""
+        try:
+            self.users_collection.document(uid).update({
+                'is_active': is_active,
+                'updated_at': datetime.utcnow()
+            })
+            return True
+        except Exception:
+            return False

@@ -196,10 +196,11 @@ const initialState: AuthState & {
 } = {
   user: null,
   userProfile: null,
-  loading: false,
+  loading: true, // Start with loading true to prevent premature redirects
   idToken: null,
   error: null,
-  isAuthenticated: false
+  isAuthenticated: false,
+  isInitialized: false // Track if Firebase auth has initialized
 };
 
 // Auth slice
@@ -213,6 +214,8 @@ const authSlice = createSlice({
     setFirebaseUser: (state, action: PayloadAction<FirebaseUser | null>) => {
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
+      state.isInitialized = true; // Mark as initialized when we get auth state
+      state.loading = false; // Stop loading when auth state is determined
     },
     setIdToken: (state, action: PayloadAction<string | null>) => {
       state.idToken = action.payload;
@@ -226,6 +229,8 @@ const authSlice = createSlice({
       state.idToken = null;
       state.isAuthenticated = false;
       state.error = null;
+      state.loading = false;
+      // Keep isInitialized true so we don't show loading again
     }
   },
   extraReducers: (builder) => {

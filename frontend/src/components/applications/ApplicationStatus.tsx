@@ -6,13 +6,17 @@ import { Clock, CheckCircle, XCircle, FileText, Calendar, User } from 'lucide-re
 import { fetchMyApplications } from '@/store/applications/applicationSlice';
 import { RootState, AppDispatch } from '@/store';
 
+
 export default function ApplicationStatus() {
   const dispatch = useDispatch<AppDispatch>();
   const { applications, loading, error } = useSelector((state: RootState) => state.applications);
+  const { isInitialized, idToken } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    dispatch(fetchMyApplications());
-  }, [dispatch]);
+    if (isInitialized && idToken) {
+      dispatch(fetchMyApplications());
+    }
+  }, [dispatch, isInitialized, idToken]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -62,12 +66,21 @@ export default function ApplicationStatus() {
   }
 
   if (error) {
+    const isAuthError = error.toLowerCase().includes('invalid authentication token');
     return (
       <div className="bg-[#2A2D35] p-8 rounded-lg border border-gray-700">
         <div className="text-center py-12">
           <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-white mb-2">Error Loading Applications</h3>
           <p className="text-gray-400">{error}</p>
+          {isAuthError && (
+            <a
+              href="/auth/login"
+              className="inline-block mt-4 px-4 py-2 bg-[#00D4FF] text-[#1A1D23] rounded-lg font-medium hover:bg-[#00C4EF] transition-colors"
+            >
+              Go to Login
+            </a>
+          )}
         </div>
       </div>
     );
@@ -137,16 +150,43 @@ export default function ApplicationStatus() {
               )}
 
               {/* Documents */}
-              {application.proof_documents.length > 0 && (
+              {application.proof_documents && application.proof_documents.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-white mb-2">Uploaded Documents</h4>
                   <div className="space-y-1">
-                    {application.proof_documents.map((doc, index) => (
-                      <div key={index} className="flex items-center text-gray-300 text-sm">
-                        <FileText className="h-3 w-3 text-gray-400 mr-2" />
-                        {doc}
-                      </div>
-                    ))}
+                    {application.proof_documents.map((doc, index) => {
+                      if (typeof doc === 'object' && doc !== null) {
+                        const file = doc as {
+                          file_url: string;
+                          original_filename?: string;
+                          file_name?: string;
+                          file_size?: number;
+                        };
+                        return (
+                          <div key={index} className="flex items-center text-gray-300 text-sm">
+                            <FileText className="h-3 w-3 text-gray-400 mr-2" />
+                            <a
+                              href={file.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline hover:text-[#00D4FF]"
+                            >
+                              {file.original_filename || file.file_name}
+                            </a>
+                            <span className="ml-2 text-xs text-gray-500">
+                              {file.file_size ? `(${(file.file_size / 1024 / 1024).toFixed(2)} MB)` : ''}
+                            </span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div key={index} className="flex items-center text-gray-300 text-sm">
+                            <FileText className="h-3 w-3 text-gray-400 mr-2" />
+                            {String(doc)}
+                          </div>
+                        );
+                      }
+                    })}
                   </div>
                 </div>
               )}

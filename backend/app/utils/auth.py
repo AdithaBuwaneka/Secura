@@ -43,8 +43,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         
         # Automatically create profile for existing Firebase users
         try:
-            from app.models.user import User
-            from app.models.common import UserRole
+            from models.user import User
+            from models.common import UserRole
             
             auto_profile = User(
                 uid=uid,

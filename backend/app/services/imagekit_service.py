@@ -130,21 +130,37 @@ class ImageKitService:
             file_extension = os.path.splitext(file.filename)[1]
             unique_filename = f"{incident_id}_{timestamp}_{file_hash[:8]}{file_extension}"
             
-            # If ImageKit is not configured, use a mock response
-            if not self.is_configured:
-                # For development/testing without ImageKit
-                mock_url = f"https://placeholder.imagekit.io/tr:w-500/{folder}/{incident_id}/{unique_filename}"
-                return {
-                    "success": True,
-                    "file_id": file_hash[:16],
-                    "url": mock_url,
-                    "thumbnail_url": mock_url,
-                    "name": unique_filename,
-                    "original_filename": file.filename,
-                    "size": len(file_content),
-                    "file_hash": file_hash,
-                    "upload_timestamp": datetime.now().isoformat()
-                }
+ # If ImageKit is not configured, use a mock response
+              if not self.is_configured:
+                  # For development/testing without ImageKit
+                  mock_url = f"https://placeholder.imagekit.io/tr:w-500/{folder}/{incident_id}/{unique_filename}"
+                  return {
+                      "success": True,
+                      "file_id": file_hash[:16],
+                      "url": mock_url,
+                      "thumbnail_url": mock_url,
+                      "name": unique_filename,
+                      "original_filename": file.filename,
+                      "size": len(file_content),
+                      "file_hash": file_hash,
+                      "upload_timestamp": datetime.now().isoformat()
+                  }
+
+              # Upload to ImageKit
+              from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
+
+              options = UploadFileRequestOptions(
+                  folder=f"/{folder}/{incident_id}/",
+                  is_private_file=True,  # Keep files private for security
+                  use_unique_file_name=False  # We're providing our own unique name
+              )
+
+              upload_result = self.imagekit.upload_file(
+                  file=file_content,
+                  file_name=unique_filename,
+                  options=options
+              )
+
             
             # Upload to ImageKit
             print(f"Uploading to ImageKit: filename={unique_filename}, size={len(file_content)}, type={file.content_type}")

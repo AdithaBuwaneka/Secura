@@ -35,7 +35,7 @@ export default function ApplyPage() {
   }, [canApply, userProfile, router]);
 
   const handleSuccess = () => {
-    toast.success('Application submitted successfully!');
+    // Success message is already shown in the form component
     router.push('/applications/status');
   };
 

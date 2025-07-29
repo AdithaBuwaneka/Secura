@@ -32,6 +32,7 @@ interface ApplicationReview {
 interface ApplicationState {
   applications: SecurityApplication[];
   pendingApplications: SecurityApplication[];
+  allApplications: SecurityApplication[];
   canApply: boolean;
   loading: boolean;
   error: string | null;
@@ -135,6 +136,29 @@ export const fetchPendingApplications = createAsyncThunk(
   }
 );
 
+export const fetchAllApplications = createAsyncThunk(
+  'applications/fetchAll',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { idToken: string } };
+      const response = await fetch(`${API_URL}/api/security-applications/admin/all`, {
+        headers: {
+          'Authorization': `Bearer ${state.auth.idToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch all applications');
+      }
+
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch all applications');
+    }
+  }
+);
+
 export const reviewApplication = createAsyncThunk(
   'applications/review',
   async ({ applicationId, reviewData }: { applicationId: string; reviewData: ApplicationReview }, { rejectWithValue, getState }) => {
@@ -165,6 +189,7 @@ export const reviewApplication = createAsyncThunk(
 const initialState: ApplicationState = {
   applications: [],
   pendingApplications: [],
+  allApplications: [],
   canApply: false,
   loading: false,
   error: null,
@@ -182,6 +207,7 @@ const applicationSlice = createSlice({
     clearApplications: (state) => {
       state.applications = [];
       state.pendingApplications = [];
+      state.allApplications = [];
     }
   },
   extraReducers: (builder) => {
@@ -238,6 +264,22 @@ const applicationSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchPendingApplications.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Fetch all applications (admin)
+    builder
+      .addCase(fetchAllApplications.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllApplications.fulfilled, (state, action) => {
+        state.loading = false;
+        state.allApplications = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchAllApplications.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
