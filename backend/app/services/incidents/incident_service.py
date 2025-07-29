@@ -7,14 +7,17 @@ from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
 
-from app.models.incident import IncidentCreate, IncidentUpdate, IncidentResponse, IncidentStatus, IncidentSeverity
+from app.models.incident import IncidentCreate, IncidentUpdate, IncidentResponse
+from app.models.common import IncidentType, IncidentStatus, IncidentSeverity
 from app.core.firebase_config import FirebaseConfig
+from app.services.incidents.file_service import FileService
 
 
 class IncidentService:
     def __init__(self):
         self.db = FirebaseConfig.get_firestore()
         self.incidents_collection = self.db.collection('incidents')
+        self.file_service = FileService()
 
     async def create_incident(
         self, 
@@ -56,58 +59,114 @@ class IncidentService:
         
         self.incidents_collection.document(incident_id).set(incident_doc)
         
-        return IncidentResponse(**incident_doc)
-
-    async def create_incident_with_id(
-        self, 
-        incident_id: str,
-        incident_data: IncidentCreate, 
-        reporter_id: str,
-        reporter_email: str,
-        reporter_name: str = None,
-        reporter_department: str = None
-    ) -> IncidentResponse:
-        """Create a new security incident with a specific ID"""
-        incident_doc = {
-            'id': incident_id,
-            'title': incident_data.title,
-            'incident_type': incident_data.incident_type.value if incident_data.incident_type else None,
-            'description': incident_data.description,
-            'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.LOW.value,
-            'status': IncidentStatus.PENDING.value,
-            'reporter_id': reporter_id,
-            'reporter_name': reporter_name or 'Unknown',
-            'reporter_email': reporter_email,
-            'reporter_department': reporter_department,
-            'assigned_to': None,
-            'assigned_to_name': None,
-            'assigned_at': None,
-            'assigned_by': None,
-            'ai_analysis': None,
-            'location': incident_data.location.dict() if incident_data.location else None,
-            'attachments': incident_data.attachments or [],
-            'created_at': datetime.utcnow(),
-            'updated_at': datetime.utcnow(),
-            'resolved_at': None,
-            'closed_at': None,
-            'additional_context': incident_data.additional_context or {},
-            'last_activity': datetime.utcnow(),
-            'priority_score': None
-        }
+        # Convert string values back to enums for the response
+        response_data = incident_doc.copy()
+        response_data['status'] = IncidentStatus(incident_doc['status'])
+        response_data['severity'] = IncidentSeverity(incident_doc['severity'])
+        if incident_doc['incident_type']:
+            response_data['incident_type'] = IncidentType(incident_doc['incident_type'])
         
-        self.incidents_collection.document(incident_id).set(incident_doc)
+        # Ensure attachments is an empty list (not string list)
+        response_data['attachments'] = []
         
-        return IncidentResponse(**incident_doc)
+        return IncidentResponse(**response_data)
 
-    async def get_incident(self, incident_id: str) -> Optional[IncidentResponse]:
-        """Get incident by ID"""
+      async def create_incident_with_id(
+          self,
+          incident_id: str,
+          incident_data: IncidentCreate,
+          reporter_id: str,
+          reporter_email: str,
+          reporter_name: str = None,
+          reporter_department: str = None
+      ) -> IncidentResponse:
+          """Create a new security incident with a specific ID"""
+          incident_doc = {
+              'id': incident_id,
+              'title': incident_data.title,
+              'incident_type': incident_data.incident_type.value if incident_data.incident_type else None,
+              'description': incident_data.description,
+              'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.LOW.value,
+              'status': IncidentStatus.PENDING.value,
+              'reporter_id': reporter_id,
+              'reporter_name': reporter_name or 'Unknown',
+              'reporter_email': reporter_email,
+              'reporter_department': reporter_department,
+              'assigned_to': None,
+              'assigned_to_name': None,
+              'assigned_at': None,
+              'assigned_by': None,
+              'ai_analysis': None,
+              'location': incident_data.location.dict() if incident_data.location else None,
+              'attachments': incident_data.attachments or [],
+              'created_at': datetime.utcnow(),
+              'updated_at': datetime.utcnow(),
+              'resolved_at': None,
+              'closed_at': None,
+              'additional_context': incident_data.additional_context or {},
+              'last_activity': datetime.utcnow(),
+              'priority_score': None
+          }
+
+          self.incidents_collection.document(incident_id).set(incident_doc)
+
+          return IncidentResponse(**incident_doc)
+
+      async def get_incident(self, incident_id: str) -> Optional[dict]:
+          """Get incident by ID with attachments"""
+
         doc = self.incidents_collection.document(incident_id).get()
         
         if not doc.exists:
             return None
         
         data = doc.to_dict()
-        return IncidentResponse(**data)
+        # Convert string values back to enums
+        try:
+            if data.get('status') and isinstance(data['status'], str):
+                data['status'] = IncidentStatus(data['status'])
+            if data.get('severity') and isinstance(data['severity'], str):
+                data['severity'] = IncidentSeverity(data['severity'])
+            if data.get('incident_type') and isinstance(data['incident_type'], str):
+                data['incident_type'] = IncidentType(data['incident_type'])
+        except ValueError as e:
+            print(f"Error converting enum values: {e}")
+            # Set defaults if enum conversion fails
+            if 'status' in data and isinstance(data['status'], str):
+                data['status'] = IncidentStatus.PENDING
+            if 'severity' in data and isinstance(data['severity'], str):
+                data['severity'] = IncidentSeverity.LOW
+            if 'incident_type' in data and isinstance(data['incident_type'], str):
+                data['incident_type'] = None
+        
+        # Create incident response
+        incident = IncidentResponse(**data)
+        incident_dict = incident.dict()
+        
+        # Fetch attachments
+        try:
+            attachments = await self.file_service.get_incident_files(incident_id)
+            if attachments:
+                print(f"Found {len(attachments)} attachments for incident {incident_id}")
+                incident_dict['attachments'] = [
+                    {
+                        'file_id': att.id,
+                        'filename': att.filename,
+                        'original_filename': att.filename,
+                        'file_size': att.size,
+                        'file_type': att.content_type,
+                        'file_url': att.imagekit_url,
+                        'thumbnail_url': att.imagekit_thumbnail_url,
+                        'uploader_id': att.uploader_id
+                    } for att in attachments
+                ]
+            else:
+                incident_dict['attachments'] = []
+        except Exception as e:
+            print(f"Error fetching attachments for incident {incident_id}: {str(e)}")
+            incident_dict['attachments'] = []
+        
+        return incident_dict
 
     async def get_all_incidents(
         self, 
@@ -116,7 +175,7 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get all incidents (Security Team/Admin view)"""
-        query = self.incidents_collection.order_by('created_at', direction='desc')
+        query = self.incidents_collection.order_by('created_at', direction='DESCENDING')
         
         if status_filter:
             query = query.where('status', '==', status_filter.value)
@@ -126,7 +185,95 @@ class IncidentService:
         incidents = []
         for doc in docs:
             data = doc.to_dict()
-            incidents.append(IncidentResponse(**data))
+            print(f"Processing incident {data.get('id', 'unknown')}")
+            
+            # Convert string values back to enums
+            try:
+                if data.get('status') and isinstance(data['status'], str):
+                    # Handle case-insensitive conversion
+                    status_str = data['status'].lower()
+                    data['status'] = IncidentStatus(status_str)
+                if data.get('severity') and isinstance(data['severity'], str):
+                    # Handle case-insensitive conversion
+                    severity_str = data['severity'].lower()
+                    data['severity'] = IncidentSeverity(severity_str)
+                if data.get('incident_type') and isinstance(data['incident_type'], str):
+                    # Handle case-insensitive conversion
+                    type_str = data['incident_type'].lower()
+                    data['incident_type'] = IncidentType(type_str)
+            except ValueError as e:
+                print(f"Error converting enum values for incident {data.get('id', 'unknown')}: {e}")
+                print(f"Status: {data.get('status')}, Severity: {data.get('severity')}, Type: {data.get('incident_type')}")
+                # Set defaults if enum conversion fails
+                if 'status' in data and isinstance(data['status'], str):
+                    data['status'] = IncidentStatus.PENDING
+                if 'severity' in data and isinstance(data['severity'], str):
+                    data['severity'] = IncidentSeverity.LOW
+                if 'incident_type' in data and isinstance(data['incident_type'], str):
+                    data['incident_type'] = None
+            
+            # Ensure attachments is a list (it might be stored as strings)
+            if 'attachments' in data and isinstance(data['attachments'], list):
+                # If attachments are stored as strings (file IDs), keep them as empty list for now
+                # The IncidentResponse expects IncidentAttachment objects
+                if data['attachments'] and isinstance(data['attachments'][0], str):
+                    data['attachments'] = []
+            else:
+                # Make sure attachments is always a list
+                data['attachments'] = []
+            
+            # Convert location dict to IncidentLocation object if needed
+            if data.get('location') and isinstance(data['location'], dict):
+                # Location is already a dict, which should work with Pydantic
+                pass
+            
+            # Convert datetime fields from Firestore Timestamp to datetime
+            for field in ['created_at', 'updated_at', 'last_activity', 'resolved_at', 'closed_at', 'assigned_at']:
+                if field in data and data[field] is not None:
+                    # Firestore timestamps are already datetime objects
+                    pass
+            
+            try:
+                incident = IncidentResponse(**data)
+                incident_dict = incident.dict()
+                
+                # Try to fetch attachments but don't fail if it doesn't work
+                try:
+                    attachments = await self.file_service.get_incident_files(data['id'])
+                    if attachments:
+                        print(f"Found {len(attachments)} attachments for incident {data['id']}")
+                        # Debug: print first attachment details
+                        if len(attachments) > 0:
+                            print(f"First attachment: {attachments[0].__dict__}")
+                        
+                        incident_dict['attachments'] = [
+                            {
+                                'file_id': att.id,
+                                'filename': att.filename,
+                                'original_filename': att.filename,
+                                'file_size': att.size,
+                                'file_type': att.content_type,
+                                'file_url': att.imagekit_url,
+                                'thumbnail_url': att.imagekit_thumbnail_url,
+                                'uploader_id': att.uploader_id
+                            } for att in attachments
+                        ]
+                        print(f"Incident {data['id']} attachments: {incident_dict['attachments']}")
+                    else:
+                        print(f"No attachments found for incident {data['id']}")
+                        incident_dict['attachments'] = []
+                except Exception as e:
+                    print(f"Error fetching attachments for incident {data['id']}: {str(e)}")
+                    # Silently fail attachment fetching
+                    incident_dict['attachments'] = []
+                
+                incidents.append(incident_dict)
+                
+            except Exception as e:
+                print(f"Error creating IncidentResponse for incident {data.get('id', 'unknown')}: {e}")
+                print(f"Data fields: {list(data.keys())}")
+                # Skip this incident if we can't create a valid response
+                continue
         
         return incidents
 
@@ -138,17 +285,123 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get incidents for specific user (Employee view)"""
-        query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='desc')
-        
-        if status_filter:
-            query = query.where('status', '==', status_filter.value)
-        
-        docs = query.limit(limit).offset(offset).stream()
+        try:
+            # Try with composite index first
+            query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='DESCENDING')
+            
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            docs = query.limit(limit).offset(offset).stream()
+        except Exception as e:
+            # Fallback: Get all user incidents without ordering, then sort in memory
+            print(f"Index not available, using fallback query: {str(e)}")
+            query = self.incidents_collection.where('reporter_id', '==', user_id)
+            
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            # Get all documents and sort in memory
+            all_docs = list(query.stream())
+            
+            # Sort by created_at in descending order
+            all_docs.sort(key=lambda doc: doc.to_dict().get('created_at', datetime.min), reverse=True)
+            
+            # Apply offset and limit
+            docs = all_docs[offset:offset + limit]
         
         incidents = []
         for doc in docs:
             data = doc.to_dict()
-            incidents.append(IncidentResponse(**data))
+            print(f"Processing incident {data.get('id', 'unknown')}")
+            
+            # Convert string values back to enums
+            try:
+                if data.get('status') and isinstance(data['status'], str):
+                    # Handle case-insensitive conversion
+                    status_str = data['status'].lower()
+                    data['status'] = IncidentStatus(status_str)
+                if data.get('severity') and isinstance(data['severity'], str):
+                    # Handle case-insensitive conversion
+                    severity_str = data['severity'].lower()
+                    data['severity'] = IncidentSeverity(severity_str)
+                if data.get('incident_type') and isinstance(data['incident_type'], str):
+                    # Handle case-insensitive conversion
+                    type_str = data['incident_type'].lower()
+                    data['incident_type'] = IncidentType(type_str)
+            except ValueError as e:
+                print(f"Error converting enum values for incident {data.get('id', 'unknown')}: {e}")
+                print(f"Status: {data.get('status')}, Severity: {data.get('severity')}, Type: {data.get('incident_type')}")
+                # Set defaults if enum conversion fails
+                if 'status' in data and isinstance(data['status'], str):
+                    data['status'] = IncidentStatus.PENDING
+                if 'severity' in data and isinstance(data['severity'], str):
+                    data['severity'] = IncidentSeverity.LOW
+                if 'incident_type' in data and isinstance(data['incident_type'], str):
+                    data['incident_type'] = None
+            
+            # Ensure attachments is a list (it might be stored as strings)
+            if 'attachments' in data and isinstance(data['attachments'], list):
+                # If attachments are stored as strings (file IDs), keep them as empty list for now
+                # The IncidentResponse expects IncidentAttachment objects
+                if data['attachments'] and isinstance(data['attachments'][0], str):
+                    data['attachments'] = []
+            else:
+                # Make sure attachments is always a list
+                data['attachments'] = []
+            
+            # Convert location dict to IncidentLocation object if needed
+            if data.get('location') and isinstance(data['location'], dict):
+                # Location is already a dict, which should work with Pydantic
+                pass
+            
+            # Convert datetime fields from Firestore Timestamp to datetime
+            for field in ['created_at', 'updated_at', 'last_activity', 'resolved_at', 'closed_at', 'assigned_at']:
+                if field in data and data[field] is not None:
+                    # Firestore timestamps are already datetime objects
+                    pass
+            
+            try:
+                incident = IncidentResponse(**data)
+                incident_dict = incident.dict()
+                
+                # Try to fetch attachments but don't fail if it doesn't work
+                try:
+                    attachments = await self.file_service.get_incident_files(data['id'])
+                    if attachments:
+                        print(f"Found {len(attachments)} attachments for incident {data['id']}")
+                        # Debug: print first attachment details
+                        if len(attachments) > 0:
+                            print(f"First attachment: {attachments[0].__dict__}")
+                        
+                        incident_dict['attachments'] = [
+                            {
+                                'file_id': att.id,
+                                'filename': att.filename,
+                                'original_filename': att.filename,
+                                'file_size': att.size,
+                                'file_type': att.content_type,
+                                'file_url': att.imagekit_url,
+                                'thumbnail_url': att.imagekit_thumbnail_url,
+                                'uploader_id': att.uploader_id
+                            } for att in attachments
+                        ]
+                        print(f"Incident {data['id']} attachments: {incident_dict['attachments']}")
+                    else:
+                        print(f"No attachments found for incident {data['id']}")
+                        incident_dict['attachments'] = []
+                except Exception as e:
+                    print(f"Error fetching attachments for incident {data['id']}: {str(e)}")
+                    # Silently fail attachment fetching
+                    incident_dict['attachments'] = []
+                
+                incidents.append(incident_dict)
+                
+            except Exception as e:
+                print(f"Error creating IncidentResponse for incident {data.get('id', 'unknown')}: {e}")
+                print(f"Data fields: {list(data.keys())}")
+                # Skip this incident if we can't create a valid response
+                continue
         
         return incidents
 

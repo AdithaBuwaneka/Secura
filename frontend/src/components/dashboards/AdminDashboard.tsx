@@ -55,68 +55,89 @@ interface OverviewData {
 }
 
 export default function AdminDashboard() {
-  const { userProfile, idToken, loading: authLoading, isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const { pendingApplications } = useSelector((state: RootState) => state.applications);
-  const dispatch = useDispatch<AppDispatch>();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(false);
-  interface SystemLog {
-    id?: string;
-    timestamp?: number | { seconds?: number };
-    level: string;
-    message: string;
-    user?: string;
-    action?: string;
-    ip_address?: string;
-  }
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+    const { userProfile, idToken, loading: authLoading, isAuthenticated } = useSelector((state: RootState) =>
+  state.auth);
+    const { pendingApplications } = useSelector((state: RootState) => state.applications);
+    const dispatch = useDispatch<AppDispatch>();
+    const [activeTab, setActiveTab] = useState('overview');
+    const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+    interface SystemLog {
+      id?: string;
+      timestamp?: number | { seconds?: number };
+      level: string;
+      message: string;
+      user?: string;
+      action?: string;
+      ip_address?: string;
+    }
+    const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
 
-  const fetchOverviewData = React.useCallback(async () => {
-    if (!idToken || !isAuthenticated) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/system/overview`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch overview data');
+    const fetchOverviewData = React.useCallback(async () => {
+      if (!idToken || !isAuthenticated) return;
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/api/system/overview`, {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch overview data');
+        }
+        const data = await response.json();
+        setOverviewData(data);
+      } catch (error) {
+        console.error('Error fetching overview data:', error);
+        toast.error('Failed to load overview data');
+      } finally {
+        setLoading(false);
       }
-      const data = await response.json();
-      setOverviewData(data);
-    } catch (error) {
-      console.error('Error fetching overview data:', error);
-      toast.error('Failed to load overview data');
-    } finally {
-      setLoading(false);
-    }
-  }, [idToken, isAuthenticated]);
+    }, [idToken, isAuthenticated, API_URL]);
 
-  const fetchRecentLogs = React.useCallback(async () => {
-    if (!idToken || !isAuthenticated) return;
-    try {
-      const response = await fetch(`${API_URL}/api/system/logs?limit=4`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
-      });
-      if (response.ok) {
-        const logs = await response.json();
-        setSystemLogs(logs);
+    const fetchRecentLogs = React.useCallback(async () => {
+      if (!idToken || !isAuthenticated) return;
+      try {
+        const response = await fetch(`${API_URL}/api/system/logs?limit=4`, {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (response.ok) {
+          const logs = await response.json();
+          setSystemLogs(logs);
+        }
+      } catch (error) {
+        console.error('Error fetching logs:', error);
       }
-    } catch (error) {
-      console.error('Error fetching logs:', error);
-    }
-  }, [idToken, isAuthenticated]);
+    }, [idToken, isAuthenticated, API_URL]);
 
-  useEffect(() => {
-    dispatch(fetchPendingApplications());
-    if (activeTab === 'overview' && idToken && isAuthenticated) {
-      fetchOverviewData();
-      fetchRecentLogs();
-    }
-  }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs]);
+    const fetchRecentIncidents = React.useCallback(async () => {
+      if (!idToken || !isAuthenticated) return;
+      try {
+        const response = await fetch(`${API_URL}/api/incidents/?limit=5`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
 
-  // Removed duplicate fetchOverviewData and fetchRecentLogs declarations
+        if (response.ok) {
+          const incidents = await response.json();
+          setRecentIncidents(incidents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch recent incidents:', error);
+      }
+    }, [idToken, isAuthenticated, API_URL]);
+
+    useEffect(() => {
+      dispatch(fetchPendingApplications());
+      if (activeTab === 'overview' && idToken && isAuthenticated) {
+        fetchOverviewData();
+        fetchRecentLogs();
+        fetchRecentIncidents();
+      }
+    }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs, fetchRecentIncidents]);
+
 
   const handleLogout = async () => {
     try {

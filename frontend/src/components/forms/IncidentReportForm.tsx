@@ -22,11 +22,20 @@ interface AISuggestion {
   reason: string;
 }
 
-interface IncidentReportFormProps {
-  onClose?: () => void;
+interface MLPrediction {
+  severity: string;
+  severity_confidence: number;
+  incident_type: string;
+  incident_type_confidence: number;
+  was_revised: boolean;
 }
 
-export default function IncidentReportForm({ onClose }: IncidentReportFormProps) {
+interface IncidentReportFormProps {
+  onClose?: () => void;
+  onSuccess?: () => void;
+}
+
+export default function IncidentReportForm({ onClose, onSuccess }: IncidentReportFormProps) {
   const { idToken } = useSelector((state: RootState) => state.auth);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const [formData, setFormData] = useState<IncidentFormData>({
@@ -40,6 +49,8 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
   });
 
   const [aiSuggestions, setAISuggestions] = useState<AISuggestion[]>([]);
+  const [mlPrediction, setMlPrediction] = useState<MLPrediction | null>(null);
+  const [isGeneratingPrediction, setIsGeneratingPrediction] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -97,6 +108,60 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
     }
   }, [formData.title, idToken, API_URL]);
 
+  // Generate AI predictions for severity and incident type
+  const generateAIPredictions = async () => {
+    if (!formData.title && !formData.description) {
+      toast.error('Please provide a title or description first');
+      return;
+    }
+
+    setIsGeneratingPrediction(true);
+    try {
+      const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: formData.title || '',
+          description: formData.description || ''
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Extract prediction from response
+        const prediction: MLPrediction = {
+          severity: data.severity?.severity || 'low',
+          severity_confidence: data.severity?.confidence || 0,
+          incident_type: data.categories?.[0]?.category || '',
+          incident_type_confidence: data.categories?.[0]?.confidence || 0,
+          was_revised: false
+        };
+
+        setMlPrediction(prediction);
+        
+        // Auto-apply predictions to form
+        setFormData(prev => ({
+          ...prev,
+          severity: prediction.severity as any,
+          incident_type: prediction.incident_type
+        }));
+
+        toast.success('AI predictions generated successfully!');
+      } else {
+        toast.error('Failed to generate AI predictions');
+      }
+    } catch (error) {
+      console.error('Failed to generate predictions:', error);
+      toast.error('Failed to generate AI predictions');
+    } finally {
+      setIsGeneratingPrediction(false);
+    }
+  };
+
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -137,14 +202,19 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
       toast.error('Authentication required');
       return;
     }
+    
+    if (!formData.title && !formData.description) {
+      toast.error('Please provide at least a title or description');
+      return;
+    }
 
     setIsSubmitting(true);
     
     try {
       // Create incident payload matching backend IncidentCreate model
       const incidentData = {
-        title: formData.title,
-        description: formData.description,
+        title: formData.title || null,  // Send null instead of empty string
+        description: formData.description || null,  // Send null instead of empty string
         incident_type: formData.incident_type || null,
         severity: formData.severity,
         location: formData.location ? {
@@ -152,7 +222,14 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
         } : null,
         additional_context: {
           timestamp: formData.timestamp,
-          reporter_client: 'web'
+          reporter_client: 'web',
+          ml_prediction: mlPrediction ? {
+            original_severity: mlPrediction.severity,
+            original_incident_type: mlPrediction.incident_type,
+            severity_confidence: mlPrediction.severity_confidence,
+            incident_type_confidence: mlPrediction.incident_type_confidence,
+            was_revised: formData.severity !== mlPrediction.severity || formData.incident_type !== mlPrediction.incident_type
+          } : null
         },
         attachments: [] // File IDs will be populated after upload
       };
@@ -173,10 +250,13 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
       }
 
       const result = await response.json();
+      console.log('Incident created:', result);
       
       // If we have files, upload them
       if (formData.attachments.length > 0) {
-        await uploadAttachments(result.incident_id);
+        console.log('Uploading attachments for incident:', result.incident_id || result.id);
+        await uploadAttachments(result.incident_id || result.id);
+        console.log('All attachments uploaded successfully');
       }
 
       toast.success('Incident reported successfully!');
@@ -193,7 +273,15 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
       });
       setAISuggestions([]);
       
-      // Close modal if provided
+      // Add a small delay to ensure the backend has processed the attachments
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Trigger parent refresh
+      if (onSuccess) {
+        onSuccess();
+      }
+      
+      // Close modal after refresh
       if (onClose) {
         onClose();
       }
@@ -207,23 +295,46 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
   };
 
   const uploadAttachments = async (incidentId: string) => {
-    try {
-      for (const file of formData.attachments) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('incident_id', incidentId);
+    const uploadPromises = formData.attachments.map(async (file) => {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('incident_id', incidentId);
 
-        await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
+      try {
+        console.log(`Uploading file: ${file.name}, Size: ${file.size}, Type: ${file.type}`);
+        
+        const response = await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`
           },
-          body: formData
+          body: uploadFormData
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to upload file ${file.name}:`, response.status, errorText);
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+        
+        const result = await response.json();
+        console.log(`File ${file.name} uploaded successfully:`, result);
+        return result;
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
+        throw error;
       }
+    });
+
+    try {
+      // Upload all files in parallel
+      const results = await Promise.all(uploadPromises);
+      console.log('All attachments uploaded:', results);
+      return results;
     } catch (error) {
-      console.error('Failed to upload attachments:', error);
+      console.error('Failed to upload some attachments:', error);
       toast.error('Incident submitted but some files failed to upload');
+      throw error;
     }
   };
 
@@ -254,7 +365,7 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
           {/* Title Field */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Incident Title <span className="text-red-400">*</span>
+              Incident Title
             </label>
             <input
               type="text"
@@ -262,14 +373,13 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
               placeholder="Brief description of the incident"
-              required
             />
           </div>
 
           {/* Description Field with AI Suggestions */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Detailed Description <span className="text-red-400">*</span>
+              Detailed Description
             </label>
             <textarea
               value={formData.description}
@@ -277,7 +387,6 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
               rows={4}
               className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
               placeholder="Provide detailed information about the security incident..."
-              required
             />
             
             {/* AI Suggestions */}
@@ -306,23 +415,69 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
             )}
           </div>
 
+          {/* AI Prediction Button and Results */}
+          {(formData.title || formData.description) && (
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={generateAIPredictions}
+                disabled={isGeneratingPrediction}
+                className="w-full p-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {isGeneratingPrediction ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Generating AI Predictions...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🤖</span>
+                    <span>Generate AI Predictions</span>
+                  </>
+                )}
+              </button>
+
+              {/* Show ML Predictions */}
+              {mlPrediction && (
+                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                  <p className="text-sm text-purple-300 mb-3 flex items-center">
+                    🤖 AI Predictions Applied:
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-300">Severity:</span>
+                      <span className="text-sm font-medium text-white">
+                        {mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1)} 
+                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.severity_confidence * 100)}%)</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-300">Incident Type:</span>
+                      <span className="text-sm font-medium text-white">
+                        {mlPrediction.incident_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.incident_type_confidence * 100)}%)</span>
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    💡 You can modify these predictions if they don't seem accurate
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Category and Severity */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Incident Type</label>
-              <select
+              <input
+                type="text"
                 value={formData.incident_type}
                 onChange={(e) => setFormData(prev => ({ ...prev, incident_type: e.target.value }))}
-                className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
-              >
-                <option value="">Select incident type</option>
-                <option value="phishing">Phishing Attack</option>
-                <option value="malware">Malware Detection</option>
-                <option value="unauthorized_access">Unauthorized Access</option>
-                <option value="data_breach">Data Breach</option>
-                <option value="social_engineering">Social Engineering</option>
-                <option value="physical_security">Physical Security</option>
-              </select>
+                className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors"
+                placeholder="e.g., phishing, malware, unauthorized_access"
+              />
             </div>
 
             <div>
@@ -461,7 +616,7 @@ export default function IncidentReportForm({ onClose }: IncidentReportFormProps)
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !formData.title || !formData.description}
+              disabled={isSubmitting || (!formData.title && !formData.description)}
               className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isSubmitting ? (

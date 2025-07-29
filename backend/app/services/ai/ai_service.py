@@ -5,20 +5,35 @@ Handles incident categorization, severity assessment, and threat intelligence
 
 from typing import List, Dict, Any, Optional
 import re
+import os
 from datetime import datetime, timedelta
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.naive_bayes import MultinomialNB
     import pandas as pd
+    import joblib
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
 
 from app.models.common import IncidentType, IncidentSeverity
+from app.services.ai.threat_prediction_model import ThreatPredictionModel
 
 class AIService:
     def __init__(self):
-        # Enhanced keyword patterns with weighted scoring
+        # Try to load the trained ML model
+        self.ml_model = None
+        model_dir = 'backend/app/models/ml_models'
+        if os.path.exists(model_dir) and SKLEARN_AVAILABLE:
+            try:
+                self.ml_model = ThreatPredictionModel()
+                self.ml_model.load_models(model_dir)
+                print("ML model loaded successfully!")
+            except Exception as e:
+                print(f"Failed to load ML model: {e}")
+                self.ml_model = None
+        
+        # Enhanced keyword patterns with weighted scoring (fallback)
         self.category_keywords = {
             IncidentType.PHISHING: {
                 'high_confidence': ['phishing', 'spear phishing', 'credential harvesting', 'fake login page'],
@@ -95,27 +110,88 @@ class AIService:
         Comprehensive AI analysis of incident
         """
         try:
-            # Get category suggestions
-            categories = await self.categorize_incident(title, description)
+            # Combine title and description for ML model
+            full_text = f"{title} {description}"
             
-            # Assess severity
-            severity = await self.assess_severity(
-                title, description, categories[0]['category'] if categories else None
-            )
+            # Use ML model if available
+            if self.ml_model:
+                try:
+                    ml_prediction = self.ml_model.predict(full_text)
+                    
+                    # Convert ML model output to our format
+                    # Map attack types to our incident types
+                    attack_type_mapping = {
+                        'phishing': IncidentType.PHISHING.value,
+                        'malware': IncidentType.MALWARE.value,
+                        'ransomware': IncidentType.MALWARE.value,
+                        'data_breach': IncidentType.DATA_BREACH.value,
+                        'unauthorized_access': IncidentType.UNAUTHORIZED_ACCESS.value,
+                        'sql_injection': IncidentType.UNAUTHORIZED_ACCESS.value,
+                        'DDoS': IncidentType.MALWARE.value,
+                        'insider_threat': IncidentType.UNAUTHORIZED_ACCESS.value,
+                        'zero_day': IncidentType.MALWARE.value,
+                        'supply_chain': IncidentType.DATA_BREACH.value,
+                        'other': IncidentType.MALWARE.value
+                    }
+                    
+                    incident_type = attack_type_mapping.get(
+                        ml_prediction['attack_type'], 
+                        IncidentType.MALWARE.value
+                    )
+                    
+                    categories = [{
+                        'category': incident_type,
+                        'confidence': ml_prediction['attack_type_confidence'],
+                        'reasoning': f"ML Model: {ml_prediction['attack_type']} detected with {ml_prediction['attack_type_confidence']:.0%} confidence"
+                    }]
+                    
+                    severity = {
+                        'severity': ml_prediction['severity'],
+                        'confidence': ml_prediction['severity_confidence'],
+                        'factors': [f"ML Threat Score: {ml_prediction['threat_score']:.1f}/100"]
+                    }
+                    
+                except Exception as e:
+                    print(f"ML prediction failed, falling back to keyword-based: {e}")
+                    # Fall back to keyword-based analysis
+                    categories = await self.categorize_incident(title, description)
+                    category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                    severity = await self.assess_severity(title, description, category_for_severity)
+            else:
+                # Use keyword-based analysis as fallback
+                categories = await self.categorize_incident(title, description)
+                category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                severity = await self.assess_severity(title, description, category_for_severity)
             
             # Generate mitigation strategies
+            category_enum = IncidentType(categories[0]['category']) if categories else IncidentType.MALWARE
+            severity_enum = IncidentSeverity(severity['severity'])
+            
             mitigation_strategies = await self.generate_mitigation_strategies(
-                categories[0]['category'] if categories else IncidentType.MALWARE,
-                severity['severity'],
+                category_enum,
+                severity_enum,
                 context
             )
             
             # Calculate overall confidence
             confidence_score = self._calculate_confidence(categories, severity)
             
+            # Format response to match API schema
+            formatted_categories = [{
+                'category': cat['category'],
+                'confidence': cat['confidence'],
+                'reasoning': cat['reasoning']
+            } for cat in categories]
+            
+            formatted_severity = {
+                'severity': severity['severity'],
+                'confidence': severity['confidence'],
+                'factors': severity.get('factors', severity.get('matched_factors', {}).get(severity['severity'], [])[:3])
+            }
+            
             return {
-                'categories': categories,
-                'severity': severity,
+                'categories': formatted_categories,
+                'severity': formatted_severity,
                 'mitigation_strategies': mitigation_strategies,
                 'confidence_score': confidence_score
             }
@@ -127,7 +203,10 @@ class AIService:
         """
         Enhanced categorization using weighted keyword matching
         """
-        text = f"{title} {description}".lower()
+        # Handle cases where title or description might be empty
+        title = title or ""
+        description = description or ""
+        text = f"{title} {description}".lower().strip()
         suggestions = []
         
         for category, keyword_groups in self.category_keywords.items():
@@ -179,7 +258,7 @@ class AIService:
                 confidence = min(0.5 + (raw_confidence * 0.45), 0.95)
                 
                 suggestions.append({
-                    'category': category,
+                    'category': category.value,  # Convert enum to string
                     'confidence': confidence,
                     'reasoning': f"Matched: {', '.join(confidence_factors[:3])}",
                     'score': score,
@@ -191,7 +270,7 @@ class AIService:
         
         # Return top 3 suggestions, or default if none found
         return suggestions[:3] if suggestions else [{
-            'category': IncidentType.MALWARE,  # Default fallback
+            'category': IncidentType.MALWARE.value,  # Default fallback - convert enum to string
             'confidence': 0.3,
             'reasoning': "No specific security keywords found - using general category",
             'score': 0,
@@ -207,7 +286,10 @@ class AIService:
         """
         Enhanced severity assessment with weighted indicators
         """
-        text = f"{title} {description}".lower()
+        # Handle cases where title or description might be empty
+        title = title or ""
+        description = description or ""
+        text = f"{title} {description}".lower().strip()
         severity_scores = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
         matched_factors = {'critical': [], 'high': [], 'medium': [], 'low': []}
         
@@ -275,7 +357,7 @@ class AIService:
             reasoning = f"Score: {max_score}, Factors: {', '.join(matched_factors[winning_level][:3])}"
         
         return {
-            'severity': severity_level,
+            'severity': severity_level.value,  # Convert enum to string
             'confidence': confidence,
             'reasoning': reasoning,
             'score_breakdown': severity_scores,

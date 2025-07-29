@@ -3,7 +3,7 @@ Incident Models - Jayasanka's Module
 Pydantic models for incident management and tracking
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .common import IncidentType, IncidentSeverity, IncidentStatus
@@ -39,12 +39,19 @@ class AIAnalysis(BaseModel):
 
 class IncidentBase(BaseModel):
     """Base incident model"""
-    title: str = Field(..., min_length=5, max_length=200)
-    description: str = Field(..., min_length=10, max_length=5000)
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None, max_length=5000)
     incident_type: Optional[IncidentType] = None
     severity: Optional[IncidentSeverity] = IncidentSeverity.LOW
     location: Optional[IncidentLocation] = None
     additional_context: Optional[Dict[str, Any]] = {}
+    
+    @field_validator('title', 'description', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == '':
+            return None
+        return v
 
 class IncidentCreate(IncidentBase):
     """Model for creating new incidents"""
@@ -64,8 +71,8 @@ class IncidentUpdate(BaseModel):
 class IncidentResponse(BaseModel):
     """Complete incident response model"""
     id: str
-    title: str
-    description: str
+    title: Optional[str] = None
+    description: Optional[str] = None
     incident_type: Optional[IncidentType] = None
     severity: IncidentSeverity
     status: IncidentStatus
@@ -84,7 +91,7 @@ class IncidentResponse(BaseModel):
     assigned_by: Optional[str] = None
     
     # AI Analysis
-    ai_analysis: Optional[AIAnalysis] = None
+    ai_analysis: Optional[Dict[str, Any]] = None
     
     # Attachments
     attachments: List[IncidentAttachment] = []
