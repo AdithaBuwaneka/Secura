@@ -49,6 +49,14 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
         }
         break;
         
+      case 'new_incident':
+        // Show toast notification for new incidents
+        toast.success(`New incident reported: ${data.title}`, {
+          duration: 5000,
+          position: 'top-right',
+        });
+        break;
+        
       case 'incident_update':
         toast.success(`Incident ${data.incident_id} status updated: ${data.status}`, {
           duration: 5000,
@@ -70,6 +78,10 @@ export default function MessagingProvider({ children }: MessagingProviderProps) 
         } else {
           console.log('System message is not a string, skipping toast');
         }
+        break;
+        
+      case 'connection_established':
+        console.log('WebSocket connection confirmed:', data.message);
         break;
         
       case 'unread_count':

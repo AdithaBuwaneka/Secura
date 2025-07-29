@@ -9,7 +9,6 @@ import {
   Shield, 
   TrendingUp,
   AlertTriangle,
-  Bell,
   LogOut,
   UserPlus,
   Download,
@@ -24,6 +23,7 @@ import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AdminApplicationReview from '@/components/applications/AdminApplicationReview';
 import UserManagement from '@/components/users/UserManagement';
 import SystemConfig from '@/components/system/SystemConfig';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import toast from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -112,13 +112,9 @@ export default function AdminDashboard() {
     }, [idToken, isAuthenticated, API_URL]);
 
     const fetchRecentIncidents = React.useCallback(async () => {
-      if (!idToken || !isAuthenticated) return;
       try {
-        const response = await fetch(`${API_URL}/api/incidents/?limit=5`, {
-          headers: {
-            'Authorization': `Bearer ${idToken}`
-          }
-        });
+        // Use public admin endpoint for recent incidents
+        const response = await fetch(`${API_URL}/api/incidents/admin/recent`);
 
         if (response.ok) {
           const incidents = await response.json();
@@ -127,14 +123,19 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error('Failed to fetch recent incidents:', error);
       }
-    }, [idToken, isAuthenticated, API_URL]);
+    }, [API_URL]);
 
     useEffect(() => {
       dispatch(fetchPendingApplications());
-      if (activeTab === 'overview' && idToken && isAuthenticated) {
-        fetchOverviewData();
-        fetchRecentLogs();
+      if (activeTab === 'overview') {
+        // Always fetch recent incidents (public endpoint)
         fetchRecentIncidents();
+        
+        // Only fetch authenticated endpoints if user is logged in
+        if (idToken && isAuthenticated) {
+          fetchOverviewData();
+          fetchRecentLogs();
+        }
       }
     }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs, fetchRecentIncidents]);
 
@@ -266,12 +267,7 @@ export default function AdminDashboard() {
 
             {/* User Info and Actions */}
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
-                  <span className="text-xs text-white font-bold">5</span>
-                </span>
-              </button>
+              <NotificationDropdown />
               
               <div className="flex items-center space-x-3">
                 <div className="text-right">

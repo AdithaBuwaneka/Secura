@@ -11,7 +11,6 @@ import {
   FileText, 
   MessageCircle,
   LogOut,
-  Bell,
   UserCheck
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
@@ -20,55 +19,36 @@ import { checkCanApply } from '@/store/applications/applicationSlice';
 import IncidentReportForm from '@/components/forms/IncidentReportForm';
 import MessageThread from '@/components/messaging/MessageThread';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 export default function EmployeeDashboard() {
-  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
+  const { userProfile } = useSelector((state: RootState) => state.auth);
   const { canApply } = useSelector((state: RootState) => state.applications);
   const dispatch = useDispatch<AppDispatch>();
   const { unreadCount, isConnected } = useMessaging();
   const [showIncidentForm, setShowIncidentForm] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
-  const [myIncidents, setMyIncidents] = useState<any[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-  // Fetch user's incidents
-  const fetchMyIncidents = async () => {
-    if (idToken) {
-      try {
-        const response = await fetch(`${API_URL}/api/incidents/?limit=10`, {
-          headers: {
-            'Authorization': `Bearer ${idToken}`
-          }
-        });
-        
-        if (response.ok) {
-          const incidents = await response.json();
-          console.log('Employee Dashboard - Fetched incidents:', incidents);
-          setMyIncidents(incidents);
-        } else {
-          console.error('Failed to fetch incidents:', response.status, response.statusText);
-          const errorText = await response.text();
-          console.error('Error details:', errorText);
-        }
-      } catch (error) {
-        console.error('Failed to fetch incidents:', error);
-      }
-    }
-  };
 
   useEffect(() => {
     dispatch(checkCanApply());
-    fetchMyIncidents();
+  }, [dispatch]);
+
+  // Listen for messaging events from notifications
+  useEffect(() => {
+    const handleOpenMessaging = (event: CustomEvent) => {
+      if (event.detail?.source === 'notification') {
+        setShowMessaging(true);
+      }
+    };
+
+    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
     
-    // Refresh incidents every 30 seconds
-    const interval = setInterval(() => {
-      fetchMyIncidents();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [dispatch, idToken, API_URL]);
+    return () => {
+      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -78,42 +58,6 @@ export default function EmployeeDashboard() {
       toast.error('Logout failed');
     }
   };
-  
-  const getTimeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    
-    if (seconds < 60) return `${seconds} seconds ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
-    return `${Math.floor(seconds / 604800)} weeks ago`;
-  };
-  
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'resolved':
-      case 'closed':
-        return { color: 'bg-green-400', text: 'resolved' };
-      case 'investigating':
-      case 'in_progress':
-        return { color: 'bg-orange-400', text: 'being investigated' };
-      case 'new':
-      case 'pending':
-        return { color: 'bg-blue-400', text: 'submitted' };
-      default:
-        return { color: 'bg-gray-400', text: 'updated' };
-    }
-  };
-  
-  // Calculate stats
-  const openIncidents = myIncidents.filter(i => i.status !== 'resolved' && i.status !== 'closed').length;
-  const investigatingIncidents = myIncidents.filter(i => i.status === 'investigating' || i.status === 'in_progress').length;
-  const resolvedThisMonth = myIncidents.filter(i => {
-    if (i.status !== 'resolved' && i.status !== 'closed') return false;
-    const resolvedDate = new Date(i.resolved_at || i.updated_at);
-    const now = new Date();
-    return resolvedDate.getMonth() === now.getMonth() && resolvedDate.getFullYear() === now.getFullYear();
-  }).length;
   return (
     <div className="min-h-screen bg-[#1A1D23]">
       {/* Header */}
@@ -131,14 +75,7 @@ export default function EmployeeDashboard() {
 
             {/* User Info and Actions */}
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-xs text-white font-bold">{unreadCount}</span>
-                  </span>
-                )}
-              </button>
+              <NotificationDropdown />
               
               <div className="flex items-center space-x-3">
                 <div className="text-right">
@@ -181,8 +118,8 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">My Open Incidents</p>
-                <p className="text-3xl font-bold text-white">{openIncidents}</p>
-                <p className="text-xs text-gray-500 mt-1">Active reports</p>
+                <p className="text-3xl font-bold text-white">3</p>
+                <p className="text-xs text-gray-500 mt-1">2 new this week</p>
               </div>
               <div className="p-3 bg-yellow-500/20 rounded-lg">
                 <AlertTriangle className="h-8 w-8 text-yellow-400" />
@@ -194,7 +131,7 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Under Investigation</p>
-                <p className="text-3xl font-bold text-white">{investigatingIncidents}</p>
+                <p className="text-3xl font-bold text-white">1</p>
                 <p className="text-xs text-gray-500 mt-1">Security team assigned</p>
               </div>
               <div className="p-3 bg-orange-500/20 rounded-lg">
@@ -207,8 +144,8 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Resolved This Month</p>
-                <p className="text-3xl font-bold text-white">{resolvedThisMonth}</p>
-                <p className="text-xs text-gray-500 mt-1">Successfully handled</p>
+                <p className="text-3xl font-bold text-white">12</p>
+                <p className="text-xs text-gray-500 mt-1">Average: 2.3 days</p>
               </div>
               <div className="p-3 bg-green-500/20 rounded-lg">
                 <CheckCircle className="h-8 w-8 text-green-400" />
@@ -221,10 +158,10 @@ export default function EmployeeDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <button
                 onClick={() => setShowIncidentForm(true)}
-                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] hover:scale-[1.02] hover:shadow-lg group"
+                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] hover:scale-105 group"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -235,7 +172,7 @@ export default function EmployeeDashboard() {
                 </div>
               </button>
               
-              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group">
+              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium">View My Incidents</h4>
@@ -247,10 +184,10 @@ export default function EmployeeDashboard() {
               
               <button 
                 onClick={() => setShowMessaging(true)}
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group relative overflow-visible"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group relative"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex-1 pr-4">
+                  <div>
                     <h4 className="font-medium">Security Chat</h4>
                     <p className="text-sm text-gray-300 mt-1">Chat with security team</p>
                     <div className="flex items-center mt-1">
@@ -260,13 +197,13 @@ export default function EmployeeDashboard() {
                       </span>
                     </div>
                   </div>
-                  <div className="relative flex-shrink-0 ml-4">
+                  <div className="relative">
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center z-10 text-xs text-white font-bold min-w-[16px]">
-                        {unreadCount > 99 ? '99+' : unreadCount}
+                      <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center">
+                        <span className="text-xs text-white font-bold">{unreadCount}</span>
                       </span>
                     )}
-                    <MessageCircle className="h-6 w-6 text-gray-300 group-hover:text-white transition-colors" />
+                    <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
                   </div>
                 </div>
               </button>
@@ -275,7 +212,7 @@ export default function EmployeeDashboard() {
               {canApply && (
                 <Link
                   href="/applications/apply"
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-[1.02] hover:shadow-lg group block"
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-105 group"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -290,7 +227,7 @@ export default function EmployeeDashboard() {
               {/* Application Status Button */}
               <Link
                 href="/applications/status"
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group block"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -307,31 +244,29 @@ export default function EmployeeDashboard() {
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <h3 className="text-lg font-semibold text-white mb-4">Recent Activity</h3>
             <div className="space-y-4">
-              {myIncidents.length > 0 ? (
-                myIncidents.slice(0, 5).map((incident) => {
-                  const statusInfo = getStatusIcon(incident.status);
-                  const timeAgo = getTimeAgo(new Date(incident.updated_at || incident.created_at));
-                  
-                  return (
-                    <div key={incident.id} className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
-                      <div className={`w-2 h-2 ${statusInfo.color} rounded-full`}></div>
-                      <div className="flex-1">
-                        <p className="text-sm text-white">
-                          Incident: {incident.title || incident.description?.substring(0, 40) + '...' || 'Untitled'} {statusInfo.text}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {incident.severity.toUpperCase()} • {timeAgo}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-400 text-sm">No recent incidents</p>
-                  <p className="text-gray-500 text-xs mt-1">Your reported incidents will appear here</p>
+              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm text-white">Incident #INC-2024-001 resolved</p>
+                  <p className="text-xs text-gray-400">2 hours ago</p>
                 </div>
-              )}
+              </div>
+              
+              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
+                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm text-white">Security team responded to #INC-2024-002</p>
+                  <p className="text-xs text-gray-400">1 day ago</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3 p-3 bg-[#1A1D23] rounded-lg">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm text-white">New incident report submitted</p>
+                  <p className="text-xs text-gray-400">3 days ago</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -356,13 +291,7 @@ export default function EmployeeDashboard() {
       {showIncidentForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <IncidentReportForm 
-              onClose={() => setShowIncidentForm(false)} 
-              onSuccess={() => {
-                // Refresh incidents after successful submission
-                fetchMyIncidents();
-              }}
-            />
+            <IncidentReportForm onClose={() => setShowIncidentForm(false)} />
           </div>
         </div>
       )}
