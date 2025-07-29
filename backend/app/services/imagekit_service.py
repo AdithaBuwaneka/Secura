@@ -146,6 +146,7 @@ class ImageKitService:
                     "upload_timestamp": datetime.now().isoformat()
                 }
 
+
             # Upload to ImageKit
             print(f"Uploading to ImageKit: filename={unique_filename}, size={len(file_content)}, type={file.content_type}")
             

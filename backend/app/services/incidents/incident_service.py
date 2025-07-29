@@ -108,9 +108,11 @@ class IncidentService:
             'priority_score': None
         }
 
+
         self.incidents_collection.document(incident_id).set(incident_doc)
 
         return IncidentResponse(**incident_doc)
+
 
     async def get_incident(self, incident_id: str) -> Optional[dict]:
         """Get incident by ID with attachments"""
