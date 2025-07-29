@@ -24,6 +24,39 @@ router = APIRouter(tags=["Incidents"])
 manager = ConnectionManager()
 notification_service = NotificationService(manager)
 
+@router.get("/admin/recent")
+async def get_recent_incidents_for_admin(limit: int = 5):
+    """
+    Get recent incidents for admin dashboard (public endpoint)
+    Returns real incidents from database or empty list if none exist
+    """
+    try:
+        from app.core.firebase_config import FirebaseConfig
+        db = FirebaseConfig.get_firestore()
+        
+        # Query recent incidents from Firebase
+        incidents_ref = db.collection('incidents').order_by('created_at', direction='DESCENDING').limit(limit)
+        incidents = list(incidents_ref.stream())
+        
+        incident_list = []
+        for incident in incidents:
+            incident_data = incident.to_dict()
+            incident_list.append({
+                "id": incident.id,
+                "title": incident_data.get('title', 'Untitled Incident'),
+                "severity": incident_data.get('severity', 'medium'),
+                "status": incident_data.get('status', 'open'),
+                "created_at": incident_data.get('created_at'),
+                "reporter_name": incident_data.get('reporter_name', 'Unknown Reporter')
+            })
+        
+        return incident_list
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve recent incidents: {str(e)}"
+        )
+
 @router.post("/", response_model=IncidentResponse)
 async def create_incident(
     incident_data: IncidentCreate,

@@ -112,13 +112,9 @@ export default function AdminDashboard() {
     }, [idToken, isAuthenticated, API_URL]);
 
     const fetchRecentIncidents = React.useCallback(async () => {
-      if (!idToken || !isAuthenticated) return;
       try {
-        const response = await fetch(`${API_URL}/api/incidents/?limit=5`, {
-          headers: {
-            'Authorization': `Bearer ${idToken}`
-          }
-        });
+        // Use public admin endpoint for recent incidents
+        const response = await fetch(`${API_URL}/api/incidents/admin/recent`);
 
         if (response.ok) {
           const incidents = await response.json();
@@ -127,14 +123,19 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error('Failed to fetch recent incidents:', error);
       }
-    }, [idToken, isAuthenticated, API_URL]);
+    }, [API_URL]);
 
     useEffect(() => {
       dispatch(fetchPendingApplications());
-      if (activeTab === 'overview' && idToken && isAuthenticated) {
-        fetchOverviewData();
-        fetchRecentLogs();
+      if (activeTab === 'overview') {
+        // Always fetch recent incidents (public endpoint)
         fetchRecentIncidents();
+        
+        // Only fetch authenticated endpoints if user is logged in
+        if (idToken && isAuthenticated) {
+          fetchOverviewData();
+          fetchRecentLogs();
+        }
       }
     }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs, fetchRecentIncidents]);
 
