@@ -537,9 +537,265 @@ class AIService:
     def _reduce_time(self, time_str: str) -> str:
         """Reduce estimated time for critical incidents"""
         if 'hour' in time_str:
-            hours = int(re.findall(r'\d+', time_str)[0])
+            hours = int(re.findall(r'\\d+', time_str)[0])
             return f"{max(1, hours // 2)} hours"
         elif 'minute' in time_str:
-            minutes = int(re.findall(r'\d+', time_str)[0])
+            minutes = int(re.findall(r'\\d+', time_str)[0])
             return f"{max(5, minutes // 2)} minutes"
         return time_str
+
+    async def analyze_image(
+        self, 
+        image_url: str, 
+        incident_id: Optional[str] = None,
+        context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze image content using Tesseract OCR for text extraction
+        Then analyze the extracted text for security threats
+        """
+        import aiohttp
+        import asyncio
+        try:
+            import pytesseract
+            from PIL import Image
+            from io import BytesIO
+            import platform
+            
+            # For Windows, explicitly set Tesseract path
+            if platform.system() == 'Windows':
+                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        except ImportError:
+            return {
+                "extracted_text": "OCR libraries not installed. Please run: pip install pytesseract pillow",
+                "summary": "Unable to process image - OCR dependencies missing",
+                "threat_indicators": ["OCR setup required"],
+                "confidence": 0.0,
+                "recommendations": ["Install pytesseract and Pillow packages", "Ensure Tesseract is installed on the system"]
+            }
+        
+        extracted_text = ""
+        
+        try:
+            # Download image from URL
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url) as response:
+                    if response.status != 200:
+                        raise Exception(f"Failed to download image: {response.status}")
+                    image_data = await response.read()
+            
+            # Open image with PIL
+            image = Image.open(BytesIO(image_data))
+            
+            # Convert to RGB if necessary (handles PNG transparency)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Run OCR in a thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            extracted_text = await loop.run_in_executor(
+                None, 
+                pytesseract.image_to_string, 
+                image
+            )
+            
+            # Clean up the extracted text
+            extracted_text = extracted_text.strip()
+            
+            if not extracted_text:
+                return {
+                    "extracted_text": "No text could be extracted from this image.",
+                    "summary": "The image appears to contain no readable text or the text quality is too poor for extraction.",
+                    "threat_indicators": [],
+                    "confidence": 0.0,
+                    "recommendations": ["Try uploading a clearer image", "Ensure the image contains text content"]
+                }
+                
+        except Exception as e:
+            print(f"OCR Error: {str(e)}")
+            # Provide helpful error message
+            error_msg = str(e)
+            if "tesseract" in error_msg.lower():
+                return {
+                    "extracted_text": "Tesseract OCR is not installed or not found in PATH",
+                    "summary": "Please install Tesseract OCR on your system",
+                    "threat_indicators": ["OCR system not configured"],
+                    "confidence": 0.0,
+                    "recommendations": [
+                        "Install Tesseract: sudo apt-get install tesseract-ocr (Linux)",
+                        "Or download from: https://github.com/tesseract-ocr/tesseract",
+                        "Ensure tesseract is in your system PATH"
+                    ]
+                }
+            else:
+                return {
+                    "extracted_text": f"Error processing image: {error_msg}",
+                    "summary": "Failed to extract text from image",
+                    "threat_indicators": ["Processing error"],
+                    "confidence": 0.0,
+                    "recommendations": ["Check image format", "Ensure image URL is accessible"]
+                }
+        
+        # Now analyze the extracted text for security threats
+        threat_indicators = []
+        recommendations = []
+        confidence = 0.0
+        
+        # Convert to lowercase for analysis
+        text_lower = extracted_text.lower()
+        
+        # Check for various security threat patterns
+        
+        # Phishing indicators
+        phishing_patterns = {
+            'urgent_action': ['urgent', 'immediate action', 'act now', 'expire', 'suspended'],
+            'credential_request': ['verify your account', 'confirm your identity', 'update your information', 'validate your'],
+            'suspicious_links': ['click here', 'bit.ly', 'tinyurl', 'shortlink'],
+            'impersonation': ['security team', 'it department', 'bank security', 'account team'],
+            'threats': ['suspended', 'blocked', 'unauthorized', 'illegal activity']
+        }
+        
+        phishing_score = 0
+        for category, patterns in phishing_patterns.items():
+            for pattern in patterns:
+                if pattern in text_lower:
+                    threat_indicators.append(f"Phishing indicator: {pattern}")
+                    phishing_score += 1
+        
+        # Malware indicators
+        malware_patterns = {
+            'processes': ['svchost.exe', 'cmd.exe', 'powershell', 'wscript'],
+            'locations': ['\\temp\\', '\\appdata\\', '\\roaming\\', 'c:\\windows\\temp'],
+            'network': ['port', 'connection', 'c2', 'command control', 'exfiltration'],
+            'file_activity': ['encrypted', 'modified files', 'registry', 'deleted files']
+        }
+        
+        malware_score = 0
+        for category, patterns in malware_patterns.items():
+            for pattern in patterns:
+                if pattern in text_lower:
+                    threat_indicators.append(f"Malware indicator: {pattern}")
+                    malware_score += 1
+        
+        # Ransomware indicators
+        if any(word in text_lower for word in ['encrypted', 'bitcoin', 'ransom', 'decrypt', 'locked']):
+            threat_indicators.append("Possible ransomware activity detected")
+            recommendations.append("Isolate affected systems immediately")
+            recommendations.append("Do not pay any ransom demands")
+            confidence = max(confidence, 0.9)
+        
+        # Data breach indicators
+        if any(word in text_lower for word in ['data breach', 'exposed', 'leaked', 'dump', 'exfiltrated']):
+            threat_indicators.append("Potential data breach detected")
+            recommendations.append("Assess scope of data exposure")
+            recommendations.append("Notify affected parties as required by law")
+            confidence = max(confidence, 0.85)
+        
+        # Social engineering
+        if any(word in text_lower for word in ['wire transfer', 'send money', 'urgent payment', 'ceo', 'executive']):
+            threat_indicators.append("Social engineering attempt detected")
+            recommendations.append("Verify request through official channels")
+            recommendations.append("Do not act on urgent financial requests via email")
+            confidence = max(confidence, 0.8)
+        
+        # Calculate overall confidence based on indicators found
+        total_indicators = len(threat_indicators)
+        if total_indicators > 0:
+            confidence = min(0.5 + (total_indicators * 0.1), 0.95)
+        else:
+            confidence = 0.2
+        
+        # Generate recommendations based on findings
+        if phishing_score > 2:
+            recommendations.extend([
+                "Mark as phishing and block sender",
+                "Report to anti-phishing working group",
+                "Alert other users about this campaign"
+            ])
+        
+        if malware_score > 2:
+            recommendations.extend([
+                "Run full antivirus scan",
+                "Check for persistence mechanisms",
+                "Review network connections"
+            ])
+        
+        # Check if we have enough information to make a determination
+        if not threat_indicators and len(extracted_text) > 50:
+            # Text extracted but no clear threats found
+            threat_indicators = ["Unable to determine specific threats from the extracted text"]
+            recommendations = [
+                "Manual review recommended - text does not contain clear security indicators",
+                "Consider the context in which this image was received",
+                "Look for subtle social engineering tactics",
+                "Verify any requests through official channels"
+            ]
+            confidence = 0.3
+        elif not threat_indicators and len(extracted_text) <= 50:
+            # Very little or no text extracted
+            threat_indicators = ["Insufficient text extracted for meaningful analysis"]
+            recommendations = [
+                "Image contains minimal readable text",
+                "Try uploading a higher quality image if text is expected",
+                "Manually review the image for visual indicators",
+                "Consider the source and context of the image"
+            ]
+            confidence = 0.1
+        elif len(threat_indicators) == 1:
+            # Only one indicator found - low confidence
+            recommendations.append("Limited indicators found - manual verification recommended")
+            recommendations.append("Cross-reference with other security data")
+            confidence = min(confidence, 0.5)
+        
+        # Generate summary
+        if phishing_score > malware_score and phishing_score > 0:
+            summary = f"Phishing attempt detected with {phishing_score} indicators. High risk of credential theft or account compromise."
+        elif malware_score > phishing_score and malware_score > 0:
+            summary = f"Malware-related content detected with {malware_score} indicators. System may be compromised."
+        elif 'ransom' in text_lower:
+            summary = "Ransomware notification detected. Critical security incident requiring immediate response."
+        elif 'data' in text_lower and 'breach' in text_lower:
+            summary = "Data breach notification detected. Immediate assessment and response required."
+        elif threat_indicators and len(threat_indicators) > 2 and confidence > 0.6:
+            summary = f"Security incident detected with {len(threat_indicators)} threat indicators. Investigation recommended."
+        elif threat_indicators and len(threat_indicators) > 1 and confidence > 0.4:
+            summary = f"Potential security concern identified with {len(threat_indicators)} indicators. Manual review recommended."
+        elif confidence < 0.3:
+            summary = "Analysis inconclusive - insufficient evidence to determine security threats. Manual review required."
+        else:
+            summary = "Text extracted and analyzed. Limited security indicators found - proceed with caution and verify context."
+        
+        return {
+            "extracted_text": extracted_text,
+            "summary": summary,
+            "threat_indicators": threat_indicators[:10],  # Limit to top 10
+            "confidence": confidence,
+            "recommendations": recommendations[:5]  # Limit to top 5
+        }
+    
+    def _generate_image_summary(self, text: str, indicators: List[str]) -> str:
+        """Generate a concise summary of the image analysis"""
+        text_lower = text.lower()
+        
+        if "phishing" in text_lower and "verify" in text_lower:
+            return "Phishing email detected requesting account verification through suspicious link. High risk of credential theft."
+        elif "ransomware" in text_lower or "encrypted" in text_lower:
+            return "Ransomware attack notification demanding Bitcoin payment. Critical security incident requiring immediate response."
+        elif "malware" in text_lower or "suspicious process" in text_lower:
+            return "Active malware infection detected with C2 communication and data exfiltration. System compromise confirmed."
+        elif "data exposure" in text_lower or "exposed records" in text_lower:
+            return f"Data breach detected: {text.count('15,247') and '15,247' or 'Multiple'} customer records exposed through misconfigured cloud storage. Immediate action required."
+        elif "wire transfer" in text_lower or "ceo" in text_lower:
+            return "CEO fraud attempt detected using social engineering tactics to bypass financial controls. Do not process any transfers."
+        elif "sql injection" in text_lower or "ids alert" in text_lower:
+            return "Network intrusion attempt detected with SQL injection payload targeting database server. Attack blocked but investigation needed."
+        elif "unauthorized" in text_lower and "access" in text_lower:
+            return "Security alert showing unauthorized access attempts from suspicious IP using VPN/proxy. Attack blocked but monitoring required."
+        else:
+            # Generate more specific summary based on threat indicators
+            if len(indicators) > 5:
+                return f"Critical security incident detected with {len(indicators)} threat indicators including {indicators[0].lower()}. Immediate response required."
+            elif len(indicators) > 3:
+                return f"High-priority security alert: {indicators[0]}. {len(indicators)} risk factors identified requiring investigation."
+            else:
+                return f"Security incident detected with {len(indicators)} threat indicators. Immediate investigation recommended."

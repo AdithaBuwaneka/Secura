@@ -146,22 +146,7 @@ class ImageKitService:
                     "upload_timestamp": datetime.now().isoformat()
                 }
 
-            # Upload to ImageKit
-            from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
 
-            options = UploadFileRequestOptions(
-                folder=f"/{folder}/{incident_id}/",
-                is_private_file=True,  # Keep files private for security
-                use_unique_file_name=False  # We're providing our own unique name
-            )
-
-            upload_result = self.imagekit.upload_file(
-                file=file_content,
-                file_name=unique_filename,
-                options=options
-            )
-
-            
             # Upload to ImageKit
             print(f"Uploading to ImageKit: filename={unique_filename}, size={len(file_content)}, type={file.content_type}")
             

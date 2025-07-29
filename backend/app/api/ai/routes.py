@@ -14,6 +14,18 @@ from app.models.user import User
 
 router = APIRouter(tags=["AI Engine"])
 
+class ImageAnalysisRequest(BaseModel):
+    image_url: str
+    incident_id: Optional[str] = None
+    context: Optional[str] = None
+
+class ImageAnalysisResponse(BaseModel):
+    extracted_text: str
+    summary: str
+    threat_indicators: List[str]
+    confidence: float
+    recommendations: List[str]
+
 class IncidentAnalysisRequest(BaseModel):
     title: Optional[str] = ""
     description: Optional[str] = ""
@@ -249,4 +261,39 @@ async def detect_anomalies(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Anomaly detection failed: {str(e)}"
+        )
+
+@router.post("/analyze-image", response_model=ImageAnalysisResponse)
+async def analyze_image(
+    request: ImageAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    ai_service: AIService = Depends()
+):
+    """
+    Analyze image content for text extraction and threat analysis
+    Security Team and Admin only
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Image analysis requires security team or admin access"
+        )
+    
+    try:
+        # Perform image analysis
+        analysis_result = await ai_service.analyze_image(
+            image_url=request.image_url,
+            incident_id=request.incident_id,
+            context=request.context
+        )
+        
+        return analysis_result
+        
+    except Exception as e:
+        import traceback
+        print(f"Image analysis error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image analysis failed: {str(e)}"
         )
