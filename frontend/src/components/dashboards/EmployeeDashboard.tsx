@@ -157,53 +157,57 @@ export default function EmployeeDashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white mb-6">Quick Actions</h3>
+            <div className="space-y-3">
               <button
                 onClick={() => setShowIncidentForm(true)}
-                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] hover:scale-105 group"
+                className="w-full bg-[#00D4FF] text-[#1A1D23] p-4 rounded-lg text-left transition-all hover:bg-[#00C4EF] group"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Report New Incident</h4>
-                    <p className="text-sm opacity-80 mt-1">Submit a security incident report</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate">Report New Incident</h4>
+                    <p className="text-sm opacity-80 mt-1 line-clamp-2">Submit a security incident report</p>
                   </div>
-                  <Plus className="h-6 w-6 group-hover:rotate-90 transition-transform" />
+                  <div className="flex-shrink-0">
+                    <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
+                  </div>
                 </div>
               </button>
               
-              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">View My Incidents</h4>
-                    <p className="text-sm text-gray-300 mt-1">Track your submitted reports</p>
+              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] group">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate">View My Incidents</h4>
+                    <p className="text-sm text-gray-300 mt-1 line-clamp-2">Track your submitted reports</p>
                   </div>
-                  <FileText className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                  <div className="flex-shrink-0">
+                    <FileText className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                  </div>
                 </div>
               </button>
               
               <button 
                 onClick={() => setShowMessaging(true)}
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group relative"
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] group relative"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Security Chat</h4>
-                    <p className="text-sm text-gray-300 mt-1">Chat with security team</p>
-                    <div className="flex items-center mt-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate">Security Chat</h4>
+                    <p className="text-sm text-gray-300 mt-1 line-clamp-1">Chat with security team</p>
+                    <div className="flex items-center mt-2">
                       <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
                       <span className="text-xs text-gray-400">
                         {isConnected ? 'Connected' : 'Offline'}
                       </span>
                     </div>
                   </div>
-                  <div className="relative">
+                  <div className="flex-shrink-0 relative">
                     {unreadCount > 0 && (
-                      <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center">
-                        <span className="text-xs text-white font-bold">{unreadCount}</span>
+                      <span className="absolute -top-2 -right-2 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center">
+                        <span className="text-xs text-white font-bold leading-none">{unreadCount > 9 ? '9+' : unreadCount}</span>
                       </span>
                     )}
-                    <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                    <MessageCircle className="h-5 w-5 group-hover:scale-110 transition-transform" />
                   </div>
                 </div>
               </button>
@@ -212,14 +216,16 @@ export default function EmployeeDashboard() {
               {canApply && (
                 <Link
                   href="/applications/apply"
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 hover:scale-105 group"
+                  className="block w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg text-left transition-all hover:from-purple-700 hover:to-blue-700 group"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Join Security Team</h4>
-                      <p className="text-sm text-gray-100 mt-1">Apply to become a security team member</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium truncate">Join Security Team</h4>
+                      <p className="text-sm text-gray-100 mt-1 line-clamp-2">Apply to become a security team member</p>
                     </div>
-                    <UserCheck className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                    <div className="flex-shrink-0">
+                      <UserCheck className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    </div>
                   </div>
                 </Link>
               )}
@@ -227,14 +233,16 @@ export default function EmployeeDashboard() {
               {/* Application Status Button */}
               <Link
                 href="/applications/status"
-                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-105 group"
+                className="block w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] group"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Application Status</h4>
-                    <p className="text-sm text-gray-300 mt-1">Track your security team applications</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate">Application Status</h4>
+                    <p className="text-sm text-gray-300 mt-1 line-clamp-2">Track your security team applications</p>
                   </div>
-                  <FileText className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                  <div className="flex-shrink-0">
+                    <FileText className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                  </div>
                 </div>
               </Link>
             </div>
