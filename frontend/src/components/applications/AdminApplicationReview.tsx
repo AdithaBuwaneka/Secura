@@ -2,18 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Shield, User, FileText, Calendar, CheckCircle, XCircle, MessageSquare, Filter } from 'lucide-react';
+import { Shield, User, FileText, Calendar, CheckCircle, XCircle, MessageSquare, Filter, Download, ExternalLink } from 'lucide-react';
 import { fetchAllApplications, fetchPendingApplications, reviewApplication } from '@/store/applications/applicationSlice';
 import { RootState, AppDispatch } from '@/store';
 import toast from 'react-hot-toast';
 
+interface ApplicationFile {
+  file_id: string;
+  file_url: string;
+  file_name: string;
+  original_filename: string;
+  file_size: number;
+  upload_date?: string;
+}
+
 interface SecurityApplication {
   id: string;
   applicant_uid: string;
+  applicant_name?: string;
   reason: string;
   experience: string;
   certifications?: string;
-  proof_documents: string[];
+  proof_documents: (ApplicationFile | string)[]; // Support both formats
   status: 'pending' | 'approved' | 'rejected';
   admin_notes?: string;
   created_at: string;
@@ -84,9 +94,14 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
         <div className="p-6">
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center">
+              <div className="flex items-center flex-1">
                 <User className="h-4 w-4 text-gray-400 mr-2" />
-                <span className="text-white font-medium">Applicant ID: {application.applicant_uid}</span>
+                <div className="flex flex-col">
+                  <span className="text-white font-medium">
+                    {application.applicant_name || 'Unknown User'}
+                  </span>
+                  <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
+                </div>
               </div>
               {isAlreadyReviewed && (
                 <div className="flex items-center">
@@ -151,16 +166,58 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
             )}
 
             {/* Documents */}
-            {application.proof_documents.length > 0 && (
+            {application.proof_documents && application.proof_documents.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-white mb-2">Uploaded Documents</h4>
-                <div className="bg-[#1A1D23] p-4 rounded-lg border border-gray-600 space-y-2">
-                  {application.proof_documents.map((doc: string, index: number) => (
-                    <div key={index} className="flex items-center text-gray-300 text-sm">
-                      <FileText className="h-3 w-3 text-gray-400 mr-2" />
-                      {doc}
-                    </div>
-                  ))}
+                <div className="bg-[#1A1D23] p-4 rounded-lg border border-gray-600 space-y-3">
+                  {application.proof_documents.map((doc: any, index: number) => {
+                    // Handle both old format (string) and new format (object)
+                    if (typeof doc === 'string') {
+                      // Legacy format - just filename
+                      return (
+                        <div key={index} className="flex items-center p-3 bg-[#2A2D35] rounded-lg border border-gray-600">
+                          <FileText className="h-4 w-4 text-gray-400 mr-3 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-white text-sm font-medium truncate">{doc}</p>
+                            <p className="text-gray-400 text-xs">Legacy file (no download available)</p>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      // New format - full file object
+                      const fileDoc = doc as ApplicationFile;
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-[#2A2D35] rounded-lg border border-gray-600">
+                          <div className="flex items-center flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-gray-400 mr-3 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-white text-sm font-medium truncate">{fileDoc.original_filename}</p>
+                              <p className="text-gray-400 text-xs">
+                                {(fileDoc.file_size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-3">
+                            <button
+                              onClick={() => window.open(fileDoc.file_url, '_blank')}
+                              className="p-2 text-[#00D4FF] hover:text-[#00C4EF] hover:bg-[#00D4FF]/10 rounded transition-colors"
+                              title="View file"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </button>
+                            <a
+                              href={fileDoc.file_url}
+                              download={fileDoc.original_filename}
+                              className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded transition-colors"
+                              title="Download file"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })}
                 </div>
               </div>
             )}
@@ -455,7 +512,12 @@ export default function AdminApplicationReview() {
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <User className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-white font-medium">Applicant: {application.applicant_uid}</span>
+                      <div className="flex flex-col flex-1">
+                        <span className="text-white font-medium">
+                          {application.applicant_name || 'Unknown User'}
+                        </span>
+                        <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
+                      </div>
                       <span className="ml-4">
                         {getStatusBadge(application.status)}
                       </span>

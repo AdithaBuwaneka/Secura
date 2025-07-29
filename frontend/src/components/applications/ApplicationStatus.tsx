@@ -137,14 +137,14 @@ export default function ApplicationStatus() {
               )}
 
               {/* Documents */}
-              {application.proof_documents.length > 0 && (
+              {application.proof_documents && application.proof_documents.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-white mb-2">Uploaded Documents</h4>
                   <div className="space-y-1">
                     {application.proof_documents.map((doc, index) => (
                       <div key={index} className="flex items-center text-gray-300 text-sm">
                         <FileText className="h-3 w-3 text-gray-400 mr-2" />
-                        {doc}
+                        {typeof doc === 'string' ? doc : doc.original_filename}
                       </div>
                     ))}
                   </div>

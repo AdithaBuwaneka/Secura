@@ -4,7 +4,7 @@ Handles applications for security team membership
 """
 
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum
 
@@ -13,14 +13,24 @@ class ApplicationStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
 
+class ApplicationFile(BaseModel):
+    """Model for uploaded application files"""
+    file_id: str
+    file_url: str
+    file_name: str
+    original_filename: str
+    file_size: int
+    upload_date: Optional[datetime] = None
+
 class SecurityTeamApplication(BaseModel):
     """Model for security team application"""
     id: Optional[str] = None
     applicant_uid: str
+    applicant_name: Optional[str] = None  # Full name of applicant
     reason: str
     experience: str
     certifications: Optional[str] = None
-    proof_documents: List[str] = []  # File URLs/paths
+    proof_documents: List[Union[ApplicationFile, str]] = []  # Support both formats
     status: ApplicationStatus = ApplicationStatus.PENDING
     admin_notes: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -32,7 +42,7 @@ class ApplicationCreate(BaseModel):
     reason: str
     experience: str
     certifications: Optional[str] = None
-    proof_documents: List[str] = []
+    proof_documents: List[Union[ApplicationFile, str]] = []
 
 class ApplicationReview(BaseModel):
     """Model for admin reviewing application"""

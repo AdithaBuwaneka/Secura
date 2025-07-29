@@ -68,7 +68,16 @@ class SecurityApplicationService:
         
         for doc in docs:
             data = doc.to_dict()
-            applications.append(SecurityTeamApplication(**data))
+            application = SecurityTeamApplication(**data)
+            
+            # Fetch applicant name
+            try:
+                user_profile = await self.auth_service.get_user_profile(application.applicant_uid)
+                application.applicant_name = user_profile.full_name if user_profile else "Unknown User"
+            except Exception:
+                application.applicant_name = "Unknown User"
+            
+            applications.append(application)
         
         return applications
 
@@ -79,7 +88,16 @@ class SecurityApplicationService:
         
         for doc in docs:
             data = doc.to_dict()
-            applications.append(SecurityTeamApplication(**data))
+            application = SecurityTeamApplication(**data)
+            
+            # Fetch applicant name
+            try:
+                user_profile = await self.auth_service.get_user_profile(application.applicant_uid)
+                application.applicant_name = user_profile.full_name if user_profile else "Unknown User"
+            except Exception:
+                application.applicant_name = "Unknown User"
+            
+            applications.append(application)
         
         return applications
 

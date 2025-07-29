@@ -3,13 +3,14 @@ Security Team Application API Routes
 Handles security team application submissions and reviews
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List
 
 from app.models.user import User
 from app.models.common import UserRole
 from app.models.security_application import ApplicationCreate, ApplicationReview, SecurityTeamApplication, ApplicationResponse
 from app.services.security_application_service import SecurityApplicationService
+from app.services.imagekit_service import imagekit_service
 from app.utils.auth import get_current_user
 
 router = APIRouter(tags=["Security Applications"])
@@ -176,4 +177,44 @@ async def check_can_apply(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to check application eligibility: {str(e)}"
+        )
+
+@router.post("/upload-document")
+async def upload_application_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a document for security team application
+    """
+    try:
+        # Upload to ImageKit with application-specific folder
+        result = await imagekit_service.upload_file(
+            file=file,
+            incident_id=f"app_{current_user.uid}",  # Use user ID for application files
+            uploader_id=current_user.uid,
+            folder="security-applications"
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
+            )
+        
+        return {
+            "success": True,
+            "file_id": result["file_id"],
+            "file_url": result["url"],
+            "file_name": result["name"],
+            "original_filename": result["original_filename"],
+            "file_size": result["size"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload document: {str(e)}"
         )
