@@ -35,6 +35,8 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
 
   if (!isOpen || !application) return null;
 
+  const isAlreadyReviewed = application.status !== 'pending';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -66,7 +68,9 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
         <div className="flex items-center justify-between p-6 border-b border-gray-600">
           <div className="flex items-center">
             <Shield className="h-6 w-6 text-[#00D4FF] mr-3" />
-            <h2 className="text-xl font-bold text-white">Review Application</h2>
+            <h2 className="text-xl font-bold text-white">
+              {isAlreadyReviewed ? 'Application Details' : 'Review Application'}
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -79,14 +83,44 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
         {/* Application Details */}
         <div className="p-6">
           <div className="mb-6">
-            <div className="flex items-center mb-2">
-              <User className="h-4 w-4 text-gray-400 mr-2" />
-              <span className="text-white font-medium">Applicant ID: {application.applicant_uid}</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center">
+                <User className="h-4 w-4 text-gray-400 mr-2" />
+                <span className="text-white font-medium">Applicant ID: {application.applicant_uid}</span>
+              </div>
+              {isAlreadyReviewed && (
+                <div className="flex items-center">
+                  {application.status === 'approved' ? (
+                    <div className="flex items-center px-3 py-1 bg-green-500/20 border border-green-500/30 text-green-400 rounded-full">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approved
+                    </div>
+                  ) : (
+                    <div className="flex items-center px-3 py-1 bg-red-500/20 border border-red-500/30 text-red-400 rounded-full">
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Rejected
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center text-gray-400 text-sm">
               <Calendar className="h-4 w-4 mr-1" />
               Submitted: {formatDate(application.created_at)}
+              {application.reviewed_at && (
+                <>
+                  {' | '}
+                  <Calendar className="h-4 w-4 ml-2 mr-1" />
+                  Reviewed: {formatDate(application.reviewed_at)}
+                </>
+              )}
             </div>
+            {application.reviewed_by && (
+              <div className="flex items-center text-gray-400 text-sm mt-1">
+                <User className="h-4 w-4 mr-1" />
+                Reviewed by: {application.reviewed_by}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -132,99 +166,123 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
             )}
           </div>
 
-          {/* Review Form */}
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-white mb-3">Decision</label>
-              <div className="flex space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="status"
-                    value="approved"
-                    checked={status === 'approved'}
-                    onChange={(e) => setStatus(e.target.value as 'approved')}
-                    className="sr-only"
-                  />
-                  <div className={`flex items-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${
-                    status === 'approved' 
-                      ? 'bg-green-500/20 border-green-500 text-green-400' 
-                      : 'bg-[#1A1D23] border-gray-600 text-gray-300 hover:border-gray-500'
-                  }`}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve
-                  </div>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="status"
-                    value="rejected"
-                    checked={status === 'rejected'}
-                    onChange={(e) => setStatus(e.target.value as 'rejected')}
-                    className="sr-only"
-                  />
-                  <div className={`flex items-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${
-                    status === 'rejected' 
-                      ? 'bg-red-500/20 border-red-500 text-red-400' 
-                      : 'bg-[#1A1D23] border-gray-600 text-gray-300 hover:border-gray-500'
-                  }`}>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject
-                  </div>
-                </label>
-              </div>
-            </div>
-
+          {/* Admin Notes for reviewed applications */}
+          {isAlreadyReviewed && application.admin_notes && (
             <div className="mb-6">
-              <label htmlFor="notes" className="block text-sm font-medium text-white mb-2">
-                Admin Notes (Optional)
-              </label>
-              <div className="relative">
-                <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={4}
-                  className="w-full pl-12 pr-4 py-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors resize-none"
-                  placeholder="Add any notes for the applicant (optional)..."
-                />
+              <h4 className="text-sm font-medium text-white mb-2">Admin Notes</h4>
+              <div className="bg-[#1A1D23] p-4 rounded-lg border border-gray-600">
+                <p className="text-gray-300 text-sm">{application.admin_notes}</p>
               </div>
             </div>
+          )}
 
-            {/* Action Buttons */}
-            <div className="flex justify-end space-x-4">
+          {/* Review Form - Only show for pending applications */}
+          {!isAlreadyReviewed && (
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-white mb-3">Decision</label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="status"
+                      value="approved"
+                      checked={status === 'approved'}
+                      onChange={(e) => setStatus(e.target.value as 'approved')}
+                      className="sr-only"
+                    />
+                    <div className={`flex items-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      status === 'approved' 
+                        ? 'bg-green-500/20 border-green-500 text-green-400' 
+                        : 'bg-[#1A1D23] border-gray-600 text-gray-300 hover:border-gray-500'
+                    }`}>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve
+                    </div>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="status"
+                      value="rejected"
+                      checked={status === 'rejected'}
+                      onChange={(e) => setStatus(e.target.value as 'rejected')}
+                      className="sr-only"
+                    />
+                    <div className={`flex items-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      status === 'rejected' 
+                        ? 'bg-red-500/20 border-red-500 text-red-400' 
+                        : 'bg-[#1A1D23] border-gray-600 text-gray-300 hover:border-gray-500'
+                    }`}>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Reject
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="notes" className="block text-sm font-medium text-white mb-2">
+                  Admin Notes (Optional)
+                </label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  <textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                    className="w-full pl-12 pr-4 py-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-colors resize-none"
+                    placeholder="Add any notes for the applicant (optional)..."
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${
+                    status === 'approved'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      {status === 'approved' ? <CheckCircle className="h-4 w-4 mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+                      {status === 'approved' ? 'Approve Application' : 'Reject Application'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Close button for reviewed applications */}
+          {isAlreadyReviewed && (
+            <div className="flex justify-end">
               <button
-                type="button"
                 onClick={onClose}
                 className="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${
-                  status === 'approved'
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    {status === 'approved' ? <CheckCircle className="h-4 w-4 mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
-                    {status === 'approved' ? 'Approve Application' : 'Reject Application'}
-                  </>
-                )}
+                Close
               </button>
             </div>
-          </form>
+          )}
         </div>
       </div>
     </div>
