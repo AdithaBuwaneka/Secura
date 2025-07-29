@@ -71,49 +71,47 @@ class IncidentService:
         
         return IncidentResponse(**response_data)
 
-      async def create_incident_with_id(
-          self,
-          incident_id: str,
-          incident_data: IncidentCreate,
-          reporter_id: str,
-          reporter_email: str,
-          reporter_name: str = None,
-          reporter_department: str = None
-      ) -> IncidentResponse:
-          """Create a new security incident with a specific ID"""
-          incident_doc = {
-              'id': incident_id,
-              'title': incident_data.title,
-              'incident_type': incident_data.incident_type.value if incident_data.incident_type else None,
-              'description': incident_data.description,
-              'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.LOW.value,
-              'status': IncidentStatus.PENDING.value,
-              'reporter_id': reporter_id,
-              'reporter_name': reporter_name or 'Unknown',
-              'reporter_email': reporter_email,
-              'reporter_department': reporter_department,
-              'assigned_to': None,
-              'assigned_to_name': None,
-              'assigned_at': None,
-              'assigned_by': None,
-              'ai_analysis': None,
-              'location': incident_data.location.dict() if incident_data.location else None,
-              'attachments': incident_data.attachments or [],
-              'created_at': datetime.utcnow(),
-              'updated_at': datetime.utcnow(),
-              'resolved_at': None,
-              'closed_at': None,
-              'additional_context': incident_data.additional_context or {},
-              'last_activity': datetime.utcnow(),
-              'priority_score': None
-          }
+    async def create_incident_with_id(
+        self,
+        incident_id: str,
+        incident_data: IncidentCreate,
+        reporter_id: str,
+        reporter_email: str,
+        reporter_name: str = None,
+        reporter_department: str = None
+    ) -> IncidentResponse:
+        """Create a new security incident with a specific ID"""
+        incident_doc = {
+            'id': incident_id,
+            'title': incident_data.title,
+            'incident_type': incident_data.incident_type.value if incident_data.incident_type else None,
+            'description': incident_data.description,
+            'severity': incident_data.severity.value if incident_data.severity else IncidentSeverity.LOW.value,
+            'status': IncidentStatus.PENDING.value,
+            'reporter_id': reporter_id,
+            'reporter_name': reporter_name or 'Unknown',
+            'reporter_email': reporter_email,
+            'reporter_department': reporter_department,
+            'assigned_to': None,
+            'assigned_to_name': None,
+            'assigned_at': None,
+            'assigned_by': None,
+            'ai_analysis': None,
+            'location': incident_data.location.dict() if incident_data.location else None,
+            'attachments': incident_data.attachments or [],
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow(),
+            'resolved_at': None,
+            'closed_at': None,
+            'additional_context': incident_data.additional_context or {},
+            'last_activity': datetime.utcnow(),
+            'priority_score': None
+        }
+        self.incidents_collection.document(incident_id).set(incident_doc)
+        return IncidentResponse(**incident_doc)
 
-          self.incidents_collection.document(incident_id).set(incident_doc)
-
-          return IncidentResponse(**incident_doc)
-
-      async def get_incident(self, incident_id: str) -> Optional[dict]:
-          """Get incident by ID with attachments"""
+    async def get_incident(self, incident_id: str) -> Optional[dict]:
+        """Get incident by ID with attachments"""
 
         doc = self.incidents_collection.document(incident_id).get()
         

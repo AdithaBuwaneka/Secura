@@ -9,7 +9,6 @@ import {
   Shield, 
   TrendingUp,
   AlertTriangle,
-  Bell,
   LogOut,
   UserPlus,
   Download,
@@ -24,6 +23,7 @@ import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AdminApplicationReview from '@/components/applications/AdminApplicationReview';
 import UserManagement from '@/components/users/UserManagement';
 import SystemConfig from '@/components/system/SystemConfig';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import toast from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -266,12 +266,7 @@ export default function AdminDashboard() {
 
             {/* User Info and Actions */}
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
-                  <span className="text-xs text-white font-bold">5</span>
-                </span>
-              </button>
+              <NotificationDropdown />
               
               <div className="flex items-center space-x-3">
                 <div className="text-right">
