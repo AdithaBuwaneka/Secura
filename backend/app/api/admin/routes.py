@@ -5,11 +5,14 @@ Handles admin-only operations for user management
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
+from datetime import datetime
 from app.models.auth import UserProfile
 from app.models.common import UserRole
 from app.services.auth.auth_service import AuthService
 from app.utils.auth import get_current_user
 from app.models.user import User
+from app.utils.logging import log_admin_action, log_security_event
+from firebase_admin import auth as firebase_auth
 
 router = APIRouter()
 
@@ -130,6 +133,14 @@ async def update_user_role(
         # Get updated user
         updated_user = await auth_service.get_user_profile(uid)
         
+        # Log admin action
+        log_admin_action(
+            admin_email=current_user.email,
+            action="user_role_change",
+            target_user=updated_user.email,
+            details=f"Role changed from {target_user.role.value} to {new_role}"
+        )
+        
         return {
             "message": f"User role updated to {new_role}",
             "user": {
@@ -199,6 +210,14 @@ async def update_user_status(
         # Get updated user
         updated_user = await auth_service.get_user_profile(uid)
         
+        # Log admin action
+        log_admin_action(
+            admin_email=current_user.email,
+            action="user_status_change",
+            target_user=updated_user.email,
+            details=f"User {'activated' if is_active else 'deactivated'}"
+        )
+        
         return {
             "message": f"User {'activated' if is_active else 'deactivated'} successfully",
             "user": {
@@ -219,4 +238,109 @@ async def update_user_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update user status: {str(e)}"
+        )
+
+@router.post("/users/create-security-member")
+async def create_security_member(
+    member_data: dict,
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends()
+):
+    """
+    Create a new security team member (Admin only)
+    Creates both Firebase auth account and user profile
+    """
+    # Check if current user is admin
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can create security team members"
+        )
+    
+    required_fields = ['email', 'full_name', 'phone_number', 'password']
+    for field in required_fields:
+        if not member_data.get(field):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing required field: {field}"
+            )
+    
+    try:
+        # Check if user already exists in Firebase
+        try:
+            existing_user = firebase_auth.get_user_by_email(member_data['email'])
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
+        except firebase_auth.UserNotFoundError:
+            # Good, user doesn't exist yet
+            pass
+        
+        # Create Firebase user
+        firebase_user = firebase_auth.create_user(
+            email=member_data['email'],
+            password=member_data['password'],
+            display_name=member_data['full_name']
+        )
+        
+        # Create user profile in Firestore with security_team role
+        profile_data = {
+            'uid': firebase_user.uid,
+            'email': member_data['email'],
+            'full_name': member_data['full_name'],
+            'phone_number': member_data['phone_number'],
+            'role': 'security_team',
+            'is_active': True,
+            'created_at': datetime.utcnow(),
+            'created_by': current_user.uid
+        }
+        
+        # Save to Firestore
+        from app.core.firebase_config import FirebaseConfig
+        db = FirebaseConfig.get_firestore()
+        db.collection('users').document(firebase_user.uid).set(profile_data)
+        
+        # Log admin action
+        log_admin_action(
+            admin_email=current_user.email,
+            action="create_security_member",
+            target_user=member_data['email'],
+            details=f"New security team member created: {member_data['full_name']}"
+        )
+        
+        # Log security event
+        log_security_event(
+            user_email=current_user.email,
+            event_type="new_security_member",
+            description=f"New security team member created: {member_data['email']}",
+            level="info"
+        )
+        
+        return {
+            "message": "Security team member created successfully",
+            "user": {
+                "uid": firebase_user.uid,
+                "email": member_data['email'],
+                "full_name": member_data['full_name'],
+                "phone_number": member_data['phone_number'],
+                "role": "security_team",
+                "is_active": True,
+                "created_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If we created Firebase user but failed to create profile, clean up
+        try:
+            if 'firebase_user' in locals():
+                firebase_auth.delete_user(firebase_user.uid)
+        except:
+            pass
+            
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create security team member: {str(e)}"
         ) 

@@ -14,10 +14,12 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  UserPlus
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { fetchUsers, updateUserRole, toggleUserStatus } from '@/store/users/userSlice';
+import AddSecurityMemberModal from './AddSecurityMemberModal';
 import toast from 'react-hot-toast';
 
 export default function UserManagement() {
@@ -28,6 +30,7 @@ export default function UserManagement() {
   const [activeTab, setActiveTab] = useState<'security' | 'employees'>('security');
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(true);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   useEffect(() => {
     console.log('UserManagement: Fetching users...');
@@ -94,6 +97,11 @@ export default function UserManagement() {
     );
   };
 
+  const handleAddMemberSuccess = () => {
+    // Refresh the users list
+    dispatch(fetchUsers());
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -102,14 +110,23 @@ export default function UserManagement() {
           <h2 className="text-2xl font-bold text-white">User Management</h2>
           <p className="text-gray-400 mt-1">Manage users and their roles across the system</p>
         </div>
-        <button
-          onClick={() => dispatch(fetchUsers())}
-          disabled={loading}
-          className="flex items-center space-x-2 bg-[#00D4FF] text-[#1A1D23] px-4 py-2 rounded-lg hover:bg-[#00C4EF] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Add Security Member</span>
+          </button>
+          <button
+            onClick={() => dispatch(fetchUsers())}
+            disabled={loading}
+            className="flex items-center space-x-2 bg-[#00D4FF] text-[#1A1D23] px-4 py-2 rounded-lg hover:bg-[#00C4EF] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -343,6 +360,13 @@ export default function UserManagement() {
           </div>
         </div>
       </div>
+
+      {/* Add Security Member Modal */}
+      <AddSecurityMemberModal
+        isOpen={showAddMemberModal}
+        onClose={() => setShowAddMemberModal(false)}
+        onSuccess={handleAddMemberSuccess}
+      />
     </div>
   );
 } 
