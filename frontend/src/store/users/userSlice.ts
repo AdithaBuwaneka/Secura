@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { RootState } from '@/store';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -42,7 +42,7 @@ export const fetchUsers = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/auth/admin/users`, {
+      const response = await fetch(`${API_URL}/api/admin/users`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
@@ -79,7 +79,7 @@ export const updateUserRole = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/auth/admin/users/${uid}/role`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${uid}/role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ export const toggleUserStatus = createAsyncThunk(
         throw new Error('No authentication token');
       }
 
-      const response = await fetch(`${API_URL}/api/auth/admin/users/${uid}/status`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${uid}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

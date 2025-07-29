@@ -45,7 +45,11 @@ export default function SecurityApplicationForm({ onSuccess, onCancel }: Securit
     }
     
     try {
-      await dispatch(submitApplication(formData)).unwrap();
+      const submitData = {
+        ...formData,
+        proof_documents: formData.proof_documents.map(f => f.file_id)
+      };
+      await dispatch(submitApplication(submitData)).unwrap();
       const fileCount = formData.proof_documents.length;
       const message = fileCount > 0 
         ? `Application with ${fileCount} document(s) submitted successfully!`
@@ -115,7 +119,7 @@ export default function SecurityApplicationForm({ onSuccess, onCancel }: Securit
         // Create XMLHttpRequest for progress tracking
         const xhr = new XMLHttpRequest();
         
-        const uploadPromise = new Promise<any>((resolve, reject) => {
+        const uploadPromise = new Promise<UploadedFile>((resolve, reject) => {
           xhr.upload.addEventListener('progress', (event) => {
             if (event.lengthComputable) {
               const fileProgress = (event.loaded / event.total) * 100;
@@ -129,14 +133,14 @@ export default function SecurityApplicationForm({ onSuccess, onCancel }: Securit
               try {
                 const result = JSON.parse(xhr.responseText);
                 resolve(result);
-              } catch (e) {
+              } catch {
                 reject(new Error('Invalid response format'));
               }
             } else {
               try {
                 const error = JSON.parse(xhr.responseText);
                 reject(new Error(error.detail || 'Upload failed'));
-              } catch (e) {
+              } catch {
                 reject(new Error(`Upload failed with status ${xhr.status}`));
               }
             }

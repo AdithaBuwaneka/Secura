@@ -144,7 +144,7 @@ export default function ApplicationStatus() {
                     {application.proof_documents.map((doc, index) => (
                       <div key={index} className="flex items-center text-gray-300 text-sm">
                         <FileText className="h-3 w-3 text-gray-400 mr-2" />
-                        {typeof doc === 'string' ? doc : doc.original_filename}
+                        {doc}
                       </div>
                     ))}
                   </div>
