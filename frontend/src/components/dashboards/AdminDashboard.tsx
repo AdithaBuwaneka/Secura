@@ -61,29 +61,28 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [systemLogs, setSystemLogs] = useState<any[]>([]);
+  interface SystemLog {
+    id?: string;
+    timestamp?: number | { seconds?: number };
+    level: string;
+    message: string;
+    user?: string;
+    action?: string;
+    ip_address?: string;
+  }
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
 
-  useEffect(() => {
-    dispatch(fetchPendingApplications());
-    if (activeTab === 'overview' && idToken && isAuthenticated) {
-      fetchOverviewData();
-      fetchRecentLogs();
-    }
-  }, [dispatch, activeTab, idToken, isAuthenticated]);
 
-  const fetchOverviewData = async () => {
+  const fetchOverviewData = React.useCallback(async () => {
     if (!idToken || !isAuthenticated) return;
-    
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/system/overview`, {
         headers: { 'Authorization': `Bearer ${idToken}` }
       });
-
       if (!response.ok) {
         throw new Error('Failed to fetch overview data');
       }
-
       const data = await response.json();
       setOverviewData(data);
     } catch (error) {
@@ -92,16 +91,14 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [idToken, isAuthenticated]);
 
-  const fetchRecentLogs = async () => {
+  const fetchRecentLogs = React.useCallback(async () => {
     if (!idToken || !isAuthenticated) return;
-    
     try {
       const response = await fetch(`${API_URL}/api/system/logs?limit=4`, {
         headers: { 'Authorization': `Bearer ${idToken}` }
       });
-
       if (response.ok) {
         const logs = await response.json();
         setSystemLogs(logs);
@@ -109,7 +106,17 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error fetching logs:', error);
     }
-  };
+  }, [idToken, isAuthenticated]);
+
+  useEffect(() => {
+    dispatch(fetchPendingApplications());
+    if (activeTab === 'overview' && idToken && isAuthenticated) {
+      fetchOverviewData();
+      fetchRecentLogs();
+    }
+  }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs]);
+
+  // Removed duplicate fetchOverviewData and fetchRecentLogs declarations
 
   const handleLogout = async () => {
     try {
@@ -171,9 +178,17 @@ export default function AdminDashboard() {
         // Create downloadable audit log file
         const csvContent = "data:text/csv;charset=utf-8," + 
           "Timestamp,Level,Message,User,Action,IP Address\n" +
-          logs.map((log: any) => 
-            `"${log.timestamp ? new Date(log.timestamp.seconds ? log.timestamp.seconds * 1000 : log.timestamp).toLocaleString() : 'N/A'}","${log.level}","${log.message}","${log.user}","${log.action}","${log.ip_address || 'N/A'}"`
-          ).join("\n");
+      logs.map((log: SystemLog) => {
+        let dateStr = 'N/A';
+        if (log.timestamp !== undefined) {
+          if (typeof log.timestamp === 'object' && log.timestamp.seconds !== undefined) {
+            dateStr = new Date(log.timestamp.seconds * 1000).toLocaleString();
+          } else if (typeof log.timestamp === 'number') {
+            dateStr = new Date(log.timestamp).toLocaleString();
+          }
+        }
+        return `"${dateStr}","${log.level}","${log.message}","${log.user}","${log.action}","${log.ip_address || 'N/A'}"`;
+      }).join("\n");
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -493,7 +508,7 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 {systemLogs.length > 0 ? (
                   systemLogs.map((log, index) => (
-                    <div key={log.id || index} className="flex items-center space-x-4 p-3 bg-[#1A1D23] rounded-lg">
+                    <div key={log.id ?? index} className="flex items-center space-x-4 p-3 bg-[#1A1D23] rounded-lg">
                       <div className={`w-2 h-2 rounded-full ${
                         log.level === 'error' ? 'bg-red-400' :
                         log.level === 'warning' ? 'bg-yellow-400' :
@@ -502,12 +517,15 @@ export default function AdminDashboard() {
                       <div className="flex-1">
                         <p className="text-sm text-white">{log.message || log.action || 'System activity'}</p>
                         <p className="text-xs text-gray-400">
-                          By {log.user || 'System'} • {log.timestamp ? 
-                            (log.timestamp.seconds ? 
-                              new Date(log.timestamp.seconds * 1000).toLocaleString() : 
-                              new Date(log.timestamp).toLocaleString()
-                            ) : 'Recently'
-                          }
+                          By {log.user || 'System'} • {(() => {
+                            if (!log.timestamp) return 'Recently';
+                            if (typeof log.timestamp === 'object' && log.timestamp.seconds !== undefined) {
+                              return new Date(log.timestamp.seconds * 1000).toLocaleString();
+                            } else if (typeof log.timestamp === 'number') {
+                              return new Date(log.timestamp).toLocaleString();
+                            }
+                            return 'Recently';
+                          })()}
                         </p>
                       </div>
                     </div>

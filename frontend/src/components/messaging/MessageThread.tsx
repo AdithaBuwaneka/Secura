@@ -112,7 +112,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
     } catch (error) {
       console.error('Failed to initialize WebSocket:', error);
     }
-  }, [incidentId, idToken, userProfile?.uid, WS_URL]);
+  }, [incidentId, idToken, userProfile?.uid, WS_URL, API_URL]);
 
   const loadMessages = useCallback(async () => {
     if (!incidentId) {

@@ -1,28 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { 
   Settings, 
   Database, 
   Shield, 
   Bell, 
-  Mail, 
-  Key, 
-  Server, 
   Activity, 
   Download, 
-  Upload, 
   RefreshCw,
   Save,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  HardDrive,
   Wifi,
-  Lock
+  CheckCircle
 } from 'lucide-react';
-import { RootState, AppDispatch } from '@/store';
+import { RootState } from '@/store';
 import toast from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -55,7 +47,7 @@ interface SystemConfig {
 }
 
 export default function SystemConfig() {
-  const { userProfile, idToken, loading: authLoading, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { idToken, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const [activeSection, setActiveSection] = useState('general');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,18 +55,11 @@ export default function SystemConfig() {
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [config, setConfig] = useState<SystemConfig | null>(null);
 
-  useEffect(() => {
-    if (idToken && isAuthenticated) {
-      fetchSystemData();
-    }
-  }, [idToken, isAuthenticated]);
 
-  const fetchSystemData = async () => {
+  const fetchSystemData = React.useCallback(async () => {
     if (!idToken || !isAuthenticated) return;
-    
     setLoading(true);
     try {
-
       const [statsResponse, configResponse] = await Promise.all([
         fetch(`${API_URL}/api/system/stats`, {
           headers: { 'Authorization': `Bearer ${idToken}` }
@@ -83,16 +68,13 @@ export default function SystemConfig() {
           headers: { 'Authorization': `Bearer ${idToken}` }
         })
       ]);
-
       if (!statsResponse.ok || !configResponse.ok) {
         throw new Error('Failed to fetch system data');
       }
-
       const [statsData, configData] = await Promise.all([
         statsResponse.json(),
         configResponse.json()
       ]);
-
       setSystemStats(statsData);
       setConfig(configData);
     } catch (error) {
@@ -101,9 +83,15 @@ export default function SystemConfig() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [idToken, isAuthenticated]);
 
-  const handleConfigChange = (section: string, key: string, value: any) => {
+  useEffect(() => {
+    if (idToken && isAuthenticated) {
+      fetchSystemData();
+    }
+  }, [idToken, isAuthenticated, fetchSystemData]);
+
+  const handleConfigChange = (section: string, key: string, value: string | number | boolean | string[]) => {
     if (!config) return;
     
     if (section === 'password_policy') {
@@ -338,7 +326,7 @@ export default function SystemConfig() {
                         <label key={item.key} className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={config?.password_policy?.[item.key as keyof typeof config.password_policy] || false}
+                            checked={Boolean(config?.password_policy?.[item.key as keyof typeof config.password_policy])}
                             onChange={(e) => handleConfigChange('password_policy', item.key, e.target.checked)}
                             className="sr-only"
                           />
@@ -419,50 +407,13 @@ export default function SystemConfig() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Backup Frequency</label>
-                  <select
-                    value={config?.backup_frequency || 'daily'}
-                    onChange={(e) => handleConfigChange('', 'backup_frequency', e.target.value)}
-                    className="w-full px-4 py-2 bg-[#1A1D23] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#00D4FF]"
-                  >
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'monitoring' && (
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <h3 className="text-xl font-semibold text-white mb-6">System Monitoring</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#1A1D23] p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-400 text-sm">CPU Usage</span>
-                    <span className="text-white font-medium">{systemStats?.cpu_usage || 0}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="bg-[#00D4FF] h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${systemStats?.cpu_usage || 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="bg-[#1A1D23] p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-400 text-sm">Memory Usage</span>
-                    <span className="text-white font-medium">{systemStats?.memory_usage || 0}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="bg-green-400 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${systemStats?.memory_usage || 0}%` }}
-                    ></div>
-                  </div>
+  <label className="block text-sm font-medium text-white mb-2">Backup Frequency</label>
+  <div className="w-full bg-gray-700 rounded-full h-2">
+    <div 
+      className="bg-green-400 h-2 rounded-full transition-all duration-300"
+      style={{ width: `${systemStats?.memory_usage || 0}%` }}
+    ></div>
+  </div>
                 </div>
 
                 <div className="bg-[#1A1D23] p-4 rounded-lg">

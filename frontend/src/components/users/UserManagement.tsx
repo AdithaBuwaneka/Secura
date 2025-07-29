@@ -8,9 +8,7 @@ import {
   UserCheck, 
   UserX, 
   Edit3, 
-  MoreVertical,
   Search,
-  Filter,
   RefreshCw,
   Eye,
   EyeOff,
@@ -33,10 +31,7 @@ export default function UserManagement() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   useEffect(() => {
-    console.log('UserManagement: Fetching users...');
-    dispatch(fetchUsers()).catch(error => {
-      console.error('UserManagement: Error fetching users:', error);
-    });
+    dispatch(fetchUsers());
   }, [dispatch]);
 
   const handleRoleChange = async (uid: string, currentRole: string) => {
@@ -44,7 +39,7 @@ export default function UserManagement() {
       const newRole = currentRole === 'security_team' ? 'employee' : 'security_team';
       await dispatch(updateUserRole({ uid, newRole })).unwrap();
       toast.success(`User role updated to ${newRole === 'security_team' ? 'Security Team' : 'Employee'}`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to update user role');
     }
   };
@@ -53,7 +48,7 @@ export default function UserManagement() {
     try {
       await dispatch(toggleUserStatus({ uid, isActive: !currentStatus })).unwrap();
       toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to update user status');
     }
   };
@@ -63,7 +58,6 @@ export default function UserManagement() {
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTab = activeTab === 'security' ? user.role === 'security_team' : user.role === 'employee';
     const matchesStatus = showInactive || user.is_active;
-    
     return matchesSearch && matchesTab && matchesStatus;
   });
 

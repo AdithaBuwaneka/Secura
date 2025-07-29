@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Shield, User, FileText, Calendar, CheckCircle, XCircle, MessageSquare, Filter, Download, ExternalLink } from 'lucide-react';
-import { fetchAllApplications, fetchPendingApplications, reviewApplication } from '@/store/applications/applicationSlice';
+import { fetchAllApplications, reviewApplication } from '@/store/applications/applicationSlice';
 import { RootState, AppDispatch } from '@/store';
 import toast from 'react-hot-toast';
 
@@ -19,7 +19,9 @@ interface ApplicationFile {
 interface SecurityApplication {
   id: string;
   applicant_uid: string;
-  applicant_name?: string;
+  applicant_name?: string; // Make sure this matches your backend/data property
+  // If your backend uses a different property, e.g., 'name', add it here:
+  // name?: string;
   reason: string;
   experience: string;
   certifications?: string;
@@ -98,7 +100,8 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
                 <User className="h-4 w-4 text-gray-400 mr-2" />
                 <div className="flex flex-col">
                   <span className="text-white font-medium">
-                    {application.applicant_name || 'Unknown User'}
+                    {('name' in application && typeof application.name === 'string' && application.name)
+                      || 'Unknown User'}
                   </span>
                   <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
                 </div>
@@ -170,7 +173,7 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
               <div>
                 <h4 className="text-sm font-medium text-white mb-2">Uploaded Documents</h4>
                 <div className="bg-[#1A1D23] p-4 rounded-lg border border-gray-600 space-y-3">
-                  {application.proof_documents.map((doc: any, index: number) => {
+                  {application.proof_documents.map((doc: ApplicationFile | string, index: number) => {
                     // Handle both old format (string) and new format (object)
                     if (typeof doc === 'string') {
                       // Legacy format - just filename
@@ -348,7 +351,7 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
 
 export default function AdminApplicationReview() {
   const dispatch = useDispatch<AppDispatch>();
-  const { allApplications, pendingApplications, loading, error } = useSelector((state: RootState) => state.applications);
+  const { allApplications, loading, error } = useSelector((state: RootState) => state.applications);
   const [selectedApplication, setSelectedApplication] = useState<SecurityApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -514,7 +517,7 @@ export default function AdminApplicationReview() {
                       <User className="h-4 w-4 text-gray-400 mr-2" />
                       <div className="flex flex-col flex-1">
                         <span className="text-white font-medium">
-                          {application.applicant_name || 'Unknown User'}
+                          {('name' in application && typeof application.name === 'string' && application.name) || 'Unknown User'}
                         </span>
                         <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
                       </div>

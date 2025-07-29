@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { 
   X, 
   UserPlus, 
@@ -12,7 +12,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { AppDispatch, RootState } from '@/store';
+import { RootState } from '@/store';
 import toast from 'react-hot-toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -32,7 +32,7 @@ interface SecurityMemberData {
 }
 
 export default function AddSecurityMemberModal({ isOpen, onClose, onSuccess }: AddSecurityMemberModalProps) {
-  const dispatch = useDispatch<AppDispatch>();
+  // const dispatch = useDispatch<AppDispatch>();
   const { idToken } = useSelector((state: RootState) => state.auth);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -129,7 +129,7 @@ export default function AddSecurityMemberModal({ isOpen, onClose, onSuccess }: A
         throw new Error(errorData.detail || 'Failed to create security team member');
       }
 
-      const result = await response.json();
+      // const result = await response.json();
       toast.success('Security team member created successfully');
       
       // Reset form
