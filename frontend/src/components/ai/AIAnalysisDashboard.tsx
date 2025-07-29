@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
+import Link from 'next/link';
 import { 
   Brain, 
   Target, 
@@ -16,7 +17,8 @@ import {
   FileSearch,
   LineChart,
   ShieldAlert,
-  Lightbulb
+  Lightbulb,
+  ExternalLink
 } from 'lucide-react';
 import { RootState } from '@/store';
 import toast from 'react-hot-toast';
@@ -41,8 +43,31 @@ interface AIAnalysisResult {
   confidence_score: number;
 }
 
+interface IncidentAttachment {
+  file_id: string;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  file_type: string;
+  file_hash: string;
+  upload_timestamp: string;
+  uploader_id: string;
+}
+
+interface Incident {
+  id: string;
+  title: string | null;
+  description: string | null;
+  status: string;
+  severity: string;
+  incident_type: string;
+  created_at: string;
+  reporter_name: string;
+  attachments?: IncidentAttachment[];
+}
+
 export default function AIAnalysisDashboard() {
-  const { idToken } = useSelector((state: RootState) => state.auth);
+  const { idToken, userProfile } = useSelector((state: RootState) => state.auth);
   const [activeTab, setActiveTab] = useState('analysis');
   const [analysisInput, setAnalysisInput] = useState({
     title: '',
@@ -53,8 +78,46 @@ export default function AIAnalysisDashboard() {
   const [threatIntelligence, setThreatIntelligence] = useState<any>(null);
   const [predictiveAnalytics, setPredictiveAnalytics] = useState<any>(null);
   const [isLoadingIntel, setIsLoadingIntel] = useState(false);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+  const fetchIncidents = async () => {
+    setIsLoadingIncidents(true);
+    try {
+      const response = await fetch(`${API_URL}/api/incidents?limit=100`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIncidents(data);
+      } else {
+        toast.error('Failed to fetch incidents');
+      }
+    } catch (error) {
+      console.error('Fetch incidents error:', error);
+      toast.error('Failed to load incidents');
+    } finally {
+      setIsLoadingIncidents(false);
+    }
+  };
+
+  const handleIncidentSelect = (incidentId: string) => {
+    const incident = incidents.find(inc => inc.id === incidentId);
+    if (incident) {
+      setSelectedIncident(incident);
+      setAnalysisInput({
+        title: incident.title || '',
+        description: incident.description || ''
+      });
+      setAnalysisResult(null);
+    }
+  };
 
   const fetchThreatIntelligence = async () => {
     setIsLoadingIntel(true);
@@ -103,6 +166,10 @@ export default function AIAnalysisDashboard() {
   };
 
   React.useEffect(() => {
+    fetchIncidents();
+  }, [idToken]);
+
+  React.useEffect(() => {
     if (activeTab === 'intelligence' && !threatIntelligence) {
       fetchThreatIntelligence();
     } else if (activeTab === 'predictive' && !predictiveAnalytics) {
@@ -111,24 +178,124 @@ export default function AIAnalysisDashboard() {
   }, [activeTab]);
 
   const handleAnalyze = async () => {
-    if (!analysisInput.title || !analysisInput.description) {
-      toast.error('Please provide both title and description');
+    if (!selectedIncident) {
+      toast.error('Please select an incident to analyze');
+      return;
+    }
+
+    // Check if user has required role
+    if (userProfile?.role !== 'security_team' && userProfile?.role !== 'admin') {
+      toast.error('AI analysis requires security team or admin access');
       return;
     }
 
     setIsAnalyzing(true);
+    setAnalysisResult(null);
+    
     try {
+      // First, check if incident has images and analyze them
+      let imageAnalysisText = '';
+      const imageAttachments = selectedIncident.attachments?.filter(att => 
+        att.file_type.startsWith('image/') || 
+        ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].some(ext => att.filename.toLowerCase().endsWith(`.${ext}`))
+      );
+
+      if (imageAttachments && imageAttachments.length > 0) {
+        // Construct proper ImageKit URL for the attachment
+        const attachment = imageAttachments[0];
+        let imageUrl = '';
+        
+        // Check if the attachment has a direct URL or we need to construct it
+        if (attachment.file_id.startsWith('http')) {
+          imageUrl = attachment.file_id;
+        } else {
+          // Construct ImageKit URL
+          const imagekitEndpoint = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/secura';
+          imageUrl = `${imagekitEndpoint}/incidents/${selectedIncident.id}/${attachment.filename}`;
+        }
+        
+        try {
+          const imageResponse = await fetch(`${API_URL}/api/ai/analyze-image`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              image_url: imageUrl,
+              incident_id: selectedIncident.id,
+              context: selectedIncident.title || selectedIncident.description || 'Security incident'
+            })
+          });
+
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            imageAnalysisText = imageData.extracted_text || '';
+            if (imageAnalysisText) {
+              toast.success('Image OCR completed - text extracted');
+            } else {
+              toast.info('Image analyzed but no text found');
+            }
+          }
+        } catch (imgError) {
+          console.error('Image analysis error:', imgError);
+          toast.warning('Could not analyze image, proceeding with available text');
+        }
+      }
+
+      // Combine available data for analysis
+      const combinedText = [
+        selectedIncident.title || '',
+        selectedIncident.description || '',
+        imageAnalysisText
+      ].filter(text => text.trim()).join(' ');
+
+      if (!combinedText.trim()) {
+        toast.error('Insufficient data for analysis. No title, description, or readable image content found.');
+        setAnalysisResult({
+          categories: [{
+            category: 'unknown',
+            confidence: 0.1,
+            reasoning: 'Insufficient data available for proper categorization'
+          }],
+          severity: {
+            severity: 'unknown',
+            confidence: 0.1,
+            reasoning: 'Cannot assess severity without adequate incident information'
+          },
+          mitigation_strategies: [{
+            strategy: 'Gather more information about the incident',
+            priority: 1,
+            estimated_time: 'Immediate',
+            resources_required: ['Incident reporter', 'Security team']
+          }],
+          confidence_score: 0.1
+        });
+        return;
+      }
+
+      // Prepare request data
+      const requestData = {
+        title: selectedIncident.title || 'Incident Analysis',
+        description: combinedText || 'No description available',
+        context: {
+          has_image: imageAttachments && imageAttachments.length > 0,
+          image_text: imageAnalysisText,
+          incident_type: selectedIncident.incident_type,
+          severity: selectedIncident.severity
+        }
+      };
+
+      console.log('Sending AI analysis request:', requestData);
+
+      // Perform AI analysis with combined data
       const response = await fetch(`${API_URL}/api/ai/analyze-incident`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          title: analysisInput.title,
-          description: analysisInput.description,
-          context: {}
-        })
+        body: JSON.stringify(requestData)
       });
 
       if (response.ok) {
@@ -136,7 +303,15 @@ export default function AIAnalysisDashboard() {
         setAnalysisResult(result);
         toast.success('AI analysis completed');
       } else {
-        toast.error('AI analysis failed');
+        let errorMessage = 'AI analysis failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+          console.error('AI analysis error response:', errorData);
+        } catch (e) {
+          console.error('Failed to parse error response:', e);
+        }
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('AI analysis error:', error);
@@ -219,75 +394,154 @@ export default function AIAnalysisDashboard() {
       {/* Tab Content */}
       {activeTab === 'analysis' && (
         <>
-          {/* Input Section */}
+          {/* Incident Selection Section */}
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Analyze Incident</h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Incident Title *
-            </label>
-            <input
-              type="text"
-              value={analysisInput.title}
-              onChange={(e) => setAnalysisInput(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]"
-              placeholder="Brief title of the security incident"
-            />
-          </div>
+            <h3 className="text-lg font-semibold text-white mb-4">Select Incident for Analysis</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Choose an Incident
+                </label>
+                <select
+                  value={selectedIncident?.id || ''}
+                  onChange={(e) => handleIncidentSelect(e.target.value)}
+                  className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]"
+                  disabled={isLoadingIncidents}
+                >
+                  <option value="">Select an incident...</option>
+                  {incidents.map((incident) => (
+                    <option key={incident.id} value={incident.id}>
+                      {incident.title || 'Untitled'} - {incident.status} ({new Date(incident.created_at).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Incident Description *
-            </label>
-            <textarea
-              value={analysisInput.description}
-              onChange={(e) => setAnalysisInput(prev => ({ ...prev, description: e.target.value }))}
-              rows={4}
-              className="w-full p-3 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]"
-              placeholder="Detailed description of what happened, when, and any relevant context..."
-            />
-          </div>
+              {selectedIncident && (
+                <div className="p-4 bg-[#1A1D23] rounded-lg border border-gray-600">
+                  <h4 className="font-medium text-white mb-2">Incident Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    {selectedIncident.title && (
+                      <div className="flex items-start">
+                        <span className="text-gray-400 w-24">Title:</span>
+                        <span className="text-white flex-1">{selectedIncident.title}</span>
+                      </div>
+                    )}
+                    {selectedIncident.description && (
+                      <div className="flex items-start">
+                        <span className="text-gray-400 w-24">Description:</span>
+                        <span className="text-white flex-1">{selectedIncident.description}</span>
+                      </div>
+                    )}
+                    <div className="flex items-start">
+                      <span className="text-gray-400 w-24">Status:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        selectedIncident.status === 'resolved' ? 'bg-green-500/20 text-green-300' :
+                        selectedIncident.status === 'investigating' ? 'bg-blue-500/20 text-blue-300' :
+                        selectedIncident.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                        'bg-gray-500/20 text-gray-300'
+                      }`}>
+                        {selectedIncident.status}
+                      </span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 w-24">Severity:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor(selectedIncident.severity)}`}>
+                        {selectedIncident.severity}
+                      </span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 w-24">Type:</span>
+                      <span className="text-white flex-1">{selectedIncident.incident_type || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 w-24">Reporter:</span>
+                      <span className="text-white flex-1">{selectedIncident.reporter_name}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 w-24">Date:</span>
+                      <span className="text-white flex-1">{new Date(selectedIncident.created_at).toLocaleString()}</span>
+                    </div>
+                    {selectedIncident.attachments && selectedIncident.attachments.length > 0 && (
+                      <div className="flex items-start">
+                        <span className="text-gray-400 w-24">Attachments:</span>
+                        <div className="flex-1">
+                          {selectedIncident.attachments.map((att, idx) => (
+                            <div key={idx} className="text-white">
+                              {att.file_type.startsWith('image/') ? '🖼️' : '📎'} {att.original_filename}
+                              {att.file_type.startsWith('image/') && <span className="text-green-400 text-xs ml-2">(Will be analyzed with OCR)</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {!selectedIncident.title && !selectedIncident.description && (!selectedIncident.attachments || selectedIncident.attachments.length === 0) && (
+                      <div className="text-yellow-400 italic">
+                        ⚠️ This incident has no title, description, or attachments. Analysis may be limited.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-          <button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            className="flex items-center px-6 py-3 bg-[#00D4FF] text-[#1A1D23] rounded-lg font-medium hover:bg-[#00C4EF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isAnalyzing ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A1D23] mr-2"></div>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                Analyze with AI
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || !selectedIncident}
+                className="flex items-center px-6 py-3 bg-[#00D4FF] text-[#1A1D23] rounded-lg font-medium hover:bg-[#00C4EF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A1D23] mr-2"></div>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Analyze Selected Incident
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
 
       {/* Results Section */}
-      {analysisResult && (
+      {analysisResult && selectedIncident && (
         <div className="space-y-6">
-          {/* Overall Confidence */}
+          {/* Incident Analysis Summary */}
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">AI Confidence Score</h3>
-              <div className="flex items-center">
-                <div className="h-2 w-32 bg-gray-700 rounded-full mr-3">
-                  <div 
-                    className="h-2 bg-[#00D4FF] rounded-full"
-                    style={{ width: `${analysisResult.confidence_score * 100}%` }}
-                  ></div>
+            <div className="flex items-center mb-4">
+              <Brain className="h-5 w-5 text-[#00D4FF] mr-2" />
+              <h3 className="text-lg font-semibold text-white">AI Analysis Summary</h3>
+            </div>
+            <div className="p-4 bg-[#1A1D23] rounded-lg">
+              <h4 className="font-medium text-white mb-3">Incident: {selectedIncident.title || 'Untitled Incident'}</h4>
+              {selectedIncident.description && (
+                <p className="text-gray-300 text-sm mb-4">{selectedIncident.description}</p>
+              )}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-400">Current Status:</span>
+                  <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                    selectedIncident.status === 'resolved' ? 'bg-green-500/20 text-green-300' :
+                    selectedIncident.status === 'investigating' ? 'bg-blue-500/20 text-blue-300' :
+                    'bg-yellow-500/20 text-yellow-300'
+                  }`}>
+                    {selectedIncident.status}
+                  </span>
                 </div>
-                <span className="text-[#00D4FF] font-semibold">
-                  {Math.round(analysisResult.confidence_score * 100)}%
-                </span>
+                <div>
+                  <span className="text-gray-400">AI Confidence:</span>
+                  <span className="ml-2 text-[#00D4FF] font-semibold">
+                    {Math.round(analysisResult.confidence_score * 100)}%
+                  </span>
+                </div>
               </div>
+              {analysisResult.confidence_score < 0.3 && (
+                <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-xs">
+                  ⚠️ Low confidence analysis. The incident may lack sufficient information for accurate analysis.
+                </div>
+              )}
             </div>
           </div>
 
@@ -350,28 +604,31 @@ export default function AIAnalysisDashboard() {
             </div>
           </div>
 
-          {/* Mitigation Strategies */}
+          {/* AI Recommendations */}
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
             <div className="flex items-center mb-4">
-              <Shield className="h-5 w-5 text-[#00D4FF] mr-2" />
-              <h3 className="text-lg font-semibold text-white">AI-Recommended Actions</h3>
+              <Lightbulb className="h-5 w-5 text-yellow-400 mr-2" />
+              <h3 className="text-lg font-semibold text-white">AI Recommendations</h3>
             </div>
             
             <div className="space-y-3">
               {analysisResult.mitigation_strategies.map((strategy, index) => (
-                <div key={index} className="p-4 bg-[#1A1D23] rounded-lg border border-gray-600">
-                  <div className="flex items-start justify-between mb-2">
+                <div key={index} className="p-4 bg-[#1A1D23] rounded-lg border border-gray-600 hover:border-[#00D4FF]/50 transition-colors">
+                  <div className="flex items-start">
+                    <div className="flex items-center justify-center w-8 h-8 bg-[#00D4FF]/20 text-[#00D4FF] rounded-full text-sm font-bold mr-3 flex-shrink-0">
+                      {strategy.priority}
+                    </div>
                     <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <div className="flex items-center justify-center w-6 h-6 bg-[#00D4FF] text-[#1A1D23] rounded-full text-xs font-bold mr-3">
-                          {strategy.priority}
+                      <h4 className="font-medium text-white mb-2">{strategy.strategy}</h4>
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <div className="flex items-center text-gray-400">
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>{strategy.estimated_time}</span>
                         </div>
-                        <h4 className="font-medium text-white">{strategy.strategy}</h4>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-400 ml-9">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span className="mr-4">{strategy.estimated_time}</span>
-                        <span>Resources: {strategy.resources_required.join(', ')}</span>
+                        <div className="flex items-center text-gray-400">
+                          <Shield className="h-3 w-3 mr-1" />
+                          <span>{strategy.resources_required.join(', ')}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -380,22 +637,20 @@ export default function AIAnalysisDashboard() {
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* View Full Incident Link */}
           <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="flex flex-wrap gap-3">
-              <button className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Create Incident
-              </button>
-              <button className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                View Analytics
-              </button>
-              <button className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
-                <Brain className="h-4 w-4 mr-2" />
-                Re-analyze
-              </button>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">Incident Details</h3>
+                <p className="text-gray-400 text-sm">View complete incident information, messages, and attachments</p>
+              </div>
+              <Link 
+                href={`/incidents/${selectedIncident.id}`}
+                className="flex items-center px-6 py-3 bg-[#00D4FF] text-[#1A1D23] rounded-lg font-medium hover:bg-[#00C4EF] transition-colors"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Full Incident
+              </Link>
             </div>
           </div>
         </div>

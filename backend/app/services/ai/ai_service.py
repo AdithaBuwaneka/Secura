@@ -110,6 +110,9 @@ class AIService:
         Comprehensive AI analysis of incident
         """
         try:
+            # Ensure title and description are not None
+            title = title or ""
+            description = description or ""
             # Combine title and description for ML model
             full_text = f"{title} {description}"
             
@@ -155,17 +158,30 @@ class AIService:
                     print(f"ML prediction failed, falling back to keyword-based: {e}")
                     # Fall back to keyword-based analysis
                     categories = await self.categorize_incident(title, description)
-                    category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                    try:
+                        category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                    except (ValueError, KeyError):
+                        category_for_severity = None
                     severity = await self.assess_severity(title, description, category_for_severity)
             else:
                 # Use keyword-based analysis as fallback
                 categories = await self.categorize_incident(title, description)
-                category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                try:
+                    category_for_severity = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else None
+                except (ValueError, KeyError):
+                    category_for_severity = None
                 severity = await self.assess_severity(title, description, category_for_severity)
             
             # Generate mitigation strategies
-            category_enum = IncidentType(categories[0]['category']) if categories else IncidentType.MALWARE
-            severity_enum = IncidentSeverity(severity['severity'])
+            try:
+                category_enum = IncidentType(categories[0]['category']) if categories and categories[0]['category'] else IncidentType.MALWARE
+            except (ValueError, KeyError):
+                category_enum = IncidentType.MALWARE
+            
+            try:
+                severity_enum = IncidentSeverity(severity['severity'])
+            except (ValueError, KeyError):
+                severity_enum = IncidentSeverity.MEDIUM
             
             mitigation_strategies = await self.generate_mitigation_strategies(
                 category_enum,
@@ -183,10 +199,22 @@ class AIService:
                 'reasoning': cat['reasoning']
             } for cat in categories]
             
+            # Extract factors from matched_factors or create from reasoning
+            factors = []
+            if 'matched_factors' in severity:
+                # Get all matched factors across severity levels
+                for level, level_factors in severity['matched_factors'].items():
+                    factors.extend(level_factors[:2])  # Take top 2 from each level
+            elif 'reasoning' in severity:
+                factors = [severity['reasoning']]
+            
+            if not factors:
+                factors = ['Analysis based on content keywords']
+                
             formatted_severity = {
                 'severity': severity['severity'],
                 'confidence': severity['confidence'],
-                'factors': severity.get('factors', severity.get('matched_factors', {}).get(severity['severity'], [])[:3])
+                'factors': factors[:5]  # Limit to 5 factors
             }
             
             return {
@@ -197,7 +225,30 @@ class AIService:
             }
             
         except Exception as e:
-            raise Exception(f"AI analysis failed: {str(e)}")
+            import traceback
+            print(f"AI analysis error: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            
+            # Return a minimal valid response on error
+            return {
+                'categories': [{
+                    'category': 'malware',
+                    'confidence': 0.1,
+                    'reasoning': f'Analysis error: {str(e)}'
+                }],
+                'severity': {
+                    'severity': 'low',
+                    'confidence': 0.1,
+                    'factors': ['Error during analysis', str(e)]
+                },
+                'mitigation_strategies': [{
+                    'strategy': 'Review incident manually due to analysis error',
+                    'priority': 1,
+                    'estimated_time': 'Immediate',
+                    'resources_required': ['Security team']
+                }],
+                'confidence_score': 0.1
+            }
 
     async def categorize_incident(self, title: str, description: str) -> List[Dict[str, Any]]:
         """
@@ -269,13 +320,17 @@ class AIService:
         suggestions.sort(key=lambda x: x['confidence'], reverse=True)
         
         # Return top 3 suggestions, or default if none found
-        return suggestions[:3] if suggestions else [{
-            'category': IncidentType.MALWARE.value,  # Default fallback - convert enum to string
-            'confidence': 0.3,
-            'reasoning': "No specific security keywords found - using general category",
-            'score': 0,
-            'matched_keywords': []
-        }]
+        if not suggestions:
+            # When no keywords match, return a low-confidence default
+            return [{
+                'category': IncidentType.MALWARE.value,  # Default fallback - convert enum to string
+                'confidence': 0.1,
+                'reasoning': "Insufficient data for accurate categorization",
+                'score': 0,
+                'matched_keywords': []
+            }]
+        
+        return suggestions[:3]
 
     async def assess_severity(
         self, 
@@ -529,19 +584,27 @@ class AIService:
 
     def _calculate_confidence(self, categories: List[Dict], severity: Dict) -> float:
         """Calculate overall confidence score"""
-        category_confidence = categories[0]['confidence'] if categories else 0.3
-        severity_confidence = severity['confidence']
+        if not categories or len(categories) == 0:
+            category_confidence = 0.1
+        else:
+            category_confidence = categories[0]['confidence']
+        
+        severity_confidence = severity.get('confidence', 0.3)
         
         return (category_confidence + severity_confidence) / 2
 
     def _reduce_time(self, time_str: str) -> str:
         """Reduce estimated time for critical incidents"""
         if 'hour' in time_str:
-            hours = int(re.findall(r'\\d+', time_str)[0])
-            return f"{max(1, hours // 2)} hours"
+            numbers = re.findall(r'\\d+', time_str)
+            if numbers:
+                hours = int(numbers[0])
+                return f"{max(1, hours // 2)} hours"
         elif 'minute' in time_str:
-            minutes = int(re.findall(r'\\d+', time_str)[0])
-            return f"{max(5, minutes // 2)} minutes"
+            numbers = re.findall(r'\\d+', time_str)
+            if numbers:
+                minutes = int(numbers[0])
+                return f"{max(5, minutes // 2)} minutes"
         return time_str
 
     async def analyze_image(
@@ -797,5 +860,7 @@ class AIService:
                 return f"Critical security incident detected with {len(indicators)} threat indicators including {indicators[0].lower()}. Immediate response required."
             elif len(indicators) > 3:
                 return f"High-priority security alert: {indicators[0]}. {len(indicators)} risk factors identified requiring investigation."
-            else:
+            elif len(indicators) > 0:
                 return f"Security incident detected with {len(indicators)} threat indicators. Immediate investigation recommended."
+            else:
+                return "No specific security threats detected in the analyzed content."
