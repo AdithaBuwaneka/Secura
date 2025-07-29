@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
-import { Eye, EyeOff, Shield, Mail, Lock, User, Phone } from 'lucide-react';
+import { Eye, EyeOff, Shield, Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react';
 import { registerUser, clearError } from '@/store/auth/authSlice';
 import { RootState, AppDispatch } from '@/store';
 import Link from 'next/link';
@@ -129,6 +129,17 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#1A1D23] flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
+        {/* Back to Home Button */}
+        <div className="mb-6">
+          <Link 
+            href="/" 
+            className="inline-flex items-center text-gray-400 hover:text-[#00D4FF] transition-colors duration-300 group"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-300" />
+            Back to Home
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">

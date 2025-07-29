@@ -89,6 +89,30 @@ async def get_pending_applications(
             detail=f"Failed to retrieve pending applications: {str(e)}"
         )
 
+@router.get("/admin/all", response_model=List[SecurityTeamApplication])
+async def get_all_applications(
+    current_user: User = Depends(get_current_user),
+    app_service: SecurityApplicationService = Depends()
+):
+    """
+    Admin only: Get all applications regardless of status
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    try:
+        applications = await app_service.get_all_applications()
+        return applications
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve all applications: {str(e)}"
+        )
+
 @router.put("/admin/review/{application_id}", response_model=ApplicationResponse)
 async def review_application(
     application_id: str,

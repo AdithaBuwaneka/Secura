@@ -72,6 +72,17 @@ class SecurityApplicationService:
         
         return applications
 
+    async def get_all_applications(self) -> List[SecurityTeamApplication]:
+        """Get all applications regardless of status (Admin only)"""
+        docs = self.applications_collection.order_by('created_at', direction='DESCENDING').stream()
+        applications = []
+        
+        for doc in docs:
+            data = doc.to_dict()
+            applications.append(SecurityTeamApplication(**data))
+        
+        return applications
+
     async def review_application(self, application_id: str, review_data: ApplicationReview, admin_uid: str) -> bool:
         """Review and approve/reject application"""
         try:

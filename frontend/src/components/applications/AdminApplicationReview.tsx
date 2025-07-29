@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Shield, User, FileText, Calendar, CheckCircle, XCircle, MessageSquare } from 'lucide-react';
-import { fetchPendingApplications, reviewApplication } from '@/store/applications/applicationSlice';
+import { Shield, User, FileText, Calendar, CheckCircle, XCircle, MessageSquare, Filter } from 'lucide-react';
+import { fetchAllApplications, fetchPendingApplications, reviewApplication } from '@/store/applications/applicationSlice';
 import { RootState, AppDispatch } from '@/store';
 import toast from 'react-hot-toast';
 
@@ -233,12 +233,13 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
 
 export default function AdminApplicationReview() {
   const dispatch = useDispatch<AppDispatch>();
-  const { pendingApplications, loading, error } = useSelector((state: RootState) => state.applications);
+  const { allApplications, pendingApplications, loading, error } = useSelector((state: RootState) => state.applications);
   const [selectedApplication, setSelectedApplication] = useState<SecurityApplication | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
-    dispatch(fetchPendingApplications());
+    dispatch(fetchAllApplications());
   }, [dispatch]);
 
   const formatDate = (dateString: string) => {
@@ -265,10 +266,40 @@ export default function AdminApplicationReview() {
       
       toast.success(`Application ${reviewStatus} successfully`);
       
-      // Refresh pending applications
-      dispatch(fetchPendingApplications());
+      // Refresh all applications
+      dispatch(fetchAllApplications());
     } catch (error) {
       toast.error(error as string);
+    }
+  };
+
+  // Filter applications based on status
+  const filteredApplications = statusFilter === 'all' 
+    ? allApplications 
+    : allApplications.filter(app => app.status === statusFilter);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <span className="px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs rounded-full">
+            Pending Review
+          </span>
+        );
+      case 'approved':
+        return (
+          <span className="px-2 py-1 bg-green-500/20 border border-green-500/30 text-green-400 text-xs rounded-full">
+            Approved
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-full">
+            Rejected
+          </span>
+        );
+      default:
+        return null;
     }
   };
 
@@ -304,37 +335,83 @@ export default function AdminApplicationReview() {
             <Shield className="h-8 w-8 text-[#00D4FF] mr-3" />
             <div>
               <h2 className="text-2xl font-bold text-white">Security Team Applications</h2>
-              <p className="text-gray-400">Review and approve applications to join the security team</p>
+              <p className="text-gray-400">Review and manage all security team applications</p>
             </div>
           </div>
-          <div className="text-[#00D4FF] font-medium">
-            {pendingApplications.length} Pending
+          <div className="flex items-center space-x-4">
+            <div className="text-[#00D4FF] font-medium">
+              {filteredApplications.length} of {allApplications.length} Applications
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="flex items-center">
+            <Filter className="h-4 w-4 text-gray-400 mr-2" />
+            <span className="text-gray-400 text-sm">Filter by status:</span>
+          </div>
+          <div className="flex space-x-2">
+            {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === status
+                    ? 'bg-[#00D4FF] text-[#1A1D23]'
+                    : 'bg-[#1A1D23] text-gray-400 hover:text-white border border-gray-600 hover:border-gray-500'
+                }`}
+              >
+                {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status !== 'all' && (
+                  <span className="ml-1 text-xs">
+                    ({allApplications.filter(app => app.status === status).length})
+                  </span>
+                )}
+                {status === 'all' && (
+                  <span className="ml-1 text-xs">({allApplications.length})</span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Applications List */}
-        {pendingApplications.length === 0 ? (
+        {filteredApplications.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">No Pending Applications</h3>
-            <p className="text-gray-400">All security team applications have been reviewed.</p>
+            <h3 className="text-lg font-medium text-white mb-2">
+              {statusFilter === 'all' ? 'No Applications Found' : `No ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Applications`}
+            </h3>
+            <p className="text-gray-400">
+              {statusFilter === 'all' 
+                ? 'No security team applications have been submitted yet.' 
+                : `There are no ${statusFilter} applications at this time.`}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {pendingApplications.map((application) => (
+            {filteredApplications.map((application) => (
               <div key={application.id} className="bg-[#1A1D23] p-6 rounded-lg border border-gray-600 hover:border-gray-500 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <User className="h-4 w-4 text-gray-400 mr-2" />
                       <span className="text-white font-medium">Applicant: {application.applicant_uid}</span>
-                      <span className="ml-4 px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs rounded-full">
-                        Pending Review
+                      <span className="ml-4">
+                        {getStatusBadge(application.status)}
                       </span>
                     </div>
                     <div className="flex items-center text-gray-400 text-sm mb-3">
                       <Calendar className="h-4 w-4 mr-1" />
                       Submitted: {formatDate(application.created_at)}
+                      {application.reviewed_at && (
+                        <>
+                          {' | '}
+                          <Calendar className="h-4 w-4 ml-2 mr-1" />
+                          Reviewed: {formatDate(application.reviewed_at)}
+                        </>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -346,13 +423,23 @@ export default function AdminApplicationReview() {
                         <p className="text-gray-300 text-sm line-clamp-2">{application.experience}</p>
                       </div>
                     </div>
+                    {application.admin_notes && (
+                      <div className="mt-3">
+                        <p className="text-gray-400 text-sm mb-1">Admin Notes:</p>
+                        <p className="text-gray-300 text-sm">{application.admin_notes}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="ml-6">
                     <button
                       onClick={() => handleReviewClick(application)}
-                      className="px-4 py-2 bg-[#00D4FF] text-[#1A1D23] rounded-lg font-medium hover:bg-[#00C4EF] transition-colors"
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        application.status === 'pending'
+                          ? 'bg-[#00D4FF] text-[#1A1D23] hover:bg-[#00C4EF]'
+                          : 'bg-gray-600 text-white hover:bg-gray-500'
+                      }`}
                     >
-                      Review
+                      {application.status === 'pending' ? 'Review' : 'View Details'}
                     </button>
                   </div>
                 </div>
