@@ -71,8 +71,8 @@ class IncidentService:
         
         return IncidentResponse(**response_data)
 
-    async def get_incident(self, incident_id: str) -> Optional[IncidentResponse]:
-        """Get incident by ID"""
+    async def get_incident(self, incident_id: str) -> Optional[dict]:
+        """Get incident by ID with attachments"""
         doc = self.incidents_collection.document(incident_id).get()
         
         if not doc.exists:
@@ -97,7 +97,34 @@ class IncidentService:
             if 'incident_type' in data and isinstance(data['incident_type'], str):
                 data['incident_type'] = None
         
-        return IncidentResponse(**data)
+        # Create incident response
+        incident = IncidentResponse(**data)
+        incident_dict = incident.dict()
+        
+        # Fetch attachments
+        try:
+            attachments = await self.file_service.get_incident_files(incident_id)
+            if attachments:
+                print(f"Found {len(attachments)} attachments for incident {incident_id}")
+                incident_dict['attachments'] = [
+                    {
+                        'file_id': att.id,
+                        'filename': att.filename,
+                        'original_filename': att.filename,
+                        'file_size': att.size,
+                        'file_type': att.content_type,
+                        'file_url': att.imagekit_url,
+                        'thumbnail_url': att.imagekit_thumbnail_url,
+                        'uploader_id': att.uploader_id
+                    } for att in attachments
+                ]
+            else:
+                incident_dict['attachments'] = []
+        except Exception as e:
+            print(f"Error fetching attachments for incident {incident_id}: {str(e)}")
+            incident_dict['attachments'] = []
+        
+        return incident_dict
 
     async def get_all_incidents(
         self, 
@@ -173,6 +200,10 @@ class IncidentService:
                     attachments = await self.file_service.get_incident_files(data['id'])
                     if attachments:
                         print(f"Found {len(attachments)} attachments for incident {data['id']}")
+                        # Debug: print first attachment details
+                        if len(attachments) > 0:
+                            print(f"First attachment: {attachments[0].__dict__}")
+                        
                         incident_dict['attachments'] = [
                             {
                                 'file_id': att.id,
@@ -185,9 +216,12 @@ class IncidentService:
                                 'uploader_id': att.uploader_id
                             } for att in attachments
                         ]
+                        print(f"Incident {data['id']} attachments: {incident_dict['attachments']}")
                     else:
+                        print(f"No attachments found for incident {data['id']}")
                         incident_dict['attachments'] = []
                 except Exception as e:
+                    print(f"Error fetching attachments for incident {data['id']}: {str(e)}")
                     # Silently fail attachment fetching
                     incident_dict['attachments'] = []
                 
@@ -209,12 +243,30 @@ class IncidentService:
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get incidents for specific user (Employee view)"""
-        query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='DESCENDING')
-        
-        if status_filter:
-            query = query.where('status', '==', status_filter.value)
-        
-        docs = query.limit(limit).offset(offset).stream()
+        try:
+            # Try with composite index first
+            query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='DESCENDING')
+            
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            docs = query.limit(limit).offset(offset).stream()
+        except Exception as e:
+            # Fallback: Get all user incidents without ordering, then sort in memory
+            print(f"Index not available, using fallback query: {str(e)}")
+            query = self.incidents_collection.where('reporter_id', '==', user_id)
+            
+            if status_filter:
+                query = query.where('status', '==', status_filter.value)
+            
+            # Get all documents and sort in memory
+            all_docs = list(query.stream())
+            
+            # Sort by created_at in descending order
+            all_docs.sort(key=lambda doc: doc.to_dict().get('created_at', datetime.min), reverse=True)
+            
+            # Apply offset and limit
+            docs = all_docs[offset:offset + limit]
         
         incidents = []
         for doc in docs:
@@ -276,6 +328,10 @@ class IncidentService:
                     attachments = await self.file_service.get_incident_files(data['id'])
                     if attachments:
                         print(f"Found {len(attachments)} attachments for incident {data['id']}")
+                        # Debug: print first attachment details
+                        if len(attachments) > 0:
+                            print(f"First attachment: {attachments[0].__dict__}")
+                        
                         incident_dict['attachments'] = [
                             {
                                 'file_id': att.id,
@@ -288,9 +344,12 @@ class IncidentService:
                                 'uploader_id': att.uploader_id
                             } for att in attachments
                         ]
+                        print(f"Incident {data['id']} attachments: {incident_dict['attachments']}")
                     else:
+                        print(f"No attachments found for incident {data['id']}")
                         incident_dict['attachments'] = []
                 except Exception as e:
+                    print(f"Error fetching attachments for incident {data['id']}: {str(e)}")
                     # Silently fail attachment fetching
                     incident_dict['attachments'] = []
                 

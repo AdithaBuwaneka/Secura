@@ -28,10 +28,7 @@ class FileService:
         """Upload file using ImageKit and store metadata"""
         file_id = str(uuid4())
         
-        # Read file content
-        file_content = await file.read()
-        
-        # Upload to ImageKit
+        # Upload to ImageKit (don't read file content here, let ImageKit service handle it)
         upload_result = await self.imagekit_service.upload_file(
             file=file,
             incident_id=incident_id,
@@ -51,7 +48,7 @@ class FileService:
             'incident_id': incident_id,
             'filename': file.filename,
             'content_type': file.content_type,
-            'size': upload_result.get('size', file.size),
+            'size': upload_result.get('size', 0),
             'imagekit_file_id': upload_result.get('file_id', ''),
             'imagekit_url': upload_result.get('url', ''),
             'imagekit_thumbnail_url': upload_result.get('thumbnail_url', ''),
@@ -64,7 +61,9 @@ class FileService:
         
         # Make sure we have required fields
         if not file_doc['imagekit_file_id'] or not file_doc['imagekit_url']:
-            raise Exception("ImageKit did not return file_id or url")
+            # If we're using mock URLs (development mode), accept them
+            if not (file_doc['imagekit_url'] and file_doc['imagekit_url'].startswith('https://placeholder.imagekit.io')):
+                raise Exception("ImageKit did not return file_id or url")
         
         self.files_collection.document(file_id).set(file_doc)
         

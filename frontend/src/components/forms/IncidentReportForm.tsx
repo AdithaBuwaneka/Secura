@@ -254,7 +254,9 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       
       // If we have files, upload them
       if (formData.attachments.length > 0) {
+        console.log('Uploading attachments for incident:', result.incident_id || result.id);
         await uploadAttachments(result.incident_id || result.id);
+        console.log('All attachments uploaded successfully');
       }
 
       toast.success('Incident reported successfully!');
@@ -271,16 +273,17 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       });
       setAISuggestions([]);
       
+      // Add a small delay to ensure the backend has processed the attachments
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // Trigger parent refresh
       if (onSuccess) {
         onSuccess();
       }
       
-      // Close modal after a short delay to allow refresh
+      // Close modal after refresh
       if (onClose) {
-        setTimeout(() => {
-          onClose();
-        }, 500);
+        onClose();
       }
 
     } catch (error) {
@@ -292,12 +295,14 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   };
 
   const uploadAttachments = async (incidentId: string) => {
-    try {
-      for (const file of formData.attachments) {
-        const uploadFormData = new FormData();
-        uploadFormData.append('file', file);
-        uploadFormData.append('incident_id', incidentId);
+    const uploadPromises = formData.attachments.map(async (file) => {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('incident_id', incidentId);
 
+      try {
+        console.log(`Uploading file: ${file.name}, Size: ${file.size}, Type: ${file.type}`);
+        
         const response = await fetch(`${API_URL}/api/incidents/${incidentId}/attachments`, {
           method: 'POST',
           headers: {
@@ -307,17 +312,29 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         });
 
         if (!response.ok) {
-          console.error('Failed to upload file:', file.name, response.status);
           const errorText = await response.text();
-          console.error('Upload error:', errorText);
-        } else {
-          const result = await response.json();
-          console.log('File uploaded successfully:', result);
+          console.error(`Failed to upload file ${file.name}:`, response.status, errorText);
+          throw new Error(`Failed to upload ${file.name}`);
         }
+        
+        const result = await response.json();
+        console.log(`File ${file.name} uploaded successfully:`, result);
+        return result;
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
+        throw error;
       }
+    });
+
+    try {
+      // Upload all files in parallel
+      const results = await Promise.all(uploadPromises);
+      console.log('All attachments uploaded:', results);
+      return results;
     } catch (error) {
-      console.error('Failed to upload attachments:', error);
+      console.error('Failed to upload some attachments:', error);
       toast.error('Incident submitted but some files failed to upload');
+      throw error;
     }
   };
 

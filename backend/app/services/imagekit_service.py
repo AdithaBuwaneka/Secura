@@ -25,6 +25,7 @@ class ImageKitService:
         self.is_configured = all([self.private_key, self.public_key, self.url_endpoint])
         
         if self.is_configured:
+            print(f"ImageKit configured with endpoint: {self.url_endpoint}")
             self.imagekit = ImageKit(
                 private_key=self.private_key,
                 public_key=self.public_key,
@@ -32,6 +33,9 @@ class ImageKitService:
             )
         else:
             print("WARNING: ImageKit not configured. File uploads will use local storage.")
+            print(f"Private key present: {bool(self.private_key)}")
+            print(f"Public key present: {bool(self.public_key)}")
+            print(f"URL endpoint: {self.url_endpoint}")
             self.imagekit = None
         
         # File validation settings
@@ -52,8 +56,8 @@ class ImageKitService:
         """Validate file before upload"""
         errors = []
         
-        # Check file size
-        if file.size > self.max_file_size:
+        # Check file size (file.size might be None for some upload methods)
+        if file.size and file.size > self.max_file_size:
             errors.append(f"File size exceeds 10MB limit. Current size: {file.size / (1024*1024):.2f}MB")
         
         # Check file extension
@@ -74,7 +78,7 @@ class ImageKitService:
             'errors': errors,
             'file_info': {
                 'filename': file.filename,
-                'size': file.size,
+                'size': file.size or 0,
                 'content_type': file.content_type,
                 'extension': file_extension
             }
@@ -115,6 +119,9 @@ class ImageKitService:
             # Read file content
             file_content = await file.read()
             
+            # Reset file pointer to beginning after reading
+            await file.seek(0)
+            
             # Generate file hash for integrity
             file_hash = hashlib.sha256(file_content).hexdigest()
             
@@ -134,40 +141,75 @@ class ImageKitService:
                     "thumbnail_url": mock_url,
                     "name": unique_filename,
                     "original_filename": file.filename,
-                    "size": file.size,
+                    "size": len(file_content),
                     "file_hash": file_hash,
                     "upload_timestamp": datetime.now().isoformat()
                 }
             
             # Upload to ImageKit
-            upload_result = self.imagekit.upload_file(
-                file=file_content,
-                file_name=unique_filename,
-                options={
-                    "folder": f"/{folder}/{incident_id}/",
-                    "is_private_file": False,  # Make files public for easy access
-                    "use_unique_file_name": False,  # We're providing our own unique name
-                    "custom_metadata": {
-                        "incident_id": incident_id,
-                        "uploader_id": uploader_id,
-                        "original_filename": file.filename,
-                        "upload_timestamp": datetime.now().isoformat(),
-                        "file_hash": file_hash
-                    }
-                }
-            )
+            print(f"Uploading to ImageKit: filename={unique_filename}, size={len(file_content)}, type={file.content_type}")
             
-            return {
-                "success": True,
-                "file_id": upload_result.file_id,
-                "url": upload_result.url,
-                "thumbnail_url": upload_result.thumbnail_url,
-                "name": upload_result.name,
-                "original_filename": file.filename,
-                "size": file.size,
-                "file_hash": file_hash,
-                "upload_timestamp": datetime.now().isoformat()
-            }
+            try:
+                # For imagekitio 4.1.0, we need to use the correct method signature
+                # Convert file content to base64 as required by newer versions
+                import base64
+                file_base64 = base64.b64encode(file_content).decode('utf-8')
+                
+                # Try the simplest upload method first
+                upload_result = self.imagekit.upload(
+                    file=file_base64,
+                    file_name=unique_filename
+                )
+                
+                # If that works, update the file with metadata
+                if upload_result and hasattr(upload_result, 'file_id'):
+                    # Update file metadata if possible
+                    try:
+                        self.imagekit.update_file_details(
+                            upload_result.file_id,
+                            custom_metadata={
+                                "incident_id": incident_id,
+                                "uploader_id": uploader_id,
+                                "original_filename": file.filename,
+                                "upload_timestamp": datetime.now().isoformat(),
+                                "file_hash": file_hash
+                            }
+                        )
+                    except:
+                        pass  # Metadata update is optional
+                
+                print(f"ImageKit upload successful: {upload_result}")
+            except Exception as e:
+                print(f"ImageKit upload error: {str(e)}")
+                print(f"Error type: {type(e)}")
+                print(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No details'}")
+                raise
+            
+            # Handle both dict and object responses from ImageKit
+            if isinstance(upload_result, dict):
+                return {
+                    "success": True,
+                    "file_id": upload_result.get('fileId', ''),
+                    "url": upload_result.get('url', ''),
+                    "thumbnail_url": upload_result.get('thumbnailUrl', upload_result.get('url', '')),
+                    "name": upload_result.get('name', unique_filename),
+                    "original_filename": file.filename,
+                    "size": upload_result.get('size', len(file_content)),
+                    "file_hash": file_hash,
+                    "upload_timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "success": True,
+                    "file_id": upload_result.file_id if hasattr(upload_result, 'file_id') else upload_result.fileId,
+                    "url": upload_result.url,
+                    "thumbnail_url": upload_result.thumbnail_url if hasattr(upload_result, 'thumbnail_url') else upload_result.thumbnailUrl,
+                    "name": upload_result.name,
+                    "original_filename": file.filename,
+                    "size": upload_result.size if hasattr(upload_result, 'size') else len(file_content),
+                    "file_hash": file_hash,
+                    "upload_timestamp": datetime.now().isoformat()
+                }
             
         except HTTPException:
             raise

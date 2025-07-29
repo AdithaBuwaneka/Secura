@@ -147,7 +147,7 @@ async def get_incidents(
             detail=f"Failed to retrieve incidents: {str(e)}"
         )
 
-@router.get("/{incident_id}", response_model=IncidentResponse)
+@router.get("/{incident_id}")
 async def get_incident(
     incident_id: str,
     current_user: User = Depends(get_current_user),

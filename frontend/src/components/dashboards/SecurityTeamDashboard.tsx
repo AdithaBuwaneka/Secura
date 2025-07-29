@@ -63,6 +63,7 @@ export default function SecurityTeamDashboard() {
           if (response.ok) {
             const data = await response.json();
             console.log('Security team fetched incidents:', data);
+            console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
             setIncidents(data);
           }
         } catch (error) {
@@ -374,9 +375,31 @@ export default function SecurityTeamDashboard() {
                           </div>
                           <div className="flex items-center space-x-2">
                             <button 
-                              onClick={() => {
-                                setSelectedIncident(incident);
-                                setShowIncidentDetails(true);
+                              onClick={async () => {
+                                // Fetch the latest incident data including attachments
+                                try {
+                                  const response = await fetch(`${API_URL}/api/incidents/${incident.id}`, {
+                                    headers: {
+                                      'Authorization': `Bearer ${idToken}`
+                                    }
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const fullIncident = await response.json();
+                                    console.log('Fetched full incident:', fullIncident);
+                                    setSelectedIncident(fullIncident);
+                                    setShowIncidentDetails(true);
+                                  } else {
+                                    // Fallback to existing data
+                                    setSelectedIncident(incident);
+                                    setShowIncidentDetails(true);
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to fetch incident details:', error);
+                                  // Fallback to existing data
+                                  setSelectedIncident(incident);
+                                  setShowIncidentDetails(true);
+                                }
                               }}
                               className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" 
                               title="View Details"
@@ -593,6 +616,7 @@ export default function SecurityTeamDashboard() {
               )}
 
               {/* Attachments */}
+              {console.log('Selected incident:', selectedIncident)}
               {console.log('Selected incident attachments:', selectedIncident.attachments)}
               {selectedIncident.attachments && selectedIncident.attachments.length > 0 && (
                 <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
