@@ -10,7 +10,13 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Zap
+  Zap,
+  Activity,
+  BarChart3,
+  FileSearch,
+  LineChart,
+  ShieldAlert,
+  Lightbulb
 } from 'lucide-react';
 import { RootState } from '@/store';
 import toast from 'react-hot-toast';
@@ -37,14 +43,72 @@ interface AIAnalysisResult {
 
 export default function AIAnalysisDashboard() {
   const { idToken } = useSelector((state: RootState) => state.auth);
+  const [activeTab, setActiveTab] = useState('analysis');
   const [analysisInput, setAnalysisInput] = useState({
     title: '',
     description: ''
   });
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [threatIntelligence, setThreatIntelligence] = useState<any>(null);
+  const [predictiveAnalytics, setPredictiveAnalytics] = useState<any>(null);
+  const [isLoadingIntel, setIsLoadingIntel] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+  const fetchThreatIntelligence = async () => {
+    setIsLoadingIntel(true);
+    try {
+      const response = await fetch(`${API_URL}/api/ai/threat-intelligence?days=30`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setThreatIntelligence(data);
+      } else {
+        toast.error('Failed to fetch threat intelligence');
+      }
+    } catch (error) {
+      console.error('Threat intelligence error:', error);
+      toast.error('Failed to load threat intelligence');
+    } finally {
+      setIsLoadingIntel(false);
+    }
+  };
+
+  const fetchPredictiveAnalytics = async () => {
+    setIsLoadingIntel(true);
+    try {
+      const response = await fetch(`${API_URL}/api/ai/predictive-analytics?timeframe_days=90`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPredictiveAnalytics(data);
+      } else {
+        toast.error('Failed to fetch predictive analytics');
+      }
+    } catch (error) {
+      console.error('Predictive analytics error:', error);
+      toast.error('Failed to load predictive analytics');
+    } finally {
+      setIsLoadingIntel(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'intelligence' && !threatIntelligence) {
+      fetchThreatIntelligence();
+    } else if (activeTab === 'predictive' && !predictiveAnalytics) {
+      fetchPredictiveAnalytics();
+    }
+  }, [activeTab]);
 
   const handleAnalyze = async () => {
     if (!analysisInput.title || !analysisInput.description) {
@@ -111,13 +175,53 @@ export default function AIAnalysisDashboard() {
         <Brain className="h-8 w-8 text-[#00D4FF] mr-3" />
         <div>
           <h2 className="text-2xl font-bold text-white">AI Security Analysis</h2>
-          <p className="text-gray-400">Advanced incident categorization and response recommendations</p>
+          <p className="text-gray-400">Advanced threat intelligence and predictive security analytics</p>
         </div>
       </div>
 
-      {/* Input Section */}
-      <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-        <h3 className="text-lg font-semibold text-white mb-4">Analyze Incident</h3>
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-[#1A1D23] p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab('analysis')}
+          className={`flex-1 flex items-center justify-center px-4 py-2 rounded-md transition-colors ${
+            activeTab === 'analysis' 
+              ? 'bg-[#00D4FF] text-[#1A1D23] font-medium' 
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <FileSearch className="h-4 w-4 mr-2" />
+          Incident Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab('intelligence')}
+          className={`flex-1 flex items-center justify-center px-4 py-2 rounded-md transition-colors ${
+            activeTab === 'intelligence' 
+              ? 'bg-[#00D4FF] text-[#1A1D23] font-medium' 
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4 mr-2" />
+          Threat Intelligence
+        </button>
+        <button
+          onClick={() => setActiveTab('predictive')}
+          className={`flex-1 flex items-center justify-center px-4 py-2 rounded-md transition-colors ${
+            activeTab === 'predictive' 
+              ? 'bg-[#00D4FF] text-[#1A1D23] font-medium' 
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <LineChart className="h-4 w-4 mr-2" />
+          Predictive Analytics
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'analysis' && (
+        <>
+          {/* Input Section */}
+          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4">Analyze Incident</h3>
         
         <div className="space-y-4">
           <div>
@@ -294,6 +398,193 @@ export default function AIAnalysisDashboard() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* Threat Intelligence Tab */}
+      {activeTab === 'intelligence' && (
+        <div className="space-y-6">
+          {isLoadingIntel ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF]"></div>
+            </div>
+          ) : threatIntelligence ? (
+            <>
+              {/* Trending Threats */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <TrendingUp className="h-5 w-5 text-[#00D4FF] mr-2" />
+                  Trending Threats
+                </h3>
+                <div className="space-y-3">
+                  {threatIntelligence.trending_threats?.map((threat: any, index: number) => (
+                    <div key={index} className="p-4 bg-[#1A1D23] rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-white">{threat.threat_type}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          threat.risk_level === 'Critical' ? 'bg-red-500/20 text-red-300' :
+                          threat.risk_level === 'High' ? 'bg-orange-500/20 text-orange-300' :
+                          'bg-yellow-500/20 text-yellow-300'
+                        }`}>
+                          {threat.risk_level}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-400">
+                        <Activity className="h-4 w-4 mr-1" />
+                        <span>{threat.increase_percentage}% increase in activity</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Industry Alerts */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-orange-400 mr-2" />
+                  Industry Alerts
+                </h3>
+                <div className="space-y-3">
+                  {threatIntelligence.industry_alerts?.map((alert: any, index: number) => (
+                    <div key={index} className="p-4 bg-[#1A1D23] rounded-lg border-l-4 border-orange-400">
+                      <p className="text-white font-medium mb-1">{alert.alert}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-400">Severity: {alert.severity}</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(alert.date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <Lightbulb className="h-5 w-5 text-yellow-400 mr-2" />
+                  AI Recommendations
+                </h3>
+                <div className="space-y-2">
+                  {threatIntelligence.recommendations?.map((rec: string, index: number) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <CheckCircle className="h-4 w-4 text-green-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-white">{rec}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* Predictive Analytics Tab */}
+      {activeTab === 'predictive' && (
+        <div className="space-y-6">
+          {isLoadingIntel ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF]"></div>
+            </div>
+          ) : predictiveAnalytics ? (
+            <>
+              {/* Predicted Incident Volume */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <BarChart3 className="h-5 w-5 text-[#00D4FF] mr-2" />
+                  Predicted Incident Volume
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-[#1A1D23] rounded-lg text-center">
+                    <p className="text-gray-400 text-sm mb-1">Next Week</p>
+                    <p className="text-3xl font-bold text-[#00D4FF]">
+                      {predictiveAnalytics.predicted_incident_volume?.next_week || 0}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">incidents expected</p>
+                  </div>
+                  <div className="p-4 bg-[#1A1D23] rounded-lg text-center">
+                    <p className="text-gray-400 text-sm mb-1">Next Month</p>
+                    <p className="text-3xl font-bold text-[#00D4FF]">
+                      {predictiveAnalytics.predicted_incident_volume?.next_month || 0}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">incidents expected</p>
+                  </div>
+                  <div className="p-4 bg-[#1A1D23] rounded-lg text-center">
+                    <p className="text-gray-400 text-sm mb-1">Confidence</p>
+                    <p className="text-3xl font-bold text-green-400">
+                      {Math.round((predictiveAnalytics.predicted_incident_volume?.confidence || 0) * 100)}%
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">accuracy rate</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Factors */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <ShieldAlert className="h-5 w-5 text-red-400 mr-2" />
+                  Risk Factors Analysis
+                </h3>
+                <div className="space-y-3">
+                  {predictiveAnalytics.risk_factors?.map((risk: any, index: number) => (
+                    <div key={index} className="p-4 bg-[#1A1D23] rounded-lg">
+                      <h4 className="font-medium text-white mb-2">{risk.factor}</h4>
+                      <div className="grid grid-cols-2 gap-4 mb-2">
+                        <div>
+                          <p className="text-xs text-gray-400">Impact Score</p>
+                          <div className="flex items-center mt-1">
+                            <div className="h-2 w-24 bg-gray-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-orange-500 to-red-500"
+                                style={{ width: `${risk.impact_score * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-white ml-2">
+                              {Math.round(risk.impact_score * 100)}%
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Likelihood</p>
+                          <div className="flex items-center mt-1">
+                            <div className="h-2 w-24 bg-gray-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-yellow-500 to-orange-500"
+                                style={{ width: `${risk.likelihood * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-white ml-2">
+                              {Math.round(risk.likelihood * 100)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Actions */}
+              <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <Shield className="h-5 w-5 text-green-400 mr-2" />
+                  Proactive Security Measures
+                </h3>
+                <div className="space-y-3">
+                  {predictiveAnalytics.recommended_actions?.map((action: string, index: number) => (
+                    <div key={index} className="flex items-center p-3 bg-[#1A1D23] rounded-lg">
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-500/20 rounded-full mr-3">
+                        <span className="text-green-400 text-sm font-bold">{index + 1}</span>
+                      </div>
+                      <p className="text-white">{action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
       )}
     </div>

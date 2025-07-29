@@ -24,7 +24,9 @@ import {
   Paperclip,
   Image as ImageIcon,
   FileText,
-  Download
+  Download,
+  ScanLine,
+  FileSearch
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -46,6 +48,9 @@ export default function SecurityTeamDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [showIncidentDetails, setShowIncidentDetails] = useState(false);
+  const [showImageAnalysis, setShowImageAnalysis] = useState(false);
+  const [imageAnalysis, setImageAnalysis] = useState<any>(null);
+  const [analyzingImage, setAnalyzingImage] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -115,6 +120,37 @@ export default function SecurityTeamDashboard() {
       toast.success('Logged out successfully');
     } catch {
       toast.error('Logout failed');
+    }
+  };
+
+  const analyzeImage = async (imageUrl: string, incidentContext?: string) => {
+    setAnalyzingImage(true);
+    try {
+      const response = await fetch(`${API_URL}/api/ai/analyze-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image_url: imageUrl,
+          incident_id: selectedIncident?.id,
+          context: incidentContext || selectedIncident?.incident_type
+        })
+      });
+
+      if (response.ok) {
+        const analysis = await response.json();
+        setImageAnalysis(analysis);
+        setShowImageAnalysis(true);
+      } else {
+        toast.error('Failed to analyze image');
+      }
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      toast.error('Failed to analyze image');
+    } finally {
+      setAnalyzingImage(false);
     }
   };
 
@@ -655,15 +691,31 @@ export default function SecurityTeamDashboard() {
                                 </div>
                               )}
                             </div>
-                            {attachment.file_url && (
-                              <button
-                                onClick={() => window.open(attachment.file_url, '_blank')}
-                                className="p-2 text-gray-400 hover:text-[#00D4FF] transition-colors"
-                                title="Download"
-                              >
-                                <Download className="h-4 w-4" />
-                              </button>
-                            )}
+                            <div className="flex flex-col space-y-1">
+                              {attachment.file_url && (
+                                <button
+                                  onClick={() => window.open(attachment.file_url, '_blank')}
+                                  className="p-2 text-gray-400 hover:text-[#00D4FF] transition-colors"
+                                  title="Download"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </button>
+                              )}
+                              {isImage && attachment.file_url && (
+                                <button
+                                  onClick={() => analyzeImage(attachment.file_url)}
+                                  className="p-2 text-gray-400 hover:text-[#00D4FF] transition-colors"
+                                  title="Analyze Image"
+                                  disabled={analyzingImage}
+                                >
+                                  {analyzingImage ? (
+                                    <div className="animate-spin h-4 w-4 border-2 border-[#00D4FF] border-t-transparent rounded-full" />
+                                  ) : (
+                                    <ScanLine className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -709,6 +761,130 @@ export default function SecurityTeamDashboard() {
                 </button>
                 <button className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors">
                   Assign to Me
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Analysis Modal */}
+      {showImageAnalysis && imageAnalysis && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#1A1D23] rounded-lg">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center">
+                  <ScanLine className="h-6 w-6 mr-2 text-[#00D4FF]" />
+                  AI Image Analysis
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowImageAnalysis(false);
+                    setImageAnalysis(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Summary Section */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Summary</h3>
+                <p className="text-white">{imageAnalysis.summary}</p>
+                <div className="mt-3 flex items-center space-x-4">
+                  <div className="flex items-center">
+                    <span className="text-xs text-gray-400 mr-2">Confidence:</span>
+                    <div className="flex items-center">
+                      <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#00D4FF] to-[#00C4EF]"
+                          style={{ width: `${imageAnalysis.confidence * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-white ml-2">{(imageAnalysis.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Extracted Text Section */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Extracted Text</h3>
+                <pre className="text-white text-sm whitespace-pre-wrap font-mono bg-[#1A1D23] p-3 rounded">
+                  {imageAnalysis.extracted_text}
+                </pre>
+              </div>
+
+              {/* Threat Indicators */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
+                  <AlertTriangle className="h-4 w-4 mr-2 text-orange-400" />
+                  Threat Indicators ({imageAnalysis.threat_indicators.length})
+                </h3>
+                <div className="space-y-2">
+                  {imageAnalysis.threat_indicators.map((indicator: string, index: number) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <div className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-1.5 flex-shrink-0" />
+                      <p className="text-sm text-white">{indicator}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
+                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-400" />
+                  Recommendations
+                </h3>
+                <div className="space-y-2">
+                  {imageAnalysis.recommendations.map((recommendation: string, index: number) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <span className="text-green-400 text-sm flex-shrink-0">{index + 1}.</span>
+                      <p className="text-sm text-white">{recommendation}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-4">
+                <button
+                  onClick={() => {
+                    // Copy analysis to clipboard
+                    const analysisText = `
+AI Image Analysis Report
+========================
+Summary: ${imageAnalysis.summary}
+Confidence: ${(imageAnalysis.confidence * 100).toFixed(0)}%
+
+Extracted Text:
+${imageAnalysis.extracted_text}
+
+Threat Indicators:
+${imageAnalysis.threat_indicators.map((i: string) => `- ${i}`).join('\n')}
+
+Recommendations:
+${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}
+                    `.trim();
+                    navigator.clipboard.writeText(analysisText);
+                    toast.success('Analysis copied to clipboard');
+                  }}
+                  className="px-4 py-2 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
+                >
+                  Copy Report
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImageAnalysis(false);
+                    setImageAnalysis(null);
+                  }}
+                  className="px-4 py-2 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+                >
+                  Close
                 </button>
               </div>
             </div>
