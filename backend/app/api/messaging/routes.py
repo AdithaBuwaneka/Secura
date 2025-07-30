@@ -11,9 +11,7 @@ import time
 from collections import defaultdict
 
 from app.services.messaging.connection_manager import ConnectionManager
-from app.services.messaging.notification_service import NotificationService
 from app.services.incidents.messaging_service import MessagingService
-from app.services.auth.auth_service import AuthService
 from app.models.message import Message
 from app.utils.auth import get_current_user
 from app.models.user import User
@@ -22,7 +20,6 @@ router = APIRouter(tags=["Messaging"])
 
 # WebSocket connection manager
 manager = ConnectionManager()
-notification_service = NotificationService(manager)
 
 # Rate limiting for connections (user_id -> last_connection_time)
 connection_attempts = defaultdict(list)
@@ -54,7 +51,6 @@ async def test_websocket_connection():
             "active_users": list(manager.active_connections.keys()),
             "rooms": list(manager.room_connections.keys())
         },
-        "user_roles": notification_service.user_roles,
         "recent_connection_attempts": {
             user_id: {
                 "count": len(attempts),
@@ -82,26 +78,6 @@ async def force_disconnect_user(user_id: str):
     else:
         return {"message": f"User {user_id} is not connected"}
 
-@router.post("/ws/test-notification")
-async def test_notification():
-    """Test endpoint to manually trigger a notification"""
-    try:
-        # Test incident notification
-        await notification_service.send_incident_notification({
-            "incident_id": "TEST-2024-001",
-            "title": "Test Incident",
-            "severity": "high",
-            "reporter": "Test Employee"
-        }, "new_incident")
-        
-        return {
-            "message": "Test notification sent",
-            "active_connections": len(manager.active_connections),
-            "user_roles": notification_service.user_roles
-        }
-    except Exception as e:
-        return {"error": f"Failed to send test notification: {str(e)}"}
-
 async def authenticate_websocket(websocket: WebSocket, token: str) -> Optional[dict]:
     """Authenticate WebSocket connection using Firebase ID token"""
     try:
@@ -122,13 +98,21 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> Optional[d
             print(f"WARNING: Token expires soon ({time_until_exp:.0f}s), user should refresh")
         
         return {
-            'uid': decoded_token.get('uid'),
+            'uid': decoded_token['uid'],
             'email': decoded_token.get('email'),
+            'user_id': decoded_token['uid'],
             'expires_in': time_until_exp
         }
-        
     except Exception as e:
-        print(f"DEBUG: WebSocket authentication failed: {str(e)}")
+        error_type = type(e).__name__
+        error_msg = str(e)
+        print(f"DEBUG: WebSocket authentication failed ({error_type}): {error_msg}")
+        print(f"DEBUG: Token that failed: {token[:50]}...")
+        
+        # Specific handling for token expiration
+        if "expired" in error_msg.lower() or "token" in error_msg.lower():
+            print(f"DEBUG: Token appears to be expired or invalid")
+        
         return None
 
 @router.websocket("/ws/general")
@@ -139,9 +123,9 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
     current_time = time.time()
     print(f"DEBUG: WebSocket connection attempt for user_id: {user_id} at {current_time}")
     
-    # Rate limiting: Allow max 10 connections per minute per user (increased from 5)
+    # Rate limiting: Allow max 5 connections per minute per user
     connection_attempts[user_id] = [t for t in connection_attempts[user_id] if current_time - t < 60]
-    if len(connection_attempts[user_id]) >= 10:  # Increased from 5
+    if len(connection_attempts[user_id]) >= 5:
         print(f"DEBUG: Rate limit exceeded for user {user_id} - {len(connection_attempts[user_id])} attempts in last minute")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Too many connection attempts - please wait before retrying")
         return
@@ -157,8 +141,6 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
         except:
             pass
         manager.disconnect(old_websocket, user_id)
-        # Unregister from notification service
-        notification_service.unregister_user(user_id)
     
     # Authenticate the connection
     user_data = await authenticate_websocket(websocket, token)
@@ -185,33 +167,6 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
         print(f"WARNING: User {user_id} connecting with token that expires in {user_data.get('expires_in', 0):.0f} seconds")
     
     await manager.connect(websocket, user_id)
-    
-    # Get user role and register with notification service
-    try:
-        # Get user profile from Firestore to determine actual role
-        auth_service = AuthService()
-        user_profile = await auth_service.get_user_profile(user_id)
-        
-        if user_profile:
-            user_role = user_profile.role.value  # Get actual role from database
-            print(f"DEBUG: Found user {user_id} with role {user_role} in database")
-        else:
-            # Fallback: try to get from Firebase Auth
-            try:
-                firebase_user = auth.get_user(user_id)
-                # Check if user has admin claims or custom attributes
-                custom_claims = firebase_user.custom_claims or {}
-                user_role = custom_claims.get('role', 'employee')
-                print(f"DEBUG: Using Firebase Auth role for {user_id}: {user_role}")
-            except Exception as e:
-                print(f"DEBUG: Failed to get user from Firebase Auth: {str(e)}")
-                user_role = "employee"  # Default fallback
-        
-        notification_service.register_user_role(user_id, user_role)
-        print(f"DEBUG: Registered user {user_id} with role {user_role}")
-    except Exception as e:
-        print(f"DEBUG: Failed to get user role for {user_id}: {str(e)}")
-        notification_service.register_user_role(user_id, "employee")  # Default to employee
     
     # Send a welcome message to confirm connection
     try:
@@ -251,14 +206,13 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
                     }))
                     continue
                 
-                # Use role-based notification service for messages
-                await notification_service.send_message_notification({
-                    'sender_id': user_id,
-                    'sender_name': user_data.get('email', 'Unknown'),
-                    'recipient_id': message_data.get('recipient_id'),
-                    'message': message_data.get('message')
-                })
-                
+                # Broadcast message to all connected users
+                await manager.broadcast(json.dumps({
+                    'type': 'message',
+                    'user_id': user_id,
+                    'message': message_data,
+                    'timestamp': message_data.get('timestamp')
+                }))
             except json.JSONDecodeError:
                 # Handle invalid JSON
                 await websocket.send_text(json.dumps({
@@ -269,11 +223,9 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
     except WebSocketDisconnect:
         print(f"DEBUG: WebSocket disconnect for user {user_id}")
         manager.disconnect(websocket, user_id)
-        notification_service.unregister_user(user_id)
     except Exception as e:
         print(f"DEBUG: WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
-        notification_service.unregister_user(user_id)
 
 @router.websocket("/ws/{incident_id}")
 async def websocket_incident_endpoint(websocket: WebSocket, incident_id: str, token: str = Query(...)):
