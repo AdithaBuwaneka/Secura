@@ -51,6 +51,8 @@ export default function SecurityTeamDashboard() {
   const [showImageAnalysis, setShowImageAnalysis] = useState(false);
   const [imageAnalysis, setImageAnalysis] = useState<any>(null);
   const [analyzingImage, setAnalyzingImage] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [showTeamDetails, setShowTeamDetails] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -80,10 +82,60 @@ export default function SecurityTeamDashboard() {
       }
     };
     
-    fetchIncidents();
+    // Fetch team members with online status
+    const fetchTeamMembers = async () => {
+      if (idToken) {
+        try {
+          const response = await fetch(`${API_URL}/api/user-activity/team-status`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const teamStatus = await response.json();
+            setTeamMembers(teamStatus.members);
+            console.log('Team status:', teamStatus);
+          } else {
+            // Fallback to admin/users endpoint if user-activity fails
+            console.log('Falling back to admin/users endpoint');
+            const fallbackResponse = await fetch(`${API_URL}/api/admin/users`, {
+              headers: {
+                'Authorization': `Bearer ${idToken}`
+              }
+            });
+            
+            if (fallbackResponse.ok) {
+              const allUsers = await fallbackResponse.json();
+              const securityTeam = allUsers.filter((user: any) => 
+                user.role === 'security_team'
+              ).map((user: any) => ({
+                user_id: user.uid,
+                email: user.email,
+                full_name: user.full_name,
+                role: user.role,
+                is_online: false, // Default to offline for fallback
+                last_activity: new Date(user.last_login || new Date()).toISOString(),
+                last_login: user.last_login
+              }));
+              setTeamMembers(securityTeam);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch team members:', error);
+          // Don't show error toast for team members as it's not critical
+        }
+      }
+    };
     
-    // Refresh incidents every 30 seconds
-    const interval = setInterval(fetchIncidents, 30000);
+    fetchIncidents();
+    fetchTeamMembers();
+    
+    // Refresh incidents and team members every 30 seconds
+    const interval = setInterval(() => {
+      fetchIncidents();
+      fetchTeamMembers();
+    }, 30000);
     
     // Listen for WebSocket messages about new incidents
     const handleWebSocketMessage = (event: MessageEvent) => {
@@ -196,6 +248,22 @@ export default function SecurityTeamDashboard() {
       (incident.incident_type?.toLowerCase().includes(searchLower) || false)
     );
   });
+
+  // Calculate team online status
+  const totalTeamMembers = teamMembers.length;
+  const onlineTeamMembers = teamMembers.filter(member => member.is_online === true).length;
+
+  // Calculate other stats
+  const underInvestigationCount = incidents.filter(i => 
+    i.status === 'investigating' || i.status === 'in_progress'
+  ).length;
+
+  const resolvedTodayCount = incidents.filter(i => {
+    if (i.status !== 'resolved' && i.status !== 'closed') return false;
+    const resolvedDate = new Date(i.resolved_at || i.updated_at);
+    const today = new Date();
+    return resolvedDate.toDateString() === today.toDateString();
+  }).length;
 
   return (
     <div className="min-h-screen bg-[#1A1D23]">
@@ -314,8 +382,8 @@ export default function SecurityTeamDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Under Investigation</p>
-                <p className="text-3xl font-bold text-white">15</p>
-                <p className="text-xs text-gray-500 mt-1">Avg: 2.1 hours</p>
+                <p className="text-3xl font-bold text-white">{underInvestigationCount}</p>
+                <p className="text-xs text-gray-500 mt-1">Active investigations</p>
               </div>
               <div className="p-3 bg-orange-500/20 rounded-lg">
                 <Clock className="h-8 w-8 text-orange-400" />
@@ -323,12 +391,15 @@ export default function SecurityTeamDashboard() {
             </div>
           </div>
           
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+          <div 
+            className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700 cursor-pointer hover:bg-[#2E3139] hover:border-gray-600 transition-all duration-200"
+            onClick={() => setShowTeamDetails(true)}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Team Online</p>
-                <p className="text-3xl font-bold text-white">6/8</p>
-                <p className="text-xs text-gray-500 mt-1">Available analysts</p>
+                <p className="text-3xl font-bold text-white">{onlineTeamMembers}/{totalTeamMembers}</p>
+                <p className="text-xs text-gray-500 mt-1">Click to view details</p>
               </div>
               <div className="p-3 bg-green-500/20 rounded-lg">
                 <Users className="h-8 w-8 text-green-400" />
@@ -340,8 +411,8 @@ export default function SecurityTeamDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Resolved Today</p>
-                <p className="text-3xl font-bold text-white">18</p>
-                <p className="text-xs text-gray-500 mt-1">Target: 20</p>
+                <p className="text-3xl font-bold text-white">{resolvedTodayCount}</p>
+                <p className="text-xs text-gray-500 mt-1">Completed today</p>
               </div>
               <div className="p-3 bg-blue-500/20 rounded-lg">
                 <CheckCircle2 className="h-8 w-8 text-blue-400" />
@@ -481,23 +552,25 @@ export default function SecurityTeamDashboard() {
             <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
               <h3 className="text-lg font-semibold text-white mb-4">Team Status</h3>
               <div className="space-y-3">
-                {[
-                  { name: 'Alex Chen', status: 'Available', workload: 3 },
-                  { name: 'Sarah Kim', status: 'Investigating', workload: 5 },
-                  { name: 'Mike Johnson', status: 'Available', workload: 2 },
-                  { name: 'Emma Wilson', status: 'Busy', workload: 7 },
-                ].map((member) => (
-                  <div key={member.name} className="flex items-center justify-between p-2 bg-[#1A1D23] rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium text-white">{member.name}</p>
-                      <p className="text-xs text-gray-400">{member.workload} active cases</p>
+                {teamMembers.length > 0 ? teamMembers.map((member) => {
+                  const assignedIncidents = incidents.filter(i => i.assigned_to === member.user_id && i.status !== 'resolved' && i.status !== 'closed').length;
+                  
+                  return (
+                    <div key={member.user_id} className="flex items-center justify-between p-2 bg-[#1A1D23] rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-white">{member.full_name}</p>
+                        <p className="text-xs text-gray-400">{assignedIncidents} active cases</p>
+                      </div>
+                      <span className={`w-2 h-2 rounded-full ${
+                        member.is_online ? 'bg-green-400' : 'bg-gray-400'
+                      }`} title={member.is_online ? 'Online' : 'Offline'}></span>
                     </div>
-                    <span className={`w-2 h-2 rounded-full ${
-                      member.status === 'Available' ? 'bg-green-400' :
-                      member.status === 'Investigating' ? 'bg-orange-400' : 'bg-red-400'
-                    }`}></span>
+                  );
+                }) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-400">Loading team members...</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -883,6 +956,125 @@ ${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).
                     setImageAnalysis(null);
                   }}
                   className="px-4 py-2 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Team Details Modal */}
+      {showTeamDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-2xl max-h-[80vh] bg-[#2A2D35] rounded-lg border border-gray-700 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center">
+                  <Users className="h-6 w-6 mr-2 text-[#00D4FF]" />
+                  Security Team Status
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  {onlineTeamMembers} of {totalTeamMembers} members online
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTeamDetails(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
+              <div className="p-6">
+                {teamMembers.length > 0 ? (
+                  <div className="space-y-3">
+                    {teamMembers.map((member) => {
+                      const assignedIncidents = incidents.filter(i => 
+                        i.assigned_to === member.user_id && 
+                        i.status !== 'resolved' && 
+                        i.status !== 'closed'
+                      ).length;
+                      
+                      const lastActivityTime = member.last_activity ? 
+                        new Date(member.last_activity).toLocaleString() : 'Never';
+                      const lastLoginTime = member.last_login ? 
+                        new Date(member.last_login).toLocaleString() : 'Never';
+                      
+                      return (
+                        <div key={member.user_id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <div className={`w-4 h-4 rounded-full ${
+                                  member.is_online ? 'bg-green-400' : 'bg-gray-400'
+                                }`}></div>
+                                <div>
+                                  <h3 className="font-medium text-white">{member.full_name}</h3>
+                                  <p className="text-sm text-gray-400">{member.email}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4 text-xs text-gray-400 mt-3">
+                                <div>
+                                  <p className="text-gray-500">Status:</p>
+                                  <p className={member.is_online ? 'text-green-400' : 'text-gray-400'}>
+                                    {member.is_online ? 'Online' : 'Offline'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Active Cases:</p>
+                                  <p className="text-white">{assignedIncidents}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Last Activity:</p>
+                                  <p className="text-gray-300">{lastActivityTime}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Last Login:</p>
+                                  <p className="text-gray-300">{lastLoginTime}</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Status Badge */}
+                            <div className="ml-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                member.is_online 
+                                  ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                                  : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                              }`}>
+                                {member.is_online ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-white mb-2">No Team Members Found</h3>
+                    <p className="text-gray-400">Unable to load security team information.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-700 bg-[#1A1D23]">
+              <div className="flex items-center justify-between text-sm text-gray-400">
+                <div>
+                  Last updated: {new Date().toLocaleTimeString()}
+                </div>
+                <button
+                  onClick={() => setShowTeamDetails(false)}
+                  className="px-4 py-2 bg-[#00D4FF] text-[#1A1D23] font-medium rounded-lg hover:bg-[#00C4EF] transition-colors"
                 >
                   Close
                 </button>
