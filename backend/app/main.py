@@ -15,7 +15,9 @@ from app.api.analytics import routes as analytics_routes
 from app.api.security_applications import routes as security_app_routes
 from app.api.messaging import routes as messaging_routes
 from app.api.system import routes as system_routes
+from app.api.user_activity import routes as user_activity_routes
 from app.core.firebase_config import FirebaseConfig
+from app.services.background.background_tasks import background_service
 
 # Load environment variables
 load_dotenv()
@@ -48,6 +50,17 @@ app.include_router(analytics_routes.router, prefix="/api/analytics", tags=["Anal
 app.include_router(security_app_routes.router, prefix="/api/security-applications", tags=["Security Applications"])
 app.include_router(messaging_routes.router, prefix="/api/messaging", tags=["Messaging"])
 app.include_router(system_routes.router, prefix="/api/system", tags=["System Configuration"])
+app.include_router(user_activity_routes.router, prefix="/api/user-activity", tags=["User Activity"])
+
+# Startup event to initialize background tasks
+@app.on_event("startup")
+async def startup_event():
+    await background_service.start_background_tasks()
+
+# Shutdown event to clean up background tasks
+@app.on_event("shutdown")
+async def shutdown_event():
+    await background_service.stop_background_tasks()
 
 @app.get("/")
 async def root():
