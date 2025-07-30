@@ -12,7 +12,13 @@ import {
   MessageCircle,
   LogOut,
   Bell,
-  UserCheck
+  UserCheck,
+  X,
+  MapPin,
+  User,
+  Paperclip,
+  Image as ImageIcon,
+  Download
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -30,6 +36,7 @@ export default function EmployeeDashboard() {
   const { unreadCount, isConnected } = useMessaging();
   const [showIncidentForm, setShowIncidentForm] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
+  const [showMyIncidents, setShowMyIncidents] = useState(false);
   const [myIncidents, setMyIncidents] = useState<any[]>([]);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -235,11 +242,14 @@ export default function EmployeeDashboard() {
                 </div>
               </button>
               
-              <button className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group">
+              <button
+                onClick={() => setShowMyIncidents(true)}
+                className="w-full bg-[#374151] text-white p-4 rounded-lg text-left transition-all hover:bg-[#4B5563] hover:scale-[1.02] hover:shadow-lg group"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium">View My Incidents</h4>
-                    <p className="text-sm text-gray-300 mt-1">Track your submitted reports</p>
+                    <p className="text-sm text-gray-300 mt-1">Track your submitted reports ({myIncidents.length} total)</p>
                   </div>
                   <FileText className="h-6 w-6 group-hover:scale-110 transition-transform" />
                 </div>
@@ -372,6 +382,184 @@ export default function EmployeeDashboard() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-2xl h-[600px]">
             <MessageThread onClose={() => setShowMessaging(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* My Incidents Modal */}
+      {showMyIncidents && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-[#2A2D35] rounded-lg border border-gray-700 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-white">My Incidents</h2>
+                <p className="text-sm text-gray-400 mt-1">Track all your submitted security reports</p>
+              </div>
+              <button
+                onClick={() => setShowMyIncidents(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+              {myIncidents.length > 0 ? (
+                <div className="p-6 space-y-4">
+                  {myIncidents.map((incident) => {
+                    const statusInfo = getStatusIcon(incident.status);
+                    const timeAgo = getTimeAgo(new Date(incident.created_at));
+                    const updatedAgo = getTimeAgo(new Date(incident.updated_at || incident.created_at));
+                    
+                    return (
+                      <div key={incident.id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <div className={`w-3 h-3 ${statusInfo.color} rounded-full`}></div>
+                              <h3 className="font-medium text-white">
+                                {incident.title || 'Untitled Incident'}
+                              </h3>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                incident.severity === 'critical' ? 'bg-red-500/20 text-red-300' :
+                                incident.severity === 'high' ? 'bg-orange-500/20 text-orange-300' :
+                                incident.severity === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                'bg-blue-500/20 text-blue-300'
+                              }`}>
+                                {incident.severity.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-300 mb-2 line-clamp-2">
+                              {incident.description || 'No description provided'}
+                            </p>
+                            <div className="flex items-center space-x-4 text-xs text-gray-400">
+                              <span>Type: {incident.incident_type?.replace('_', ' ') || 'Unknown'}</span>
+                              <span>•</span>
+                              <span>Status: {statusInfo.text}</span>
+                              <span>•</span>
+                              <span>Reported: {timeAgo}</span>
+                              {incident.updated_at !== incident.created_at && (
+                                <>
+                                  <span>•</span>
+                                  <span>Last updated: {updatedAgo}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Additional Info */}
+                        {(incident.location || incident.attachments?.length > 0 || incident.assigned_to_name) && (
+                          <div className="space-y-3 pt-3 border-t border-gray-700">
+                            <div className="flex flex-wrap items-center gap-4">
+                              {incident.location && (
+                                <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>
+                                    {typeof incident.location === 'string' 
+                                      ? incident.location 
+                                      : incident.location.address || 
+                                        `${incident.location.building || ''}${incident.location.floor ? ` Floor ${incident.location.floor}` : ''}${incident.location.room ? ` Room ${incident.location.room}` : ''}`.trim() ||
+                                        'Location provided'
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                              {incident.attachments?.length > 0 && (
+                                <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                  <Paperclip className="h-3 w-3" />
+                                  <span>{incident.attachments.length} attachment{incident.attachments.length > 1 ? 's' : ''}</span>
+                                </div>
+                              )}
+                              {incident.assigned_to_name && (
+                                <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                  <User className="h-3 w-3" />
+                                  <span>Assigned to: {incident.assigned_to_name}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Attachments Display */}
+                            {incident.attachments && incident.attachments.length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-medium text-gray-400 mb-2">Attachments:</h5>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {incident.attachments.map((attachment: any, index: number) => {
+                                    const isImage = attachment.file_type?.startsWith('image/') || 
+                                                   attachment.filename?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+                                                   attachment.original_filename?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                    
+                                    return (
+                                      <div key={index} className="bg-[#2A2D35] p-2 rounded border border-gray-600">
+                                        <div className="flex items-start space-x-2">
+                                          {isImage ? (
+                                            <ImageIcon className="h-4 w-4 text-blue-400 mt-1 flex-shrink-0" />
+                                          ) : (
+                                            <FileText className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-white font-medium truncate">
+                                              {attachment.original_filename || attachment.filename || `Attachment ${index + 1}`}
+                                            </p>
+                                            <p className="text-xs text-gray-400">
+                                              {attachment.file_size ? `${(attachment.file_size / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
+                                            </p>
+                                            
+                                            {/* Image Preview */}
+                                            {isImage && attachment.file_url && (
+                                              <div className="mt-2">
+                                                <img 
+                                                  src={attachment.thumbnail_url || attachment.file_url} 
+                                                  alt={attachment.original_filename || 'Attachment'}
+                                                  className="w-full h-20 object-cover rounded cursor-pointer hover:opacity-90 transition-opacity"
+                                                  onClick={() => window.open(attachment.file_url, '_blank')}
+                                                />
+                                              </div>
+                                            )}
+                                          </div>
+                                          
+                                          {/* Download Button */}
+                                          {attachment.file_url && (
+                                            <button
+                                              onClick={() => window.open(attachment.file_url, '_blank')}
+                                              className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors flex-shrink-0"
+                                              title="Download/View"
+                                            >
+                                              <Download className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <FileText className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-white mb-2">No Incidents Yet</h3>
+                  <p className="text-gray-400 mb-4">You haven't reported any security incidents yet.</p>
+                  <button
+                    onClick={() => {
+                      setShowMyIncidents(false);
+                      setShowIncidentForm(true);
+                    }}
+                    className="bg-[#00D4FF] text-[#1A1D23] px-4 py-2 rounded-lg font-medium hover:bg-[#00C4EF] transition-colors"
+                  >
+                    Report Your First Incident
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
