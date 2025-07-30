@@ -9,6 +9,7 @@ import {
   TrendingUp, 
   Search,
   Filter,
+  Bell,
   LogOut,
   Eye,
   MessageSquare,
@@ -26,7 +27,6 @@ import {
   Download,
   ScanLine,
   FileSearch
-
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -34,18 +34,16 @@ import SecurityMessaging from '@/components/messaging/SecurityMessaging';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AIAnalysisDashboard from '@/components/ai/AIAnalysisDashboard';
-import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import toast from 'react-hot-toast';
 
 export default function SecurityTeamDashboard() {
-  const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
   const { unreadCount } = useMessaging();
   const [searchTerm, setSearchTerm] = useState('');
   const [showMessaging, setShowMessaging] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showAI, setShowAI] = useState(false);
-
   const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
@@ -55,21 +53,66 @@ export default function SecurityTeamDashboard() {
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-
-  // Listen for messaging events from notifications
   useEffect(() => {
-    const handleOpenMessaging = (event: CustomEvent) => {
-      if (event.detail?.source === 'notification') {
-        setShowMessaging(true);
+    // Fetch incidents
+    const fetchIncidents = async () => {
+      if (idToken) {
+        try {
+          setLoading(true);
+          const response = await fetch(`${API_URL}/api/incidents/`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Security team fetched incidents:', data);
+            console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
+            setIncidents(data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch incidents:', error);
+          toast.error('Failed to load incidents');
+        } finally {
+          setLoading(false);
+        }
       }
     };
-
-    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
+    
+    fetchIncidents();
+    
+    // Refresh incidents every 30 seconds
+    const interval = setInterval(fetchIncidents, 30000);
+    
+    // Listen for WebSocket messages about new incidents
+    const handleWebSocketMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'new_incident') {
+          console.log('New incident notification received:', data);
+          // Refresh incidents when a new one is reported
+          fetchIncidents();
+          toast.info(`New incident reported: ${data.title || 'Untitled'}`);
+        }
+      } catch (error) {
+        // Ignore non-JSON messages
+      }
+    };
+    
+    // Add WebSocket listener if available
+    const ws = (window as any).securaWebSocket;
+    if (ws) {
+      ws.addEventListener('message', handleWebSocketMessage);
+    }
     
     return () => {
-      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+      clearInterval(interval);
+      if (ws) {
+        ws.removeEventListener('message', handleWebSocketMessage);
+      }
     };
-  }, []);
+  }, [idToken, API_URL]);
 
   const handleLogout = async () => {
     try {
@@ -79,13 +122,6 @@ export default function SecurityTeamDashboard() {
       toast.error('Logout failed');
     }
   };
-  const mockIncidents = [
-    { id: 'INC-2024-001', title: 'Phishing Email Campaign Detected', severity: 'Critical', time: '2 min ago', status: 'Investigating', reporter: 'John Doe', category: 'Phishing' },
-    { id: 'INC-2024-002', title: 'Unusual Network Traffic Patterns', severity: 'High', time: '15 min ago', status: 'New', reporter: 'Sarah Wilson', category: 'Network' },
-    { id: 'INC-2024-003', title: 'Malware Detection on Workstation', severity: 'High', time: '32 min ago', status: 'Assigned', reporter: 'Mike Johnson', category: 'Malware' },
-    { id: 'INC-2024-004', title: 'Unauthorized Access Attempt', severity: 'Medium', time: '1 hour ago', status: 'In Progress', reporter: 'Emily Chen', category: 'Access' },
-    { id: 'INC-2024-005', title: 'Suspicious Email Attachment', severity: 'Low', time: '2 hours ago', status: 'Resolved', reporter: 'David Kim', category: 'Email' },
-  ];
 
   const analyzeImage = async (imageUrl: string, incidentContext?: string) => {
     setAnalyzingImage(true);
@@ -119,25 +155,47 @@ export default function SecurityTeamDashboard() {
   };
 
   const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'Critical': return 'bg-red-500';
-      case 'High': return 'bg-orange-500';
-      case 'Medium': return 'bg-yellow-500';
-      case 'Low': return 'bg-green-500';
+    switch (severity.toLowerCase()) {
+      case 'critical': return 'bg-red-500';
+      case 'high': return 'bg-orange-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'low': return 'bg-green-500';
       default: return 'bg-gray-500';
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'New': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'Investigating': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-      case 'Assigned': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      case 'In Progress': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'Resolved': return 'bg-green-500/20 text-green-300 border-green-500/30';
+    switch (status.toLowerCase()) {
+      case 'new':
+      case 'pending': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'investigating': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+      case 'assigned': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case 'in_progress': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'resolved': return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'closed': return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
       default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
     }
   };
+  
+  const getTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return `${seconds} seconds ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    return `${Math.floor(seconds / 86400)} days ago`;
+  };
+  
+  // Filter incidents based on search term
+  const filteredIncidents = incidents.filter(incident => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (incident.title?.toLowerCase().includes(searchLower) || false) ||
+      (incident.description?.toLowerCase().includes(searchLower) || false) ||
+      (incident.reporter_name?.toLowerCase().includes(searchLower) || false) ||
+      (incident.incident_type?.toLowerCase().includes(searchLower) || false)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-[#1A1D23]">
@@ -185,7 +243,12 @@ export default function SecurityTeamDashboard() {
                 )}
               </button>
               
-              <NotificationDropdown />
+              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
+                  <span className="text-xs text-white font-bold">3</span>
+                </span>
+              </button>
               
               <div className="flex items-center space-x-3">
                 <div className="text-right">
@@ -213,20 +276,24 @@ export default function SecurityTeamDashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Critical Alert Banner */}
-        <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 p-4 rounded-lg mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="h-6 w-6 text-red-400 animate-pulse" />
-              <div>
-                <p className="font-semibold text-red-200">Critical Incidents Require Attention</p>
-                <p className="text-sm text-red-300">2 high-priority incidents need immediate investigation</p>
+        {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length > 0 && (
+          <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 p-4 rounded-lg mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-6 w-6 text-red-400 animate-pulse" />
+                <div>
+                  <p className="font-semibold text-red-200">Critical Incidents Require Attention</p>
+                  <p className="text-sm text-red-300">
+                    {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length} high-priority incidents need immediate investigation
+                  </p>
+                </div>
               </div>
+              <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Review Now
+              </button>
             </div>
-            <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Review Now
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -234,8 +301,8 @@ export default function SecurityTeamDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-sm">Active Incidents</p>
-                <p className="text-3xl font-bold text-white">27</p>
-                <p className="text-xs text-gray-500 mt-1">↑ 3 from yesterday</p>
+                <p className="text-3xl font-bold text-white">{incidents.filter(i => i.status !== 'resolved' && i.status !== 'closed').length}</p>
+                <p className="text-xs text-gray-500 mt-1">Total open cases</p>
               </div>
               <div className="p-3 bg-red-500/20 rounded-lg">
                 <AlertCircle className="h-8 w-8 text-red-400" />
@@ -308,37 +375,87 @@ export default function SecurityTeamDashboard() {
               </div>
               
               <div className="space-y-3">
-                {mockIncidents.map((incident) => (
-                  <div key={incident.id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${getSeverityColor(incident.severity)}`}></div>
-                        <div>
-                          <p className="font-medium text-white">{incident.title}</p>
-                          <p className="text-sm text-gray-400">{incident.id} • {incident.time}</p>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF] mx-auto"></div>
+                    <p className="text-gray-400 mt-2">Loading incidents...</p>
+                  </div>
+                ) : filteredIncidents.length > 0 ? (
+                  filteredIncidents.map((incident) => {
+                    const createdAt = new Date(incident.created_at);
+                    const timeAgo = getTimeAgo(createdAt);
+                    
+                    return (
+                      <div key={incident.id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-3 h-3 rounded-full ${getSeverityColor(incident.severity)}`}></div>
+                            <div>
+                              <p className="font-medium text-white">
+                                {incident.title || incident.description?.substring(0, 60) + '...' || 'Untitled Incident'}
+                              </p>
+                              <p className="text-sm text-gray-400">
+                                ID: {incident.id.substring(0, 8)}... • {timeAgo}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(incident.status)}`}>
+                            {incident.status.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4 text-sm text-gray-400">
+                            <span>Reporter: {incident.reporter_name}</span>
+                            <span>Type: {incident.incident_type || 'Uncategorized'}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button 
+                              onClick={async () => {
+                                // Fetch the latest incident data including attachments
+                                try {
+                                  const response = await fetch(`${API_URL}/api/incidents/${incident.id}`, {
+                                    headers: {
+                                      'Authorization': `Bearer ${idToken}`
+                                    }
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const fullIncident = await response.json();
+                                    console.log('Fetched full incident:', fullIncident);
+                                    setSelectedIncident(fullIncident);
+                                    setShowIncidentDetails(true);
+                                  } else {
+                                    // Fallback to existing data
+                                    setSelectedIncident(incident);
+                                    setShowIncidentDetails(true);
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to fetch incident details:', error);
+                                  // Fallback to existing data
+                                  setSelectedIncident(incident);
+                                  setShowIncidentDetails(true);
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" 
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" title="Message">
+                              <MessageSquare className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(incident.status)}`}>
-                        {incident.status}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 text-sm text-gray-400">
-                        <span>Reporter: {incident.reporter}</span>
-                        <span>Category: {incident.category}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors">
-                          <MessageSquare className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                    <p>No incidents found</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -435,7 +552,6 @@ export default function SecurityTeamDashboard() {
           </div>
         </div>
       )}
-
 
       {/* Incident Details Modal */}
       {showIncidentDetails && selectedIncident && (
@@ -775,7 +891,6 @@ ${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).
           </div>
         </div>
       )}
-
     </div>
   );
 }
