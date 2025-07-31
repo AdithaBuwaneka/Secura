@@ -451,6 +451,26 @@ class IncidentService:
         
         return await self.get_incident(incident_id)
 
+    async def unassign_incident(
+        self, 
+        incident_id: str,
+        unassigned_by: str
+    ) -> IncidentResponse:
+        """Unassign incident (remove assignee)"""
+        update_data = {
+            'assigned_to': None,
+            'assigned_to_name': None,
+            'assigned_at': None,
+            'status': IncidentStatus.PENDING.value,
+            'updated_at': datetime.utcnow(),
+            'unassigned_by': unassigned_by,
+            'unassigned_at': datetime.utcnow()
+        }
+        
+        self.incidents_collection.document(incident_id).update(update_data)
+        
+        return await self.get_incident(incident_id)
+
     async def update_ai_analysis(
         self, 
         incident_id: str, 
