@@ -188,6 +188,81 @@ export const verifyToken = createAsyncThunk(
   }
 );
 
+interface UpdateProfileData {
+  full_name?: string;
+  phone_number?: string;
+  current_password?: string;
+  new_password?: string;
+}
+
+export const updateUserProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (data: UpdateProfileData, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as { auth: { idToken: string | null } };
+      const idToken = state.auth.idToken;
+      
+      if (!idToken) {
+        return rejectWithValue('No authentication token');
+      }
+      
+      const response = await fetch(`${API_URL}/api/auth/update-profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        return rejectWithValue(errorData.detail || 'Failed to update profile');
+      }
+      
+      const updatedProfile = await response.json();
+      return updatedProfile;
+    } catch (error) {
+      return rejectWithValue('Failed to update profile');
+    }
+  }
+);
+
+export const uploadProfilePicture = createAsyncThunk(
+  'auth/uploadProfilePicture',
+  async (file: File, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as { auth: { idToken: string | null } };
+      const idToken = state.auth.idToken;
+      
+      if (!idToken) {
+        return rejectWithValue('No authentication token');
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/auth/upload-profile-picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return rejectWithValue(errorData.detail || 'Failed to upload profile picture');
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      return rejectWithValue('Failed to upload profile picture');
+    }
+  }
+);
+
 // Initial state
 const initialState: AuthState & { 
   loading: boolean; 
@@ -281,6 +356,38 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.loading = false;
         state.error = null;
+      })
+      
+    // Update Profile
+    builder
+      .addCase(updateUserProfile.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        state.userProfile = action.payload;
+        state.error = null;
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      
+    // Upload Profile Picture
+    builder
+      .addCase(uploadProfilePicture.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(uploadProfilePicture.fulfilled, (state, action) => {
+        state.loading = false;
+        state.userProfile = action.payload.user;
+        state.error = null;
+      })
+      .addCase(uploadProfilePicture.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       });
   }
 });

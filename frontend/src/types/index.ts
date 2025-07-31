@@ -13,6 +13,7 @@ export interface User {
   full_name: string;
   role: 'employee' | 'security_team' | 'admin';
   phone_number?: string;
+  profile_picture_url?: string;
   created_at: Date;
   last_login?: Date;
   is_active: boolean;

@@ -56,6 +56,13 @@ class PasswordUpdate(BaseModel):
     current_password: str
     new_password: str
 
+class ProfileUpdateRequest(BaseModel):
+    """Model for profile update request from frontend"""
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
+
 class SecurityTeamManagement(BaseModel):
     """Model for security team management"""
     user_uid: str

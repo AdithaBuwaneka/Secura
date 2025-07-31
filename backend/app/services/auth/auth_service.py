@@ -27,6 +27,7 @@ class AuthService:
             'email': user.email,
             'full_name': user.full_name,
             'phone_number': user.phone_number,
+            'profile_picture_url': user.profile_picture_url,
             'role': user.role.value,
             'is_active': user.is_active,
             'created_at': datetime.utcnow(),
@@ -49,6 +50,7 @@ class AuthService:
             email=data['email'],
             full_name=data['full_name'],
             phone_number=data.get('phone_number'),
+            profile_picture_url=data.get('profile_picture_url'),
             role=UserRole(data['role']),
             is_active=data['is_active'],
             created_at=data['created_at'],
@@ -62,6 +64,14 @@ class AuthService:
             'phone_number': profile_data.phone_number,
             'updated_at': datetime.utcnow()
         }
+        
+        self.users_collection.document(uid).update(update_data)
+        return await self.get_user_profile(uid)
+
+    async def update_user_profile_fields(self, uid: str, update_data: dict) -> User:
+        """Update specific user profile fields"""
+        # Add updated_at timestamp
+        update_data['updated_at'] = datetime.utcnow()
         
         self.users_collection.document(uid).update(update_data)
         return await self.get_user_profile(uid)
@@ -102,6 +112,7 @@ class AuthService:
                 email=data['email'],
                 full_name=data['full_name'],
                 phone_number=data.get('phone_number'),
+                profile_picture_url=data.get('profile_picture_url'),
                 role=UserRole(data['role']),
                 is_active=data['is_active'],
                 created_at=data['created_at'],
