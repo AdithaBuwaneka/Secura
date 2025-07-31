@@ -38,13 +38,14 @@ interface MessageThreadProps {
 
 export default function MessageThread({ incidentId, conversationId, onClose }: MessageThreadProps) {
   const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
-  const { isConnected, sendMessage: sendGlobalMessage, joinRoom, leaveRoom } = useMessaging();
+  const { isConnected: globalConnected, sendMessage: sendGlobalMessage, joinRoom, leaveRoom } = useMessaging();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -52,29 +53,57 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const WS_URL = API_URL.replace('http', 'ws');
 
-  const initializeWebSocket = useCallback(() => {
+  const initializeWebSocket = useCallback(async () => {
     // Don't initialize if we don't have required data
     if (!idToken || !userProfile?.uid) {
       console.log('WebSocket: Missing required data for connection');
-      console.log('WebSocket: idToken present:', !!idToken);
-      console.log('WebSocket: userProfile?.uid present:', !!userProfile?.uid);
+      return;
+    }
+
+    // Get conversation ID first to determine proper room
+    let targetConversationId = conversationId;
+    if (!targetConversationId && incidentId) {
+      try {
+        const convResponse = await fetch(`${API_URL}/api/messaging/conversations/incident/${incidentId}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (convResponse.ok) {
+          const conversation = await convResponse.json();
+          targetConversationId = conversation.id;
+          setCurrentConversationId(targetConversationId);
+        }
+      } catch (error) {
+        console.error('Error getting conversation:', error);
+        return;
+      }
+    }
+
+    if (!targetConversationId) {
+      console.log('No conversation ID available for WebSocket');
       return;
     }
 
     try {
-      const wsUrl = incidentId 
-        ? `${WS_URL}/api/messaging/ws/${incidentId}?token=${idToken}`
-        : `${WS_URL}/api/messaging/ws/general?token=${idToken}&user_id=${userProfile?.uid}`;
-      
-      console.log('WebSocket: Attempting to connect to:', wsUrl);
-      console.log('WebSocket: WS_URL:', WS_URL);
-      console.log('WebSocket: API_URL:', API_URL);
+      const wsUrl = `${WS_URL}/api/messaging/ws/${targetConversationId}?token=${idToken}`;
+      console.log('WebSocket: Connecting to conversation room:', targetConversationId);
       
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
-        console.log('WebSocket connected successfully');
+        console.log('WebSocket connected to conversation:', targetConversationId);
+        
+        // Join the conversation room to receive real-time messages
+        if (wsRef.current) {
+          wsRef.current.send(JSON.stringify({
+            type: 'join_room',
+            room_id: `conversation_${targetConversationId}`,
+            user_id: userProfile?.uid
+          }));
+        }
       };
 
       wsRef.current.onmessage = (event) => {
@@ -82,16 +111,44 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
           const data = JSON.parse(event.data);
           console.log('WebSocket: Received message:', data);
 
-          if (
-            (data.type === 'message' || data.type === 'new_message' || data.type === 'incident_message') &&
-            (!data.message.incident_id || data.message.incident_id === incidentId)
-          ) {
-            console.log('WebSocket: Adding message to thread. Message incident_id:', data.message.incident_id, 'Current incidentId:', incidentId);
-            setMessages(prev => [...prev, data.message]);
+          if (data.type === 'incident_message' || data.type === 'new_message' || data.type === 'message') {
+            console.log('Processing message data:', data);
+            
+            // Extract message data properly - the backend sends it in data.message
+            const messageData = data.message || data;
+            console.log('Extracted message data:', messageData);
+            
+            const newMessage: Message = {
+              id: messageData.id || Date.now().toString(),
+              sender_id: messageData.sender_id || data.user_id || 'unknown',
+              sender_name: messageData.sender_name || data.sender || 'Unknown',
+              sender_role: messageData.sender_role || 'employee', 
+              content: messageData.content || messageData.message || '',
+              created_at: messageData.created_at ? 
+                (typeof messageData.created_at === 'string' ? messageData.created_at : new Date(messageData.created_at).toISOString()) :
+                (data.timestamp || new Date().toISOString()),
+              attachments: messageData.attachments || [],
+              is_read: false,
+              message_type: messageData.message_type || 'text'
+            };
+
+            console.log('Processed message for display:', newMessage);
+
+            // Only add if from a different user (avoid duplicating own messages)
+            if (newMessage.sender_id !== userProfile?.uid) {
+              setMessages(prev => {
+                if (prev.some(msg => msg.id === newMessage.id)) {
+                  console.log('Message already exists, skipping:', newMessage.id);
+                  return prev;
+                }
+                console.log('Adding new message to chat:', newMessage);
+                return [...prev, newMessage];
+              });
+            } else {
+              console.log('Skipping own message to avoid duplication');
+            }
           } else if (data.type === 'typing') {
             setIsTyping(data.is_typing && data.user_id !== userProfile?.uid);
-          } else if (data.type === 'status') {
-            toast.success(data.message);
           } else if (data.type === 'connection_established') {
             console.log('WebSocket: Connection confirmed by server');
           }
@@ -111,17 +168,12 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
 
       wsRef.current.onerror = (error) => {
         console.log('WebSocket error occurred:', error);
-        console.log('WebSocket error type:', typeof error);
-        console.log('WebSocket error details:', {
-          readyState: wsRef.current?.readyState,
-          url: wsRef.current?.url
-        });
         setIsConnected(false);
       };
     } catch (error) {
       console.error('Failed to initialize WebSocket:', error);
     }
-  }, [incidentId, idToken, userProfile?.uid, WS_URL, API_URL]);
+  }, [incidentId, conversationId, idToken, userProfile?.uid, WS_URL, API_URL]);
 
   const loadMessages = useCallback(async () => {
     // Determine the conversation ID - either provided directly or get from incident
@@ -166,8 +218,24 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
       if (response.ok) {
         const data = await response.json();
         const messages = data.messages || [];
-        setMessages(messages);
-        console.log(`Loaded ${messages.length} messages for incident ${incidentId}`);
+        console.log('Raw messages from API:', messages);
+        
+        // Ensure messages have proper structure for display
+        const processedMessages = messages.map((msg: any) => ({
+          id: msg.id,
+          sender_id: msg.sender_id,
+          sender_name: msg.sender_name || 'Unknown User',
+          sender_role: msg.sender_role || 'employee',
+          content: msg.content || '',
+          created_at: msg.created_at,
+          attachments: msg.attachments || [],
+          is_read: msg.is_read || false,
+          message_type: msg.message_type || 'text'
+        }));
+        
+        console.log('Processed messages for display:', processedMessages);
+        setMessages(processedMessages);
+        console.log(`Loaded ${processedMessages.length} messages for conversation ${targetConversationId}`);
       } else if (response.status === 404) {
         console.log(`Incident ${incidentId} not found or access denied`);
         toast.error(`Incident ${incidentId} not found. Please check the incident ID.`);
@@ -186,6 +254,56 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
     }
   }, [incidentId, conversationId, idToken, API_URL]);
 
+  // Fallback message polling when WebSocket is not connected
+  const startMessagePolling = useCallback(() => {
+    if (messagePollingRef.current) {
+      clearInterval(messagePollingRef.current);
+    }
+    
+    messagePollingRef.current = setInterval(async () => {
+      if (!isConnected && currentConversationId) {
+        try {
+          const response = await fetch(`${API_URL}/api/messaging/conversations/${currentConversationId}/messages`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const latestMessages = data.messages || [];
+            
+            setMessages(prev => {
+              const processedMessages = latestMessages.map((msg: any) => ({
+                id: msg.id,
+                sender_id: msg.sender_id,
+                sender_name: msg.sender_name || 'Unknown User',
+                sender_role: msg.sender_role || 'employee',
+                content: msg.content || '',
+                created_at: msg.created_at,
+                attachments: msg.attachments || [],
+                is_read: msg.is_read || false,
+                message_type: msg.message_type || 'text'
+              }));
+              
+              const newMessages = processedMessages.filter(msg => 
+                !prev.some(existingMsg => existingMsg.id === msg.id)
+              );
+              
+              if (newMessages.length > 0) {
+                console.log('Adding new messages from polling:', newMessages);
+                return [...prev, ...newMessages];
+              }
+              return prev;
+            });
+          }
+        } catch (error) {
+          console.error('Message polling error:', error);
+        }
+      }
+    }, 3000); // Poll every 3 seconds when disconnected
+  }, [isConnected, currentConversationId, idToken, API_URL]);
+
   useEffect(() => {
     // Initialize WebSocket connection
     initializeWebSocket();
@@ -197,8 +315,28 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (messagePollingRef.current) {
+        clearInterval(messagePollingRef.current);
+      }
     };
   }, [incidentId, initializeWebSocket, loadMessages]);
+
+  // Start/stop polling based on connection status
+  useEffect(() => {
+    if (!isConnected) {
+      startMessagePolling();
+    } else {
+      if (messagePollingRef.current) {
+        clearInterval(messagePollingRef.current);
+      }
+    }
+    
+    return () => {
+      if (messagePollingRef.current) {
+        clearInterval(messagePollingRef.current);
+      }
+    };
+  }, [isConnected, startMessagePolling]);
 
   useEffect(() => {
     scrollToBottom();
@@ -258,8 +396,7 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
       if (response.ok) {
         const result = await response.json();
         
-        // Create a temporary message object for immediate display
-
+        // Add message immediately to UI for sender
         const tempMessage: Message = {
           id: result.message_id || Date.now().toString(),
           sender_id: userProfile?.uid || 'unknown',
@@ -272,6 +409,15 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
           message_type: 'text'
         };
         setMessages(prev => [...prev, tempMessage]);
+
+        // Also send via WebSocket for real-time delivery to other participants
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'new_message',
+            message: tempMessage,
+            timestamp: new Date().toISOString()
+          }));
+        }
         
         // Handle file uploads separately
         if (attachments.length > 0) {
@@ -281,11 +427,6 @@ export default function MessageThread({ incidentId, conversationId, onClose }: M
         setNewMessage('');
         setAttachments([]);
         toast.success('Message sent');
-        
-        // Reload messages to get the actual message from server
-        setTimeout(() => {
-          loadMessages();
-        }, 1000);
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Send message failed:', response.status, errorData);

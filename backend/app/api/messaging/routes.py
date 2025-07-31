@@ -226,12 +226,27 @@ async def send_message_to_conversation(
             current_user.full_name
         )
         
-        # Broadcast to conversation participants
+        # Broadcast to conversation participants with proper message structure
+        message_dict = {
+            "id": message.id,
+            "sender_id": message.sender_id,
+            "sender_name": message.sender_name,
+            "sender_role": message.sender_role,
+            "content": message.content,
+            "message_type": message.message_type.value if hasattr(message.message_type, 'value') else message.message_type,
+            "created_at": message.created_at.isoformat() if hasattr(message.created_at, 'isoformat') else str(message.created_at),
+            "attachments": message.attachments,
+            "is_read": message.is_read
+        }
+        
         await manager.broadcast_to_room(f"conversation_{conversation_id}", json.dumps({
             "type": "incident_message",
-            "incident_id": conversation_id,
-            "message": json.loads(message.json()),  # Properly serialize datetimes
-            "sender": current_user.full_name
+            "conversation_id": conversation_id,
+            "incident_id": conversation_id,  # For backward compatibility
+            "message": message_dict,
+            "sender": current_user.full_name,
+            "user_id": current_user.uid,
+            "timestamp": message.created_at.isoformat() if hasattr(message.created_at, 'isoformat') else str(message.created_at)
         }))
         
         return {"message": "Message sent successfully", "message_id": message.id}
@@ -491,10 +506,10 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
         print(f"DEBUG: WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
 
-@router.websocket("/ws/{incident_id}")
-async def websocket_incident_endpoint(websocket: WebSocket, incident_id: str, token: str = Query(...)):
+@router.websocket("/ws/{conversation_id}")
+async def websocket_conversation_endpoint(websocket: WebSocket, conversation_id: str, token: str = Query(...)):
     """
-    WebSocket endpoint for incident-specific messaging
+    WebSocket endpoint for conversation-specific messaging
     """
     # Authenticate the connection
     user_data = await authenticate_websocket(websocket, token)
@@ -503,23 +518,82 @@ async def websocket_incident_endpoint(websocket: WebSocket, incident_id: str, to
         return
     
     user_id = user_data['uid']
-    room_id = f"incident_{incident_id}"
+    room_id = f"conversation_{conversation_id}"
     
     await manager.connect(websocket, user_id, room_id)
+    
+    # Send confirmation message
+    try:
+        welcome_message = {
+            'type': 'connection_established',
+            'message': f'Connected to conversation {conversation_id}',
+            'conversation_id': conversation_id,
+            'user_id': user_id
+        }
+        await websocket.send_text(json.dumps(welcome_message))
+    except Exception as e:
+        print(f"Failed to send welcome message: {str(e)}")
+    
     try:
         while True:
             # Keep connection alive and handle incoming messages
             data = await websocket.receive_text()
             try:
                 message_data = json.loads(data)
-                # Broadcast message to users in this incident room
-                await manager.broadcast_to_room(room_id, json.dumps({
-                    'type': 'incident_message',
-                    'incident_id': incident_id,
-                    'user_id': user_id,
-                    'message': message_data,
-                    'timestamp': message_data.get('timestamp')
-                }))
+                
+                # Handle room join requests
+                if message_data.get('type') == 'join_room':
+                    requested_room = message_data.get('room_id')
+                    if requested_room == room_id:
+                        await websocket.send_text(json.dumps({
+                            'type': 'room_joined',
+                            'room_id': room_id,
+                            'message': f'Successfully joined {room_id}'
+                        }))
+                    continue
+                
+                # Handle ping/pong for connection health
+                if message_data.get('type') == 'ping':
+                    await websocket.send_text(json.dumps({
+                        'type': 'pong',
+                        'timestamp': message_data.get('timestamp')
+                    }))
+                    continue
+                
+                # Handle direct WebSocket messages - extract the message content
+                if 'message' in message_data and isinstance(message_data['message'], dict):
+                    # This is a structured message from frontend
+                    msg_content = message_data['message']
+                    
+                    broadcast_data = {
+                        'type': 'incident_message',
+                        'conversation_id': conversation_id,
+                        'user_id': user_id,
+                        'message': {
+                            'id': msg_content.get('id'),
+                            'sender_id': msg_content.get('sender_id'),
+                            'sender_name': msg_content.get('sender_name'),
+                            'sender_role': msg_content.get('sender_role'),
+                            'content': msg_content.get('content'),
+                            'created_at': msg_content.get('created_at'),
+                            'message_type': msg_content.get('message_type', 'text'),
+                            'attachments': msg_content.get('attachments', []),
+                            'is_read': False
+                        },
+                        'sender': msg_content.get('sender_name'),
+                        'timestamp': message_data.get('timestamp')
+                    }
+                else:
+                    # Fallback for simple message format
+                    broadcast_data = {
+                        'type': 'incident_message',
+                        'conversation_id': conversation_id,
+                        'user_id': user_id,
+                        'message': message_data,
+                        'timestamp': message_data.get('timestamp')
+                    }
+                
+                await manager.broadcast_to_room(room_id, json.dumps(broadcast_data))
             except json.JSONDecodeError:
                 # Handle invalid JSON
                 await websocket.send_text(json.dumps({
@@ -528,7 +602,8 @@ async def websocket_incident_endpoint(websocket: WebSocket, incident_id: str, to
                 }))
             
     except WebSocketDisconnect:
+        print(f"WebSocket disconnect for user {user_id} from conversation {conversation_id}")
         manager.disconnect(websocket, user_id, room_id)
     except Exception as e:
-        print(f"WebSocket error: {str(e)}")
+        print(f"WebSocket error for user {user_id} in conversation {conversation_id}: {str(e)}")
         manager.disconnect(websocket, user_id, room_id)
