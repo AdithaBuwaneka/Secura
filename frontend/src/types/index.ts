@@ -14,6 +14,9 @@ export interface User {
   role: 'employee' | 'security_team' | 'admin';
   phone_number?: string;
   profile_picture_url?: string;
+  country?: string;
+  city?: string;
+  home_number?: string;
   created_at: Date;
   last_login?: Date;
   is_active: boolean;

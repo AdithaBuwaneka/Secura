@@ -395,6 +395,7 @@ const authSlice = createSlice({
       })
       .addCase(uploadProfilePicture.fulfilled, (state, action) => {
         state.loading = false;
+        console.log('DEBUG: Redux state updated with new user profile:', action.payload.user);
         state.userProfile = action.payload.user;
         state.error = null;
       })

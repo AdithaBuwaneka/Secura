@@ -8,13 +8,10 @@ import {
   User, 
   Mail, 
   Phone, 
-  Save, 
-  Camera,
-  Eye,
-  EyeOff
+  Save
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
-import { updateUserProfile, uploadProfilePicture } from '@/store/auth/authSlice';
+import { updateUserProfile } from '@/store/auth/authSlice';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -26,20 +23,13 @@ export default function EditProfilePage() {
     full_name: '',
     email: '',
     phone_number: '',
-    current_password: '',
-    new_password: '',
-    confirm_password: ''
-  });
-  
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
+    country: '',
+    city: '',
+    home_number: ''
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -47,17 +37,14 @@ export default function EditProfilePage() {
         ...prev,
         full_name: userProfile.full_name || '',
         email: userProfile.email || '',
-        phone_number: userProfile.phone_number || ''
+        phone_number: userProfile.phone_number || '',
+        country: userProfile.country || '',
+        city: userProfile.city || '',
+        home_number: userProfile.home_number || ''
       }));
       console.log('DEBUG: userProfile updated:', userProfile);
-      console.log('DEBUG: profile_picture_url:', userProfile.profile_picture_url);
     }
   }, [userProfile]);
-
-  // Debug profile picture URL changes
-  useEffect(() => {
-    console.log('DEBUG: Profile picture URL changed:', userProfile?.profile_picture_url);
-  }, [userProfile?.profile_picture_url]);
 
   const validatePhoneNumber = (phone: string): string => {
     if (!phone) return ''; // Allow empty phone number
@@ -122,17 +109,15 @@ export default function EditProfilePage() {
         newErrors.phone_number = phoneError;
       }
       
-      // Validate passwords if changing
-      if (formData.new_password || formData.current_password) {
-        if (!formData.current_password) {
-          newErrors.current_password = 'Current password is required to change password';
-        }
-        if (formData.new_password !== formData.confirm_password) {
-          newErrors.confirm_password = 'New passwords do not match';
-        }
-        if (formData.new_password && formData.new_password.length < 6) {
-          newErrors.new_password = 'New password must be at least 6 characters';
-        }
+      // Validate address fields
+      if (!formData.country.trim()) {
+        newErrors.country = 'Country is required';
+      }
+      if (!formData.city.trim()) {
+        newErrors.city = 'City is required';
+      }
+      if (!formData.home_number.trim()) {
+        newErrors.home_number = 'Home number is required';
       }
       
       // If there are validation errors, don't submit
@@ -145,79 +130,33 @@ export default function EditProfilePage() {
       // Update profile
       const updateData: any = {
         full_name: formData.full_name.trim(),
-        phone_number: formData.phone_number.trim()
+        phone_number: formData.phone_number.trim(),
+        country: formData.country.trim(),
+        city: formData.city.trim(),
+        home_number: formData.home_number.trim()
       };
-
-      if (formData.new_password) {
-        updateData.current_password = formData.current_password;
-        updateData.new_password = formData.new_password;
-      }
 
       await dispatch(updateUserProfile(updateData)).unwrap();
       toast.success('Profile updated successfully');
       
-      // Clear password fields and errors
-      setFormData(prev => ({
-        ...prev,
-        current_password: '',
-        new_password: '',
-        confirm_password: ''
-      }));
       setErrors({});
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile');
+      console.error('DEBUG: Profile update error:', error);
+      if (error.message && error.message.includes('Current password is incorrect')) {
+        toast.error('Current password is incorrect');
+        setErrors(prev => ({
+          ...prev,
+          current_password: 'Current password is incorrect'
+        }));
+      } else {
+        toast.error(error.message || 'Failed to update profile');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const togglePasswordVisibility = (field: 'current' | 'new' | 'confirm') => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    console.log('DEBUG: File selected:', file.name, file.type, file.size);
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
-      return;
-    }
-
-    setIsUploadingImage(true);
-    try {
-      console.log('DEBUG: Starting upload...');
-      const result = await dispatch(uploadProfilePicture(file)).unwrap();
-      console.log('DEBUG: Upload successful:', result);
-      console.log('DEBUG: userProfile after upload:', userProfile);
-      
-      // Force a re-render by updating the form data
-      setTimeout(() => {
-        console.log('DEBUG: userProfile after timeout:', userProfile);
-        // Force a re-render by updating the form data
-        setFormData(prev => ({ ...prev }));
-      }, 100);
-      
-      toast.success('Profile picture updated successfully');
-    } catch (error: any) {
-      console.error('DEBUG: Upload failed:', error);
-      toast.error(error.message || 'Failed to upload profile picture');
-    } finally {
-      setIsUploadingImage(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -258,54 +197,22 @@ export default function EditProfilePage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-[#2A2D35] rounded-lg border border-gray-700 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Profile Picture Section */}
-            <div className="flex items-center space-x-6 mb-8">
-              <div className="relative">
-                {userProfile?.profile_picture_url ? (
-                  <img
-                    src={userProfile.profile_picture_url}
-                    alt="Profile"
-                    className="w-20 h-20 rounded-full object-cover border-4 border-gray-600"
-                    onLoad={() => console.log('DEBUG: Image loaded successfully')}
-                    onError={(e) => console.error('DEBUG: Image failed to load:', e)}
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-xl border-4 border-gray-600">
-                    {userProfile?.full_name ? (
-                      userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
-                    ) : (
-                      'EM'
-                    )}
-                  </div>
-                )}
-                <label
-                  htmlFor="profile-picture-upload"
-                  className="absolute -bottom-1 -right-1 p-2 bg-[#00D4FF] rounded-full text-[#1A1D23] hover:bg-[#00C4EF] transition-colors cursor-pointer"
-                  title="Upload new photo"
-                >
-                  {isUploadingImage ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1A1D23]"></div>
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  )}
-                </label>
-                <input
-                  id="profile-picture-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  disabled={isUploadingImage}
-                />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-white">Profile Picture</h3>
-                <p className="text-sm text-gray-400">
-                  {isUploadingImage ? 'Uploading...' : 'Click the camera icon to upload a new photo'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG, GIF (max 5MB)</p>
-              </div>
-            </div>
+                         {/* Profile Picture Section */}
+             <div className="flex items-center space-x-6 mb-8">
+               <div className="relative">
+                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-xl border-4 border-gray-600">
+                   {userProfile?.full_name ? (
+                     userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
+                   ) : (
+                     'EM'
+                   )}
+                 </div>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-white">Profile Picture</h3>
+                 <p className="text-sm text-gray-400">Your profile picture shows your initials</p>
+               </div>
+             </div>
 
             {/* Personal Information */}
             <div className="space-y-4">
@@ -382,103 +289,81 @@ export default function EditProfilePage() {
               </div>
             </div>
 
-            {/* Change Password Section */}
-            <div className="space-y-4 pt-6 border-t border-gray-600">
-              <h3 className="text-lg font-semibold text-white">Change Password</h3>
-              <p className="text-sm text-gray-400">Leave blank if you don't want to change your password</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Current Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.current ? "text" : "password"}
-                      name="current_password"
-                      value={formData.current_password}
-                      onChange={handleInputChange}
-                      className={`w-full pr-10 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
-                        errors.current_password 
-                          ? 'border-red-500 focus:border-red-500' 
-                          : 'border-gray-600 focus:border-[#00D4FF]'
-                      }`}
-                      placeholder="Enter current password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('current')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                    >
-                      {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.current_password && (
-                    <p className="text-red-400 text-xs mt-1">{errors.current_password}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.new ? "text" : "password"}
-                      name="new_password"
-                      value={formData.new_password}
-                      onChange={handleInputChange}
-                      className={`w-full pr-10 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
-                        errors.new_password 
-                          ? 'border-red-500 focus:border-red-500' 
-                          : 'border-gray-600 focus:border-[#00D4FF]'
-                      }`}
-                      placeholder="Enter new password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('new')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                    >
-                      {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.new_password && (
-                    <p className="text-red-400 text-xs mt-1">{errors.new_password}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Confirm New Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.confirm ? "text" : "password"}
-                      name="confirm_password"
-                      value={formData.confirm_password}
-                      onChange={handleInputChange}
-                      className={`w-full pr-10 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
-                        errors.confirm_password 
-                          ? 'border-red-500 focus:border-red-500' 
-                          : 'border-gray-600 focus:border-[#00D4FF]'
-                      }`}
-                      placeholder="Confirm new password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('confirm')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                    >
-                      {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.confirm_password && (
-                    <p className="text-red-400 text-xs mt-1">{errors.confirm_password}</p>
-                  )}
-                </div>
-              </div>
-            </div>
+                         {/* Address Information */}
+             <div className="space-y-4 pt-6 border-t border-gray-600">
+               <h3 className="text-lg font-semibold text-white flex items-center">
+                 <User className="h-5 w-5 mr-2 text-[#00D4FF]" />
+                 Address Information
+               </h3>
+               
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div>
+                   <label className="block text-sm font-medium text-gray-300 mb-2">
+                     Country
+                   </label>
+                   <input
+                     type="text"
+                     name="country"
+                     value={formData.country}
+                     onChange={handleInputChange}
+                     className={`w-full px-4 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
+                       errors.country 
+                         ? 'border-red-500 focus:border-red-500' 
+                         : 'border-gray-600 focus:border-[#00D4FF]'
+                     }`}
+                     placeholder="Enter your country"
+                     required
+                   />
+                   {errors.country && (
+                     <p className="text-red-400 text-xs mt-1">{errors.country}</p>
+                   )}
+                 </div>
+                 
+                 <div>
+                   <label className="block text-sm font-medium text-gray-300 mb-2">
+                     City
+                   </label>
+                   <input
+                     type="text"
+                     name="city"
+                     value={formData.city}
+                     onChange={handleInputChange}
+                     className={`w-full px-4 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
+                       errors.city 
+                         ? 'border-red-500 focus:border-red-500' 
+                         : 'border-gray-600 focus:border-[#00D4FF]'
+                     }`}
+                     placeholder="Enter your city"
+                     required
+                   />
+                   {errors.city && (
+                     <p className="text-red-400 text-xs mt-1">{errors.city}</p>
+                   )}
+                 </div>
+                 
+                 <div>
+                   <label className="block text-sm font-medium text-gray-300 mb-2">
+                     Home Number
+                   </label>
+                   <input
+                     type="text"
+                     name="home_number"
+                     value={formData.home_number}
+                     onChange={handleInputChange}
+                     className={`w-full px-4 py-3 bg-[#1A1D23] border rounded-lg text-white placeholder-gray-400 focus:ring-1 focus:ring-[#00D4FF] transition-colors ${
+                       errors.home_number 
+                         ? 'border-red-500 focus:border-red-500' 
+                         : 'border-gray-600 focus:border-[#00D4FF]'
+                     }`}
+                     placeholder="Enter your home number"
+                     required
+                   />
+                   {errors.home_number && (
+                     <p className="text-red-400 text-xs mt-1">{errors.home_number}</p>
+                   )}
+                 </div>
+               </div>
+             </div>
 
             {/* Submit Button */}
             <div className="flex justify-end space-x-4 pt-6 border-t border-gray-600">

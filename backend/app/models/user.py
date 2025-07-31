@@ -10,6 +10,9 @@ class User(BaseModel):
     role: UserRole
     phone_number: Optional[str] = None
     profile_picture_url: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     is_active: bool = True
@@ -21,6 +24,9 @@ class UserProfile(BaseModel):
     role: UserRole
     phone_number: Optional[str] = None
     profile_picture_url: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
@@ -36,6 +42,9 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     profile_picture_url: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
 
 class UserListResponse(BaseModel):
     users: List[UserProfile]

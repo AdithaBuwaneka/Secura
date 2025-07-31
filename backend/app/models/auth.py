@@ -20,6 +20,9 @@ class UserRegistration(BaseModel):
     password: str
     full_name: str
     phone_number: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     """Model for user login with Firebase ID token"""
@@ -30,6 +33,9 @@ class UserProfileCreate(BaseModel):
     email: EmailStr
     full_name: str
     phone_number: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
 
 class UserProfile(BaseModel):
     """Model for updating user profile"""
@@ -60,8 +66,9 @@ class ProfileUpdateRequest(BaseModel):
     """Model for profile update request from frontend"""
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
-    current_password: Optional[str] = None
-    new_password: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    home_number: Optional[str] = None
 
 class SecurityTeamManagement(BaseModel):
     """Model for security team management"""

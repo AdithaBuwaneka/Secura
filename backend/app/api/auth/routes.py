@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth
 from typing import Optional
 from datetime import datetime
+import os
 
 from app.models.auth import UserRegistration, UserLogin, UserProfile, UserProfileCreate, TokenVerification, ProfileUpdateRequest
 from app.core.cloudinary_config import cloudinary_config
@@ -60,6 +61,9 @@ async def create_profile_for_existing_user(
             email=email or profile_data.email,
             full_name=profile_data.full_name,
             phone_number=profile_data.phone_number,
+            country=profile_data.country,
+            city=profile_data.city,
+            home_number=profile_data.home_number,
             role=UserRole.EMPLOYEE,  # Default role
             is_active=True
         )
@@ -124,6 +128,9 @@ async def register_user(
             email=user_data.email,
             full_name=user_data.full_name,
             phone_number=user_data.phone_number,
+            country=user_data.country,
+            city=user_data.city,
+            home_number=user_data.home_number,
             role=UserRole.EMPLOYEE,  # Default role
             is_active=True
         )
@@ -202,6 +209,9 @@ async def get_user_profile(
         "email": current_user.email,
         "full_name": current_user.full_name,
         "phone_number": current_user.phone_number,
+        "country": current_user.country,
+        "city": current_user.city,
+        "home_number": current_user.home_number,
         "role": current_user.role,
         "created_at": current_user.created_at,
         "last_login": current_user.last_login
@@ -244,33 +254,18 @@ async def update_user_profile_new(
     Supports updating name, phone number, and password
     """
     try:
-        # Validate password change if provided
-        if profile_data.new_password and not profile_data.current_password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is required to change password"
-            )
-        
-        if profile_data.new_password and len(profile_data.new_password) < 6:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New password must be at least 6 characters"
-            )
-        
         # Update profile information
         update_data = {}
         if profile_data.full_name is not None:
             update_data['full_name'] = profile_data.full_name
         if profile_data.phone_number is not None:
             update_data['phone_number'] = profile_data.phone_number
-        
-        # Update password if provided
-        if profile_data.new_password and profile_data.current_password:
-            # Note: Firebase Admin SDK doesn't support password verification directly
-            # For now, we'll skip password verification and just update the profile
-            # In a production environment, you would need to implement password verification
-            # using Firebase Auth REST API or a different approach
-            pass
+        if profile_data.country is not None:
+            update_data['country'] = profile_data.country
+        if profile_data.city is not None:
+            update_data['city'] = profile_data.city
+        if profile_data.home_number is not None:
+            update_data['home_number'] = profile_data.home_number
         
         # Update the user profile in Firestore
         updated_user = await auth_service.update_user_profile_fields(
@@ -415,6 +410,27 @@ async def test_no_auth():
         "status": "ok"
     }
 
+@router.get("/test-image")
+async def test_image():
+    """
+    Test endpoint to generate a test image URL
+    """
+    # Create a simple SVG placeholder as base64
+    svg_content = '''<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#00D4FF"/>
+      <text x="200" y="220" font-family="Arial, sans-serif" font-size="120" font-weight="bold" text-anchor="middle" fill="white">TEST</text>
+    </svg>'''
+    import base64
+    svg_bytes = svg_content.encode('utf-8')
+    svg_base64 = base64.b64encode(svg_bytes).decode('utf-8')
+    test_url = f"data:image/svg+xml;base64,{svg_base64}"
+    
+    return {
+        "message": "Test image URL generated",
+        "image_url": test_url,
+        "status": "ok"
+    }
+
 @router.post("/admin/manage-security-team")
 async def manage_security_team(
     user_uid: str,
@@ -547,6 +563,9 @@ async def update_user_role(
                 "email": updated_user.email,
                 "full_name": updated_user.full_name,
                 "phone_number": updated_user.phone_number,
+                "country": updated_user.country,
+                "city": updated_user.city,
+                "home_number": updated_user.home_number,
                 "role": updated_user.role.value,
                 "is_active": updated_user.is_active,
                 "created_at": updated_user.created_at.isoformat() if updated_user.created_at else None,
@@ -616,6 +635,9 @@ async def update_user_status(
                 "email": updated_user.email,
                 "full_name": updated_user.full_name,
                 "phone_number": updated_user.phone_number,
+                "country": updated_user.country,
+                "city": updated_user.city,
+                "home_number": updated_user.home_number,
                 "role": updated_user.role.value,
                 "is_active": updated_user.is_active,
                 "created_at": updated_user.created_at.isoformat() if updated_user.created_at else None,
