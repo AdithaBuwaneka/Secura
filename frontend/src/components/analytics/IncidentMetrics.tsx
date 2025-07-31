@@ -87,6 +87,11 @@ export default function IncidentMetrics({ timeRange = '30d' }: IncidentMetricsPr
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   const loadMetrics = useCallback(async () => {
+    if (!idToken) {
+      setMetrics(mockMetrics);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch(`${API_URL}/api/analytics/metrics?timeRange=${timeRange}`, {
@@ -99,11 +104,12 @@ export default function IncidentMetrics({ timeRange = '30d' }: IncidentMetricsPr
         const data = await response.json();
         setMetrics(formatMetrics(data));
       } else {
-        setMetrics(mockMetrics);
+        console.error('API request failed:', response.status, response.statusText);
+        setMetrics(formatMetrics({})); // Use empty data to show 0 values
       }
     } catch (error) {
       console.error('Failed to load metrics:', error);
-      setMetrics(mockMetrics);
+      setMetrics(formatMetrics({})); // Use empty data to show 0 values
     } finally {
       setIsLoading(false);
     }
@@ -114,54 +120,61 @@ export default function IncidentMetrics({ timeRange = '30d' }: IncidentMetricsPr
   }, [loadMetrics]);
 
   const formatMetrics = (data: Record<string, unknown>): MetricCard[] => {
+    const totalIncidents = (data.total_incidents as number) || 0;
+    const resolutionRate = (data.resolution_rate as number) || 0;
+    const avgResponseTime = (data.avg_response_time as number) || 0;
+    const criticalIncidents = (data.critical_incidents as number) || 0;
+    const activeAnalysts = (data.active_analysts as number) || 0;
+    const threatLevel = (data.threat_level as string) || 'Low';
+    
     return [
       {
         title: 'Total Incidents',
-        value: (data.total_incidents as number) || 0,
-        change: `${(data.incidents_change as number) || 12 > 0 ? '+' : ''}${(data.incidents_change as number) || 12}% from last period`,
-        trend: ((data.incidents_change as number) || 12) >= 0 ? 'up' : 'down',
+        value: totalIncidents,
+        change: totalIncidents > 0 ? `${timeRange} period` : 'No incidents reported',
+        trend: totalIncidents > 0 ? 'neutral' : 'neutral',
         icon: Activity,
         color: 'blue'
       },
       {
         title: 'Resolution Rate',
-        value: `${data.resolution_rate || 85}%`,
-        change: `${(data.resolution_change as number) || 5 > 0 ? '+' : ''}${(data.resolution_change as number) || 5}% improvement`,
-        trend: ((data.resolution_change as number) || 5) >= 0 ? 'up' : 'down',
+        value: `${resolutionRate}%`,
+        change: resolutionRate >= 80 ? 'Good performance' : resolutionRate >= 60 ? 'Average performance' : 'Needs improvement',
+        trend: resolutionRate >= 80 ? 'up' : resolutionRate >= 60 ? 'neutral' : 'down',
         icon: CheckCircle,
         color: 'green'
       },
       {
         title: 'Avg Response Time',
-        value: `${data.avg_response_time || 3.2}h`,
-        change: `${(data.response_time_change as number) || -0.5}h improvement`,
-        trend: ((data.response_time_change as number) || -0.5) <= 0 ? 'up' : 'down',
+        value: `${avgResponseTime}h`,
+        change: avgResponseTime <= 2 ? 'Excellent response' : avgResponseTime <= 4 ? 'Good response' : 'Slow response',
+        trend: avgResponseTime <= 2 ? 'up' : avgResponseTime <= 4 ? 'neutral' : 'down',
         icon: Clock,
         color: 'orange'
       },
       {
         title: 'Critical Incidents',
-        value: (data.critical_incidents as number) || 8,
-        change: `${(data.critical_change as number) || -2} from last period`,
-        trend: ((data.critical_change as number) || -2) <= 0 ? 'up' : 'down',
+        value: criticalIncidents,
+        change: criticalIncidents === 0 ? 'No critical issues' : criticalIncidents <= 2 ? 'Low critical load' : 'High priority attention needed',
+        trend: criticalIncidents === 0 ? 'up' : criticalIncidents <= 2 ? 'neutral' : 'down',
         icon: AlertTriangle,
         color: 'red'
       },
       {
-        title: 'Active Analysts',
-        value: (data.active_analysts as number) || 6,
-        change: `${(data.analysts_change as number) || 1 > 0 ? '+' : ''}${(data.analysts_change as number) || 1} team member`,
-        trend: ((data.analysts_change as number) || 1) >= 0 ? 'up' : 'down',
+        title: 'Total System Members',
+        value: activeAnalysts,
+        change: activeAnalysts > 0 ? `${activeAnalysts} registered users` : 'No registered users',
+        trend: activeAnalysts > 0 ? 'up' : 'neutral',
         icon: Users,
         color: 'purple'
       },
       {
-        title: 'Threat Level',
-        value: (data.threat_level as string) || 'Medium',
-        change: (data.threat_change as string) || 'Stable',
+        title: 'Security Status',
+        value: threatLevel,
+        change: criticalIncidents === 0 ? 'System secure' : criticalIncidents <= 2 ? 'Monitor closely' : 'High alert',
         trend: 'neutral',
         icon: Shield,
-        color: 'yellow'
+        color: criticalIncidents === 0 ? 'green' : criticalIncidents <= 2 ? 'yellow' : 'red'
       }
     ];
   };
