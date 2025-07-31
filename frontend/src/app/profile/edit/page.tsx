@@ -49,8 +49,15 @@ export default function EditProfilePage() {
         email: userProfile.email || '',
         phone_number: userProfile.phone_number || ''
       }));
+      console.log('DEBUG: userProfile updated:', userProfile);
+      console.log('DEBUG: profile_picture_url:', userProfile.profile_picture_url);
     }
   }, [userProfile]);
+
+  // Debug profile picture URL changes
+  useEffect(() => {
+    console.log('DEBUG: Profile picture URL changed:', userProfile?.profile_picture_url);
+  }, [userProfile?.profile_picture_url]);
 
   const validatePhoneNumber = (phone: string): string => {
     if (!phone) return ''; // Allow empty phone number
@@ -175,6 +182,8 @@ export default function EditProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    console.log('DEBUG: File selected:', file.name, file.type, file.size);
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
@@ -189,9 +198,21 @@ export default function EditProfilePage() {
 
     setIsUploadingImage(true);
     try {
-      await dispatch(uploadProfilePicture(file)).unwrap();
+      console.log('DEBUG: Starting upload...');
+      const result = await dispatch(uploadProfilePicture(file)).unwrap();
+      console.log('DEBUG: Upload successful:', result);
+      console.log('DEBUG: userProfile after upload:', userProfile);
+      
+      // Force a re-render by updating the form data
+      setTimeout(() => {
+        console.log('DEBUG: userProfile after timeout:', userProfile);
+        // Force a re-render by updating the form data
+        setFormData(prev => ({ ...prev }));
+      }, 100);
+      
       toast.success('Profile picture updated successfully');
     } catch (error: any) {
+      console.error('DEBUG: Upload failed:', error);
       toast.error(error.message || 'Failed to upload profile picture');
     } finally {
       setIsUploadingImage(false);
@@ -245,6 +266,8 @@ export default function EditProfilePage() {
                     src={userProfile.profile_picture_url}
                     alt="Profile"
                     className="w-20 h-20 rounded-full object-cover border-4 border-gray-600"
+                    onLoad={() => console.log('DEBUG: Image loaded successfully')}
+                    onError={(e) => console.error('DEBUG: Image failed to load:', e)}
                   />
                 ) : (
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-xl border-4 border-gray-600">

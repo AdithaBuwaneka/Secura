@@ -38,7 +38,7 @@ export default function EmployeeDashboard() {
   const [showMessaging, setShowMessaging] = useState(false);
   const [showMyIncidents, setShowMyIncidents] = useState(false);
   const [myIncidents, setMyIncidents] = useState<any[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   // Fetch user's incidents
   const fetchMyIncidents = async () => {

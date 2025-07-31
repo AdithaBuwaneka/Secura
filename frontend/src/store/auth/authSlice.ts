@@ -9,7 +9,7 @@ import { auth } from '@/lib/firebase';
 import { AuthState } from '@/types';
 
 // API base URL - use port 8000 to match backend
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface RegisterData {
   email: string;
@@ -232,16 +232,23 @@ export const uploadProfilePicture = createAsyncThunk(
   'auth/uploadProfilePicture',
   async (file: File, { getState, rejectWithValue }) => {
     try {
+      console.log('DEBUG: Starting uploadProfilePicture thunk');
       const state = getState() as { auth: { idToken: string | null } };
       const idToken = state.auth.idToken;
       
+      console.log('DEBUG: API_URL:', API_URL);
+      console.log('DEBUG: idToken exists:', !!idToken);
+      
       if (!idToken) {
+        console.log('DEBUG: No authentication token');
         return rejectWithValue('No authentication token');
       }
 
       const formData = new FormData();
       formData.append('file', file);
+      console.log('DEBUG: FormData created with file:', file.name);
 
+      console.log('DEBUG: Making request to:', `${API_URL}/api/auth/upload-profile-picture`);
       const response = await fetch(`${API_URL}/api/auth/upload-profile-picture`, {
         method: 'POST',
         headers: {
@@ -250,14 +257,20 @@ export const uploadProfilePicture = createAsyncThunk(
         body: formData
       });
 
+      console.log('DEBUG: Response status:', response.status);
+      console.log('DEBUG: Response ok:', response.ok);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.log('DEBUG: Error response:', errorData);
         return rejectWithValue(errorData.detail || 'Failed to upload profile picture');
       }
 
       const result = await response.json();
+      console.log('DEBUG: Success response:', result);
       return result;
     } catch (error) {
+      console.error('DEBUG: Exception in uploadProfilePicture:', error);
       return rejectWithValue('Failed to upload profile picture');
     }
   }
