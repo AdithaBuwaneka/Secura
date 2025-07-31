@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { RootState } from '@/store';
 import toast from 'react-hot-toast';
+import { useMessaging } from './MessagingProvider';
 
 interface Message {
   id: string;
@@ -28,22 +29,26 @@ interface Message {
   message_type: 'text' | 'file' | 'system';
 }
 
+
 interface MessageThreadProps {
   incidentId?: string;
+  conversationId?: string;
   onClose?: () => void;
 }
 
-export default function MessageThread({ incidentId, onClose }: MessageThreadProps) {
+export default function MessageThread({ incidentId, conversationId, onClose }: MessageThreadProps) {
   const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
+  const { isConnected, sendMessage: sendGlobalMessage, joinRoom, leaveRoom } = useMessaging();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const messagePollingRef = useRef<NodeJS.Timeout | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const WS_URL = API_URL.replace('http', 'ws');
 
@@ -76,8 +81,12 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
         try {
           const data = JSON.parse(event.data);
           console.log('WebSocket: Received message:', data);
-          
-          if (data.type === 'message') {
+
+          if (
+            (data.type === 'message' || data.type === 'new_message' || data.type === 'incident_message') &&
+            (!data.message.incident_id || data.message.incident_id === incidentId)
+          ) {
+            console.log('WebSocket: Adding message to thread. Message incident_id:', data.message.incident_id, 'Current incidentId:', incidentId);
             setMessages(prev => [...prev, data.message]);
           } else if (data.type === 'typing') {
             setIsTyping(data.is_typing && data.user_id !== userProfile?.uid);
@@ -115,23 +124,49 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
   }, [incidentId, idToken, userProfile?.uid, WS_URL, API_URL]);
 
   const loadMessages = useCallback(async () => {
-    if (!incidentId) {
+    // Determine the conversation ID - either provided directly or get from incident
+    let targetConversationId = conversationId;
+    
+    if (!targetConversationId && incidentId) {
+      // Get or create conversation for incident
+      try {
+        const convResponse = await fetch(`${API_URL}/api/messaging/conversations/incident/${incidentId}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (convResponse.ok) {
+          const conversation = await convResponse.json();
+          targetConversationId = conversation.id;
+        } else {
+          console.error('Failed to get incident conversation:', convResponse.status);
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Error getting incident conversation:', error);
+        setIsLoading(false);
+        return;
+      }
+    }
+    
+    if (!targetConversationId) {
       setIsLoading(false);
-      return; // No general messaging endpoint yet
+      return;
     }
     
     try {
-      const endpoint = `/api/incidents/${incidentId}/messages`;
-        
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetch(`${API_URL}/api/messaging/conversations/${targetConversationId}/messages`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
       });
 
       if (response.ok) {
-        const messages = await response.json();
-        setMessages(messages || []);
+        const data = await response.json();
+        const messages = data.messages || [];
+        setMessages(messages);
         console.log(`Loaded ${messages.length} messages for incident ${incidentId}`);
       } else if (response.status === 404) {
         console.log(`Incident ${incidentId} not found or access denied`);
@@ -149,7 +184,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
     } finally {
       setIsLoading(false);
     }
-  }, [incidentId, idToken, API_URL]);
+  }, [incidentId, conversationId, idToken, API_URL]);
 
   useEffect(() => {
     // Initialize WebSocket connection
@@ -171,19 +206,45 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
 
   const sendMessage = async () => {
     if (!newMessage.trim() && attachments.length === 0) return;
-    if (!incidentId) {
-      toast.error('No incident selected');
+    
+    // Determine the conversation ID
+    let targetConversationId = conversationId;
+    if (!targetConversationId && incidentId) {
+      try {
+        const convResponse = await fetch(`${API_URL}/api/messaging/conversations/incident/${incidentId}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (convResponse.ok) {
+          const conversation = await convResponse.json();
+          targetConversationId = conversation.id;
+        } else {
+          toast.error('Failed to find conversation');
+          return;
+        }
+      } catch (error) {
+        toast.error('Error finding conversation');
+        return;
+      }
+    }
+    
+    if (!targetConversationId) {
+      toast.error('No conversation available');
       return;
     }
 
     try {
+      console.log('Sending message to conversation:', targetConversationId);
+      
       // Send message via API
       const messageData = {
         content: newMessage.trim(),
         message_type: 'text'
       };
 
-      const response = await fetch(`${API_URL}/api/incidents/${incidentId}/messages`, {
+      const response = await fetch(`${API_URL}/api/messaging/conversations/${targetConversationId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,10 +252,26 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
         },
         body: JSON.stringify(messageData)
       });
+      
+      console.log('Message send response status:', response.status);
 
       if (response.ok) {
-        const message = await response.json();
-        setMessages(prev => [...prev, message]);
+        const result = await response.json();
+        
+        // Create a temporary message object for immediate display
+
+        const tempMessage: Message = {
+          id: result.message_id || Date.now().toString(),
+          sender_id: userProfile?.uid || 'unknown',
+          sender_name: userProfile?.full_name || 'Unknown',
+          sender_role: (userProfile?.role as 'employee' | 'security_team' | 'admin') || 'employee',
+          content: newMessage.trim(),
+          created_at: new Date().toISOString(),
+          attachments: [],
+          is_read: false,
+          message_type: 'text'
+        };
+        setMessages(prev => [...prev, tempMessage]);
         
         // Handle file uploads separately
         if (attachments.length > 0) {
@@ -204,8 +281,15 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
         setNewMessage('');
         setAttachments([]);
         toast.success('Message sent');
+        
+        // Reload messages to get the actual message from server
+        setTimeout(() => {
+          loadMessages();
+        }, 1000);
       } else {
-        toast.error('Failed to send message');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Send message failed:', response.status, errorData);
+        toast.error(errorData.detail || 'Failed to send message');
       }
     } catch (error) {
       toast.error('Failed to send message');
@@ -330,7 +414,7 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
            </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
+            {Array.isArray(messages) ? messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.sender_id === userProfile?.uid ? 'justify-end' : 'justify-start'}`}
@@ -379,7 +463,12 @@ export default function MessageThread({ incidentId, onClose }: MessageThreadProp
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                <Shield className="h-8 w-8 mb-2" />
+                <p className="text-sm">Unable to load messages</p>
+              </div>
+            )}
             
             {isTyping && (
               <div className="flex justify-start">

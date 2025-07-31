@@ -30,7 +30,7 @@ interface SecurityMessagingProps {
 }
 
 export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
-  const { idToken } = useSelector((state: RootState) => state.auth);
+  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
   const { isConnected, unreadCount } = useMessaging();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -41,54 +41,50 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   const loadConversations = useCallback(async () => {
-    // Mock data for development
-    const mockConversationsData: Conversation[] = [
-      {
-        id: '1',
-        incident_id: 'INC-2024-001',
-        participant_name: 'John Doe',
-        participant_role: 'employee',
-        last_message: 'I think this might be a phishing email. Can you help me verify?',
-        last_message_time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        unread_count: 2,
-        status: 'active',
-        priority: 'high'
-      },
-      {
-        id: '2',
-        incident_id: 'INC-2024-002',
-        participant_name: 'Sarah Wilson',
-        participant_role: 'employee',
-        last_message: 'Thank you for the quick response! The issue is resolved.',
-        last_message_time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        unread_count: 0,
-        status: 'resolved',
-        priority: 'medium'
-      },
-      {
-        id: '3',
-        incident_id: 'INC-2024-003',
-        participant_name: 'Mike Johnson',
-        participant_role: 'employee',
-        last_message: 'I found some suspicious files on my computer.',
-        last_message_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        unread_count: 1,
-        status: 'pending',
-        priority: 'critical'
-      },
-      {
-        id: '4',
-        participant_name: 'Emily Chen',
-        participant_role: 'employee',
-        last_message: 'Hi, I need help with password reset procedures.',
-        last_message_time: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-        unread_count: 0,
-        status: 'active',
-        priority: 'low'
+    // Helper function to create conversations for employee's incidents
+    const createConversationsForEmployeeIncidents = async () => {
+      try {
+        console.log('SecurityMessaging: Creating conversations for employee incidents...');
+        
+        // Get employee's incidents
+        const incidentsResponse = await fetch(`${API_URL}/api/incidents/?limit=10`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+
+        if (incidentsResponse.ok) {
+          const incidents = await incidentsResponse.json();
+          console.log('SecurityMessaging: Found incidents:', incidents);
+          
+          // Create conversations for incidents that have assigned security members
+          for (const incident of incidents) {
+            if (incident.assigned_to) {
+              console.log(`SecurityMessaging: Creating conversation for incident ${incident.id} with ${incident.assigned_to_name}`);
+              try {
+                const response = await fetch(`${API_URL}/api/messaging/conversations/incident/${incident.id}`, {
+                  headers: {
+                    'Authorization': `Bearer ${idToken}`
+                  }
+                });
+                
+                if (response.ok) {
+                  console.log(`SecurityMessaging: Conversation created/found for incident ${incident.id}`);
+                }
+              } catch (error) {
+                console.error(`SecurityMessaging: Failed to create conversation for incident ${incident.id}:`, error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('SecurityMessaging: Failed to create conversations for incidents:', error);
       }
-    ];
+    };
 
     try {
+      console.log('SecurityMessaging: Loading conversations for user role:', userProfile?.role);
+      
       const response = await fetch(`${API_URL}/api/messaging/conversations`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -97,18 +93,82 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
 
       if (response.ok) {
         const data = await response.json();
-        setConversations(data.conversations || mockConversationsData);
+        let formattedConversations: Conversation[] = data.conversations.map((conv: any) => {
+          const participantName = getOtherParticipantName(conv.participants);
+          const participantRole = getOtherParticipantRole(conv.participants);
+          
+          return {
+            id: conv.id,
+            incident_id: conv.incident_id,
+            participant_name: participantName,
+            participant_role: participantRole,
+            last_message: conv.last_message_content || 'No messages yet',
+            last_message_time: conv.last_message_time || conv.created_at,
+            unread_count: 0, // Will be calculated separately
+            status: conv.conversation_type === 'incident_chat' ? 'active' : 'active',
+            priority: conv.conversation_type === 'team_internal' ? 'medium' : 'high'
+          };
+        });
+        
+        // For employees, also check if we need to create conversations for their incidents
+        if (userProfile?.role === 'employee' && formattedConversations.length === 0) {
+          console.log('SecurityMessaging: No conversations found for employee, checking incidents...');
+          await createConversationsForEmployeeIncidents();
+          // Reload conversations after creating them
+          const newResponse = await fetch(`${API_URL}/api/messaging/conversations`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          if (newResponse.ok) {
+            const newData = await newResponse.json();
+            formattedConversations = newData.conversations.map((conv: any) => ({
+              id: conv.id,
+              incident_id: conv.incident_id,
+              participant_name: getOtherParticipantName(conv.participants),
+              participant_role: getOtherParticipantRole(conv.participants),
+              last_message: conv.last_message_content || 'No messages yet',
+              last_message_time: conv.last_message_time || conv.created_at,
+              unread_count: 0,
+              status: conv.conversation_type === 'incident_chat' ? 'active' : 'active',
+              priority: conv.conversation_type === 'team_internal' ? 'medium' : 'high'
+            }));
+          }
+        }
+        
+        console.log('SecurityMessaging: Final formatted conversations:', formattedConversations);
+        setConversations(formattedConversations);
       } else {
-        // Use mock data if API fails
-        setConversations(mockConversationsData);
+        console.error('Failed to load conversations:', response.status);
+        setConversations([]);
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
-      setConversations(mockConversationsData);
+      setConversations([]);
     } finally {
       setIsLoading(false);
     }
-  }, [idToken, API_URL]);
+  }, [idToken, API_URL, userProfile?.role]);
+
+  // Helper functions for participant handling
+  const getOtherParticipantName = (participants: any[]) => {
+    console.log('getOtherParticipantName: participants =', participants);
+    console.log('getOtherParticipantName: current user uid =', userProfile?.uid);
+    
+    // Show the name of the other participant (not the current user)
+    const currentUser = participants.find(p => p.user_id === userProfile?.uid);
+    const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
+    
+    console.log('getOtherParticipantName: currentUser =', currentUser);
+    console.log('getOtherParticipantName: otherParticipant =', otherParticipant);
+    
+    return otherParticipant?.user_name || 'Team Discussion';
+  };
+
+  const getOtherParticipantRole = (participants: any[]) => {
+    const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
+    return otherParticipant?.user_role || 'employee';
+  };
 
   useEffect(() => {
     loadConversations();
@@ -226,7 +286,8 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
           ) : filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-gray-400">
               <MessageSquare className="h-8 w-8 mb-2" />
-              <p className="text-sm">No conversations found</p>
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs mt-1">Use the incident chat buttons to start conversations</p>
             </div>
           ) : (
             filteredConversations.map((conversation) => (

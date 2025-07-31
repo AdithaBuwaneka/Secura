@@ -25,6 +25,8 @@ import { logoutUser } from '@/store/auth/authSlice';
 import { checkCanApply } from '@/store/applications/applicationSlice';
 import IncidentReportForm from '@/components/forms/IncidentReportForm';
 import MessageThread from '@/components/messaging/MessageThread';
+import SecurityMessaging from '@/components/messaging/SecurityMessaging';
+import IncidentChatButton from '@/components/messaging/IncidentChatButton';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -380,8 +382,8 @@ export default function EmployeeDashboard() {
       {/* Messaging Modal */}
       {showMessaging && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-2xl h-[600px]">
-            <MessageThread onClose={() => setShowMessaging(false)} />
+          <div className="w-full max-w-4xl h-[600px]">
+            <SecurityMessaging onClose={() => setShowMessaging(false)} />
           </div>
         </div>
       )}
@@ -440,6 +442,12 @@ export default function EmployeeDashboard() {
                               <span>Status: {statusInfo.text}</span>
                               <span>•</span>
                               <span>Reported: {timeAgo}</span>
+                              {incident.assigned_to_name && (
+                                <>
+                                  <span>•</span>
+                                  <span>Assigned to: <span className="text-[#00D4FF]">{incident.assigned_to_name}</span></span>
+                                </>
+                              )}
                               {incident.updated_at !== incident.created_at && (
                                 <>
                                   <span>•</span>
@@ -447,6 +455,19 @@ export default function EmployeeDashboard() {
                                 </>
                               )}
                             </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-2 ml-4">
+                            <IncidentChatButton 
+                              incidentId={incident.id}
+                              incidentTitle={incident.title}
+                              assignedToId={incident.assigned_to}
+                              assignedToName={incident.assigned_to_name}
+                              incidentStatus={incident.status}
+                              size="sm"
+                              showLabel={false}
+                            />
                           </div>
                         </div>
                         

@@ -1,6 +1,6 @@
 """
-Messaging WebSocket Routes
-Handles real-time messaging connections with authentication
+Enhanced Messaging API Routes
+Handles conversations, real-time messaging, and WebSocket connections
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status, Query, Depends
@@ -12,7 +12,12 @@ from collections import defaultdict
 
 from app.services.messaging.connection_manager import ConnectionManager
 from app.services.incidents.messaging_service import MessagingService
-from app.models.message import Message
+from app.services.messaging.conversation_service import ConversationService
+from app.models.message import Message, MessageCreate
+from app.models.conversation import (
+    ConversationCreate, ConversationResponse, ConversationType,
+    ConversationListResponse
+)
 from app.utils.auth import get_current_user
 from app.models.user import User
 
@@ -26,18 +31,277 @@ connection_attempts = defaultdict(list)
 
 @router.get("/conversations")
 async def get_conversations(
+    conversation_type: Optional[ConversationType] = None,
+    limit: int = 20,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
-    messaging_service: MessagingService = Depends()
+    conversation_service: ConversationService = Depends()
 ):
     """Get all conversations for the current user"""
     try:
-        # For now, return empty list since we don't have a general conversations feature
-        # This endpoint is called by the frontend but not used in the current implementation
-        return []
+        conversations = await conversation_service.get_user_conversations(
+            current_user.uid,
+            current_user.role.value,
+            conversation_type,
+            limit,
+            offset
+        )
+        
+        return {
+            "conversations": conversations,
+            "total": len(conversations),
+            "page": (offset // limit) + 1,
+            "per_page": limit,
+            "has_next": len(conversations) == limit,
+            "has_prev": offset > 0
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve conversations: {str(e)}"
+        )
+
+@router.post("/conversations", response_model=ConversationResponse)
+async def create_conversation(
+    conversation_data: ConversationCreate,
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends()
+):
+    """Create a new conversation"""
+    try:
+        # Permission checks
+        if conversation_data.conversation_type == ConversationType.TEAM_INTERNAL:
+            if current_user.role.value not in ["security_team", "admin"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only security team can create internal conversations"
+                )
+        
+        conversation = await conversation_service.create_conversation(
+            conversation_data,
+            current_user.uid,
+            current_user.full_name,
+            current_user.role.value
+        )
+        
+        return conversation
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create conversation: {str(e)}"
+        )
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+async def get_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends()
+):
+    """Get specific conversation details"""
+    try:
+        # Check permissions
+        has_permission = await conversation_service.check_user_permission(
+            conversation_id,
+            current_user.uid,
+            current_user.role.value,
+            "read"
+        )
+        
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this conversation"
+            )
+        
+        conversation = await conversation_service.get_conversation(conversation_id)
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+        
+        return conversation
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve conversation: {str(e)}"
+        )
+
+@router.get("/conversations/incident/{incident_id}", response_model=ConversationResponse)
+async def get_incident_conversation(
+    incident_id: str,
+    target_member: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends()
+):
+    """Get or create conversation for an incident"""
+    try:
+        # Check if conversation exists
+        conversation = await conversation_service.get_incident_conversation(incident_id)
+        
+        if not conversation:
+            # Get incident details to determine assigned member
+            from app.services.incidents.incident_service import IncidentService
+            incident_service = IncidentService()
+            incident = await incident_service.get_incident(incident_id)
+            
+            assigned_to = None
+            if incident:
+                assigned_to = incident.get('assigned_to')
+            
+            # Create new incident conversation
+            target_members = [target_member] if target_member else None
+            conversation = await conversation_service.create_incident_conversation(
+                incident_id,
+                current_user.uid,
+                current_user.full_name,
+                assigned_to=assigned_to,
+                target_members=target_members
+            )
+        
+        # Check permissions
+        has_permission = await conversation_service.check_user_permission(
+            conversation.id,
+            current_user.uid,
+            current_user.role.value,
+            "read"
+        )
+        
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this incident conversation"
+            )
+        
+        return conversation
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get incident conversation: {str(e)}"
+        )
+
+@router.post("/conversations/{conversation_id}/messages")
+async def send_message_to_conversation(
+    conversation_id: str,
+    message_data: MessageCreate,
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends(),
+    messaging_service: MessagingService = Depends()
+):
+    """Send message to a conversation"""
+    try:
+        # Check permissions
+        has_permission = await conversation_service.check_user_permission(
+            conversation_id,
+            current_user.uid,
+            current_user.role.value,
+            "write"
+        )
+        
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No permission to send messages to this conversation"
+            )
+        
+        # Send message (using incident_id field for compatibility)
+        message = await messaging_service.send_message(
+            incident_id=conversation_id,
+            sender_id=current_user.uid,
+            sender_name=current_user.full_name,
+            sender_role=current_user.role.value,
+            content=message_data.content,
+            message_type=message_data.message_type
+        )
+        
+        # Update conversation's last message
+        await conversation_service.update_last_message(
+            conversation_id,
+            message.id,
+            message_data.content,
+            current_user.full_name
+        )
+        
+        # Broadcast to conversation participants
+        await manager.broadcast_to_room(f"conversation_{conversation_id}", json.dumps({
+            "type": "incident_message",
+            "incident_id": conversation_id,
+            "message": json.loads(message.json()),  # Properly serialize datetimes
+            "sender": current_user.full_name
+        }))
+        
+        return {"message": "Message sent successfully", "message_id": message.id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send message: {str(e)}"
+        )
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends(),
+    messaging_service: MessagingService = Depends()
+):
+    """Get all messages for a conversation"""
+    try:
+        # Check permissions
+        has_permission = await conversation_service.check_user_permission(
+            conversation_id,
+            current_user.uid,
+            current_user.role.value,
+            "read"
+        )
+        
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No permission to read messages in this conversation"
+            )
+        
+        # Get messages (using incident_id field for compatibility)
+        messages = await messaging_service.get_incident_messages(conversation_id)
+        
+        return {"messages": [msg.dict() for msg in messages]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve messages: {str(e)}"
+        )
+
+@router.get("/team-conversations")
+async def get_team_internal_conversations(
+    current_user: User = Depends(get_current_user),
+    conversation_service: ConversationService = Depends()
+):
+    """Get all team internal conversations for security team"""
+    try:
+        if current_user.role.value not in ["security_team", "admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only security team can access team conversations"
+            )
+        
+        conversations = await conversation_service.get_team_internal_conversations(
+            current_user.role.value
+        )
+        
+        return {"conversations": conversations}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve team conversations: {str(e)}"
         )
 
 @router.get("/ws/test")

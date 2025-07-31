@@ -451,8 +451,22 @@ class IncidentService:
         assigned_by: str
     ) -> IncidentResponse:
         """Assign incident to security team member"""
+        
+        # Get assignee information from users collection
+        assignee_name = "Unknown User"
+        try:
+            users_collection = self.db.collection('users')
+            assignee_doc = users_collection.document(assignee_id).get()
+            if assignee_doc.exists:
+                assignee_data = assignee_doc.to_dict()
+                assignee_name = assignee_data.get('full_name', 'Unknown User')
+        except Exception as e:
+            print(f"Warning: Could not get assignee name: {e}")
+        
         update_data = {
             'assigned_to': assignee_id,
+            'assigned_to_name': assignee_name,
+            'assigned_at': datetime.utcnow(),
             'status': IncidentStatus.INVESTIGATING.value,
             'updated_at': datetime.utcnow(),
             'assigned_by': assigned_by
