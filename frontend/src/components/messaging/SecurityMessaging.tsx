@@ -93,7 +93,12 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
 
       if (response.ok) {
         const data = await response.json();
-        let formattedConversations: Conversation[] = data.conversations.map((conv: any) => {
+        // Filter out team internal conversations - those belong in Team Chat only
+        const incidentConversations = data.conversations.filter((conv: any) => 
+          conv.conversation_type !== 'team_internal' && conv.conversation_type !== 'direct_message'
+        );
+        
+        let formattedConversations: Conversation[] = incidentConversations.map((conv: any) => {
           const participantName = getOtherParticipantName(conv.participants);
           const participantRole = getOtherParticipantRole(conv.participants);
           
@@ -106,7 +111,7 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
             last_message_time: conv.last_message_time || conv.created_at,
             unread_count: 0, // Will be calculated separately
             status: conv.conversation_type === 'incident_chat' ? 'active' : 'active',
-            priority: conv.conversation_type === 'team_internal' ? 'medium' : 'high'
+            priority: 'high' // All incident conversations are high priority
           };
         });
         
@@ -122,7 +127,11 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
           });
           if (newResponse.ok) {
             const newData = await newResponse.json();
-            formattedConversations = newData.conversations.map((conv: any) => ({
+            // Filter out team internal conversations - those belong in Team Chat only
+            const newIncidentConversations = newData.conversations.filter((conv: any) => 
+              conv.conversation_type !== 'team_internal' && conv.conversation_type !== 'direct_message'
+            );
+            formattedConversations = newIncidentConversations.map((conv: any) => ({
               id: conv.id,
               incident_id: conv.incident_id,
               participant_name: getOtherParticipantName(conv.participants),
@@ -131,7 +140,7 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
               last_message_time: conv.last_message_time || conv.created_at,
               unread_count: 0,
               status: conv.conversation_type === 'incident_chat' ? 'active' : 'active',
-              priority: conv.conversation_type === 'team_internal' ? 'medium' : 'high'
+              priority: 'high' // All incident conversations are high priority
             }));
           }
         }
