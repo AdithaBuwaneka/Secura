@@ -26,7 +26,8 @@ import {
   FileText,
   Download,
   ScanLine,
-  FileSearch
+  FileSearch,
+  UserCheck
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -55,32 +56,33 @@ export default function SecurityTeamDashboard() {
   const [showTeamDetails, setShowTeamDetails] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-  useEffect(() => {
-    // Fetch incidents
-    const fetchIncidents = async () => {
-      if (idToken) {
-        try {
-          setLoading(true);
-          const response = await fetch(`${API_URL}/api/incidents/`, {
-            headers: {
-              'Authorization': `Bearer ${idToken}`
-            }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Security team fetched incidents:', data);
-            console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
-            setIncidents(data);
+  // Fetch incidents function (moved outside useEffect for reusability)
+  const fetchIncidents = async () => {
+    if (idToken) {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/api/incidents/`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
           }
-        } catch (error) {
-          console.error('Failed to fetch incidents:', error);
-          toast.error('Failed to load incidents');
-        } finally {
-          setLoading(false);
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Security team fetched incidents:', data);
+          console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
+          setIncidents(data);
         }
+      } catch (error) {
+        console.error('Failed to fetch incidents:', error);
+        toast.error('Failed to load incidents');
+      } finally {
+        setLoading(false);
       }
-    };
+    }
+  };
+
+  useEffect(() => {
     
     // Fetch team members with online status
     const fetchTeamMembers = async () => {
@@ -206,6 +208,78 @@ export default function SecurityTeamDashboard() {
     }
   };
 
+  const handleAssignIncident = async (incidentId: string, assigneeId: string) => {
+    try {
+      if (assigneeId === '') {
+        // Handle unassignment
+        const response = await fetch(`${API_URL}/api/incidents/${incidentId}/unassign`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          setSelectedIncident(prev => ({
+            ...prev,
+            assigned_to: null,
+            assigned_to_name: null,
+            assigned_at: null,
+            status: 'new'
+          }));
+          
+          fetchIncidents();
+          toast.success('Incident unassigned successfully');
+        } else {
+          toast.error('Failed to unassign incident');
+        }
+        return;
+      }
+      
+      // Handle assignment
+      const response = await fetch(`${API_URL}/api/incidents/${incidentId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          assignee_id: assigneeId
+        })
+      });
+
+      if (response.ok) {
+        const assigneeName = teamMembers.find(m => m.user_id === assigneeId)?.full_name;
+        
+        // Update the selected incident with assignment info
+        setSelectedIncident(prev => ({
+          ...prev,
+          assigned_to: assigneeId,
+          assigned_to_name: assigneeName,
+          assigned_at: new Date().toISOString(),
+          status: 'investigating'
+        }));
+        
+        // Refresh incidents list to update the UI and stats
+        fetchIncidents();
+        
+        toast.success(`Incident assigned to ${assigneeName}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to assign incident');
+      }
+    } catch (error) {
+      console.error('Assignment error:', error);
+      toast.error('Failed to process assignment');
+    }
+  };
+
+  // Check if current user is team leader
+  const isTeamLeader = () => {
+    return userProfile?.email === 'security.lead@secura.com';
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'critical': return 'bg-red-500';
@@ -324,8 +398,12 @@ export default function SecurityTeamDashboard() {
                   <p className="text-xs text-gray-400">Security Analyst</p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300">
-                    🛡️ Security Team
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    isTeamLeader() 
+                      ? 'bg-yellow-500/20 text-yellow-300' 
+                      : 'bg-orange-500/20 text-orange-300'
+                  }`}>
+                    {isTeamLeader() ? '👑 Team Leader' : '🛡️ Security Team'}
                   </span>
                   <button
                     onClick={handleLogout}
@@ -797,6 +875,108 @@ export default function SecurityTeamDashboard() {
                 </div>
               )}
 
+              {/* Assignment Section */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Assignment
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Current Assignee</p>
+                    <p className="text-white">
+                      {selectedIncident.assigned_to_name || 'Unassigned'}
+                    </p>
+                    {selectedIncident.assigned_at && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Assigned {new Date(selectedIncident.assigned_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">
+                      {isTeamLeader() ? 'Assign to Team Member' : 'Assignment Actions'}
+                    </p>
+                    
+                    {!selectedIncident.assigned_to ? (
+                      // Unassigned incident
+                      <div className="space-y-2">
+                        {isTeamLeader() ? (
+                          // Team Leader: Can assign to anyone
+                          <select
+                            className="w-full bg-[#1A1D23] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00D4FF]"
+                            onChange={(e) => handleAssignIncident(selectedIncident.id, e.target.value)}
+                          >
+                            <option value="">Select team member...</option>
+                            {teamMembers.map(member => (
+                              <option key={member.user_id} value={member.user_id}>
+                                {member.full_name} {member.is_online ? '(Online)' : '(Offline)'}
+                                {member.user_id === userProfile?.uid ? ' (You)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          // Team Member: Can only assign to themselves
+                          <button
+                            onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
+                            className="w-full bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] py-2 px-3 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Pick This Incident
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      // Already assigned incident
+                      <div className="space-y-2">
+                        <p className="text-white text-sm">
+                          {selectedIncident.assigned_to === userProfile?.uid ? 
+                            'Assigned to you' : 
+                            `Assigned to ${selectedIncident.assigned_to_name}`
+                          }
+                        </p>
+                        
+                        <div className="flex items-center justify-between">
+                          {isTeamLeader() ? (
+                            // Team Leader: Can reassign to anyone or unassign
+                            <div className="flex space-x-2 w-full">
+                              <select
+                                className="flex-1 bg-[#1A1D23] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00D4FF]"
+                                onChange={(e) => handleAssignIncident(selectedIncident.id, e.target.value)}
+                                defaultValue=""
+                              >
+                                <option value="">Reassign to...</option>
+                                {teamMembers.map(member => (
+                                  <option key={member.user_id} value={member.user_id}>
+                                    {member.full_name} {member.is_online ? '(Online)' : '(Offline)'}
+                                    {member.user_id === userProfile?.uid ? ' (You)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleAssignIncident(selectedIncident.id, '')}
+                                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
+                              >
+                                Unassign
+                              </button>
+                            </div>
+                          ) : (
+                            // Team Member: Can only unassign if it's assigned to them
+                            selectedIncident.assigned_to === userProfile?.uid && (
+                              <button
+                                onClick={() => handleAssignIncident(selectedIncident.id, '')}
+                                className="text-xs text-red-400 hover:text-red-300 underline"
+                              >
+                                Release Assignment
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Timeline */}
               <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
                 <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
@@ -832,9 +1012,14 @@ export default function SecurityTeamDashboard() {
                 >
                   Close
                 </button>
-                <button className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors">
-                  Assign to Me
-                </button>
+                {!selectedIncident.assigned_to && !isTeamLeader() && (
+                  <button 
+                    onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
+                    className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+                  >
+                    Pick This Incident
+                  </button>
+                )}
               </div>
             </div>
           </div>
