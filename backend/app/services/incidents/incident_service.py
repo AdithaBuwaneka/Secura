@@ -51,6 +51,7 @@ class IncidentService:
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
             'resolved_at': None,
+            'resolved_by': None,
             'closed_at': None,
             'additional_context': incident_data.additional_context or {},
             'last_activity': datetime.utcnow(),
@@ -102,6 +103,7 @@ class IncidentService:
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
             'resolved_at': None,
+            'resolved_by': None,
             'closed_at': None,
             'additional_context': incident_data.additional_context or {},
             'last_activity': datetime.utcnow(),
@@ -232,6 +234,10 @@ class IncidentService:
                     # Firestore timestamps are already datetime objects
                     pass
             
+            # Ensure resolved_by field exists (for backwards compatibility)
+            if 'resolved_by' not in data:
+                data['resolved_by'] = None
+            
             try:
                 incident = IncidentResponse(**data)
                 incident_dict = incident.dict()
@@ -360,6 +366,10 @@ class IncidentService:
                     # Firestore timestamps are already datetime objects
                     pass
             
+            # Ensure resolved_by field exists (for backwards compatibility)
+            if 'resolved_by' not in data:
+                data['resolved_by'] = None
+            
             try:
                 incident = IncidentResponse(**data)
                 incident_dict = incident.dict()
@@ -426,6 +436,7 @@ class IncidentService:
             update_data['status'] = incident_data.status.value
             if incident_data.status in [IncidentStatus.RESOLVED, IncidentStatus.CLOSED]:
                 update_data['resolved_at'] = datetime.utcnow()
+                update_data['resolved_by'] = updated_by
         if incident_data.assigned_to:
             update_data['assigned_to'] = incident_data.assigned_to
         

@@ -3,31 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-  Shield, 
-  AlertTriangle, 
-  Users, 
-  TrendingUp, 
-  Search,
-  Filter,
-  Bell,
-  LogOut,
-  Eye,
-  MessageSquare,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   X,
-  Brain,
   Calendar,
   MapPin,
   User,
+  Users,
   Paperclip,
   Image as ImageIcon,
   FileText,
   Download,
   ScanLine,
-  FileSearch,
-  UserCheck
+  UserCheck,
+  AlertTriangle,
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -35,6 +24,12 @@ import SecurityMessaging from '@/components/messaging/SecurityMessaging';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AIAnalysisDashboard from '@/components/ai/AIAnalysisDashboard';
+import SecurityTeamProfile from '@/components/profile/SecurityTeamProfile';
+import SecurityHeader from '@/components/security/SecurityHeader';
+import SecurityStatsGrid from '@/components/security/SecurityStatsGrid';
+import IncidentQueue from '@/components/security/IncidentQueue';
+import TeamStatusPanel from '@/components/security/TeamStatusPanel';
+import AIInsightsPanel from '@/components/security/AIInsightsPanel';
 import toast from 'react-hot-toast';
 
 export default function SecurityTeamDashboard() {
@@ -55,6 +50,7 @@ export default function SecurityTeamDashboard() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [showTeamDetails, setShowTeamDetails] = useState(false);
   const [showCriticalIncidents, setShowCriticalIncidents] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   // Fetch incidents function (moved outside useEffect for reusability)
@@ -134,11 +130,8 @@ export default function SecurityTeamDashboard() {
     fetchIncidents();
     fetchTeamMembers();
     
-    // Refresh incidents and team members every 30 seconds
-    const interval = setInterval(() => {
-      fetchIncidents();
-      fetchTeamMembers();
-    }, 30000);
+    // Note: Removed automatic 30-second refresh to reduce server load
+    // Data will be updated via WebSocket notifications and manual refresh
     
     // Listen for WebSocket messages about new incidents
     const handleWebSocketMessage = (event: MessageEvent) => {
@@ -162,7 +155,6 @@ export default function SecurityTeamDashboard() {
     }
     
     return () => {
-      clearInterval(interval);
       if (ws) {
         ws.removeEventListener('message', handleWebSocketMessage);
       }
@@ -281,6 +273,33 @@ export default function SecurityTeamDashboard() {
     return userProfile?.email === 'security.lead@secura.com';
   };
 
+  // Handle incident click - fetch full details
+  const handleIncidentClick = async (incident: any) => {
+    try {
+      const response = await fetch(`${API_URL}/api/incidents/${incident.id}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const fullIncident = await response.json();
+        console.log('Fetched full incident:', fullIncident);
+        setSelectedIncident(fullIncident);
+        setShowIncidentDetails(true);
+      } else {
+        // Fallback to existing data
+        setSelectedIncident(incident);
+        setShowIncidentDetails(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch incident details:', error);
+      // Fallback to existing data
+      setSelectedIncident(incident);
+      setShowIncidentDetails(true);
+    }
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'critical': return 'bg-red-500';
@@ -343,82 +362,16 @@ export default function SecurityTeamDashboard() {
   return (
     <div className="min-h-screen bg-[#1A1D23]">
       {/* Header */}
-      <header className="bg-[#2A2D35] border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo and Title */}
-            <div className="flex items-center space-x-4">
-              <Shield className="h-8 w-8 text-[#00D4FF]" />
-              <div>
-                <h1 className="text-xl font-bold text-white">Secura</h1>
-                <p className="text-xs text-gray-400">🛡️ Security Team Dashboard</p>
-              </div>
-            </div>
-
-            {/* User Info and Actions */}
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setShowAnalytics(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="Analytics"
-              >
-                <TrendingUp className="h-5 w-5" />
-              </button>
-              
-              <button 
-                onClick={() => setShowAI(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="AI Analysis"
-              >
-                <Brain className="h-5 w-5" />
-              </button>
-              
-              <button 
-                onClick={() => setShowMessaging(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors relative"
-                title="Messages"
-              >
-                <MessageSquare className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-xs text-white font-bold">{unreadCount}</span>
-                  </span>
-                )}
-              </button>
-              
-              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
-                  <span className="text-xs text-white font-bold">3</span>
-                </span>
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-white">{userProfile?.full_name}</p>
-                  <p className="text-xs text-gray-400">Security Analyst</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    isTeamLeader() 
-                      ? 'bg-yellow-500/20 text-yellow-300' 
-                      : 'bg-orange-500/20 text-orange-300'
-                  }`}>
-                    {isTeamLeader() ? '👑 Team Leader' : '🛡️ Security Team'}
-                  </span>
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                    title="Logout"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <SecurityHeader
+        userProfile={userProfile}
+        unreadCount={unreadCount}
+        isTeamLeader={isTeamLeader}
+        onAnalyticsClick={() => setShowAnalytics(true)}
+        onAIClick={() => setShowAI(true)}
+        onMessagingClick={() => setShowMessaging(true)}
+        onProfileClick={() => setShowProfile(true)}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -446,215 +399,33 @@ export default function SecurityTeamDashboard() {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Active Incidents</p>
-                <p className="text-3xl font-bold text-white">{incidents.filter(i => i.status !== 'resolved' && i.status !== 'closed').length}</p>
-                <p className="text-xs text-gray-500 mt-1">Total open cases</p>
-              </div>
-              <div className="p-3 bg-red-500/20 rounded-lg">
-                <AlertCircle className="h-8 w-8 text-red-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Under Investigation</p>
-                <p className="text-3xl font-bold text-white">{underInvestigationCount}</p>
-                <p className="text-xs text-gray-500 mt-1">Active investigations</p>
-              </div>
-              <div className="p-3 bg-orange-500/20 rounded-lg">
-                <Clock className="h-8 w-8 text-orange-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div 
-            className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700 cursor-pointer hover:bg-[#2E3139] hover:border-gray-600 transition-all duration-200"
-            onClick={() => setShowTeamDetails(true)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Team Online</p>
-                <p className="text-3xl font-bold text-white">{onlineTeamMembers}/{totalTeamMembers}</p>
-                <p className="text-xs text-gray-500 mt-1">Click to view details</p>
-              </div>
-              <div className="p-3 bg-green-500/20 rounded-lg">
-                <Users className="h-8 w-8 text-green-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Resolved Today</p>
-                <p className="text-3xl font-bold text-white">{resolvedTodayCount}</p>
-                <p className="text-xs text-gray-500 mt-1">Completed today</p>
-              </div>
-              <div className="p-3 bg-blue-500/20 rounded-lg">
-                <CheckCircle2 className="h-8 w-8 text-blue-400" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <SecurityStatsGrid
+          incidents={incidents}
+          onlineTeamMembers={onlineTeamMembers}
+          totalTeamMembers={totalTeamMembers}
+          onTeamDetailsClick={() => setShowTeamDetails(true)}
+        />
 
         {/* Incident Management */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Incident Queue */}
           <div className="lg:col-span-2">
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-white">Incident Queue</h3>
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search incidents..."
-                      className="pl-10 pr-4 py-2 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] text-sm"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <button className="p-2 bg-[#1A1D23] border border-gray-600 rounded-lg text-gray-400 hover:text-white transition-colors">
-                    <Filter className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF] mx-auto"></div>
-                    <p className="text-gray-400 mt-2">Loading incidents...</p>
-                  </div>
-                ) : filteredIncidents.length > 0 ? (
-                  filteredIncidents.map((incident) => {
-                    const createdAt = new Date(incident.created_at);
-                    const timeAgo = getTimeAgo(createdAt);
-                    
-                    return (
-                      <div key={incident.id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-3 h-3 rounded-full ${getSeverityColor(incident.severity)}`}></div>
-                            <div>
-                              <p className="font-medium text-white">
-                                {incident.title || incident.description?.substring(0, 60) + '...' || 'Untitled Incident'}
-                              </p>
-                              <p className="text-sm text-gray-400">
-                                ID: {incident.id.substring(0, 8)}... • {timeAgo}
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(incident.status)}`}>
-                            {incident.status.replace('_', ' ').toUpperCase()}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4 text-sm text-gray-400">
-                            <span>Reporter: {incident.reporter_name}</span>
-                            <span>Type: {incident.incident_type || 'Uncategorized'}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button 
-                              onClick={async () => {
-                                // Fetch the latest incident data including attachments
-                                try {
-                                  const response = await fetch(`${API_URL}/api/incidents/${incident.id}`, {
-                                    headers: {
-                                      'Authorization': `Bearer ${idToken}`
-                                    }
-                                  });
-                                  
-                                  if (response.ok) {
-                                    const fullIncident = await response.json();
-                                    console.log('Fetched full incident:', fullIncident);
-                                    setSelectedIncident(fullIncident);
-                                    setShowIncidentDetails(true);
-                                  } else {
-                                    // Fallback to existing data
-                                    setSelectedIncident(incident);
-                                    setShowIncidentDetails(true);
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to fetch incident details:', error);
-                                  // Fallback to existing data
-                                  setSelectedIncident(incident);
-                                  setShowIncidentDetails(true);
-                                }
-                              }}
-                              className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" 
-                              title="View Details"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" title="Message">
-                              <MessageSquare className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                    <p>No incidents found</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <IncidentQueue
+              incidents={incidents}
+              loading={loading}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onIncidentClick={handleIncidentClick}
+              getSeverityColor={getSeverityColor}
+              getStatusColor={getStatusColor}
+              getTimeAgo={getTimeAgo}
+            />
           </div>
 
           {/* Side Panel */}
           <div className="space-y-6">
-            {/* AI Analysis */}
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">🤖 AI Insights</h3>
-              <div className="space-y-3">
-                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <p className="text-sm font-medium text-blue-300">Threat Pattern Detected</p>
-                  <p className="text-xs text-blue-400 mt-1">Similar phishing attempts from 3 different sources</p>
-                </div>
-                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-sm font-medium text-yellow-300">Recommendation</p>
-                  <p className="text-xs text-yellow-400 mt-1">Consider blocking domain: suspicious-site.com</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Team Status */}
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">Team Status</h3>
-              <div className="space-y-3">
-                {teamMembers.length > 0 ? teamMembers.map((member) => {
-                  const assignedIncidents = incidents.filter(i => i.assigned_to === member.user_id && i.status !== 'resolved' && i.status !== 'closed').length;
-                  
-                  return (
-                    <div key={member.user_id} className="flex items-center justify-between p-2 bg-[#1A1D23] rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-white">{member.full_name}</p>
-                        <p className="text-xs text-gray-400">{assignedIncidents} active cases</p>
-                      </div>
-                      <span className={`w-2 h-2 rounded-full ${
-                        member.is_online ? 'bg-green-400' : 'bg-gray-400'
-                      }`} title={member.is_online ? 'Online' : 'Offline'}></span>
-                    </div>
-                  );
-                }) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-400">Loading team members...</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <AIInsightsPanel />
+            <TeamStatusPanel teamMembers={teamMembers} incidents={incidents} />
           </div>
         </div>
       </main>
@@ -1410,6 +1181,11 @@ ${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).
             </div>
           </div>
         </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <SecurityTeamProfile onClose={() => setShowProfile(false)} />
       )}
     </div>
   );
