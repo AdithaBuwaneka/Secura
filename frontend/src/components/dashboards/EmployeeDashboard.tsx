@@ -40,7 +40,7 @@ export default function EmployeeDashboard() {
   const [showMessaging, setShowMessaging] = useState(false);
   const [showMyIncidents, setShowMyIncidents] = useState(false);
   const [myIncidents, setMyIncidents] = useState<any[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   // Fetch user's incidents
   const fetchMyIncidents = async () => {
@@ -150,14 +150,29 @@ export default function EmployeeDashboard() {
               </button>
               
               <div className="flex items-center space-x-3">
+                
+                
                 <div className="text-right">
                   <p className="text-sm font-medium text-white">{userProfile?.full_name}</p>
                   <p className="text-xs text-gray-400">{userProfile?.email}</p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300">
-                    👤 Employee
-                  </span>
+                  {/* Profile Avatar */}
+                  <Link href="/profile/edit" className="relative group">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105">
+                      {userProfile?.full_name ? (
+                        userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
+                      ) : (
+                        'EM'
+                      )}
+                    </div>
+                    {/* Online Status Indicator */}
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-[#2A2D35]"></div>
+                    {/* Tooltip */}
+                    <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                      Edit Profile
+                    </div>
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="p-2 text-gray-400 hover:text-red-400 transition-colors"

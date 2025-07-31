@@ -100,8 +100,7 @@ function ReviewModal({ application, isOpen, onClose, onReview }: ReviewModalProp
                 <User className="h-4 w-4 text-gray-400 mr-2" />
                 <div className="flex flex-col">
                   <span className="text-white font-medium">
-                    {('name' in application && typeof application.name === 'string' && application.name)
-                      || 'Unknown User'}
+                    {application.applicant_name || 'Unknown User'}
                   </span>
                   <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
                 </div>
@@ -517,7 +516,7 @@ export default function AdminApplicationReview() {
                       <User className="h-4 w-4 text-gray-400 mr-2" />
                       <div className="flex flex-col flex-1">
                         <span className="text-white font-medium">
-                          {('name' in application && typeof application.name === 'string' && application.name) || 'Unknown User'}
+                          {application.applicant_name || 'Unknown User'}
                         </span>
                         <span className="text-gray-400 text-xs">ID: {application.applicant_uid}</span>
                       </div>
