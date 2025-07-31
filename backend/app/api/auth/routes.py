@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth
 from typing import Optional
+from datetime import datetime
+import os
 
-from app.models.auth import UserRegistration, UserLogin, UserProfile, UserProfileCreate, TokenVerification
+from app.models.auth import UserRegistration, UserLogin, UserProfile, UserProfileCreate, TokenVerification, ProfileUpdateRequest
 from app.models.user import User
 from app.models.common import UserRole
 from app.services.auth.auth_service import AuthService
@@ -58,6 +60,9 @@ async def create_profile_for_existing_user(
             email=email or profile_data.email,
             full_name=profile_data.full_name,
             phone_number=profile_data.phone_number,
+            country=profile_data.country,
+            city=profile_data.city,
+            home_number=profile_data.home_number,
             role=UserRole.EMPLOYEE,  # Default role
             is_active=True
         )
@@ -122,6 +127,9 @@ async def register_user(
             email=user_data.email,
             full_name=user_data.full_name,
             phone_number=user_data.phone_number,
+            country=user_data.country,
+            city=user_data.city,
+            home_number=user_data.home_number,
             role=UserRole.EMPLOYEE,  # Default role
             is_active=True
         )
@@ -200,6 +208,9 @@ async def get_user_profile(
         "email": current_user.email,
         "full_name": current_user.full_name,
         "phone_number": current_user.phone_number,
+        "country": current_user.country,
+        "city": current_user.city,
+        "home_number": current_user.home_number,
         "role": current_user.role,
         "created_at": current_user.created_at,
         "last_login": current_user.last_login
@@ -230,6 +241,48 @@ async def update_user_profile(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Profile update failed: {str(e)}"
         )
+
+@router.patch("/update-profile")
+async def update_user_profile_new(
+    profile_data: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends()
+):
+    """
+    Update user's profile information (new endpoint for frontend)
+    Supports updating name, phone number, and password
+    """
+    try:
+        # Update profile information
+        update_data = {}
+        if profile_data.full_name is not None:
+            update_data['full_name'] = profile_data.full_name
+        if profile_data.phone_number is not None:
+            update_data['phone_number'] = profile_data.phone_number
+        if profile_data.country is not None:
+            update_data['country'] = profile_data.country
+        if profile_data.city is not None:
+            update_data['city'] = profile_data.city
+        if profile_data.home_number is not None:
+            update_data['home_number'] = profile_data.home_number
+        
+        # Update the user profile in Firestore
+        updated_user = await auth_service.update_user_profile_fields(
+            current_user.uid, 
+            update_data
+        )
+        
+        return updated_user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Profile update failed: {str(e)}"
+        )
+
+
 
 @router.post("/admin/manage-security-team")
 async def manage_security_team(
@@ -363,6 +416,9 @@ async def update_user_role(
                 "email": updated_user.email,
                 "full_name": updated_user.full_name,
                 "phone_number": updated_user.phone_number,
+                "country": updated_user.country,
+                "city": updated_user.city,
+                "home_number": updated_user.home_number,
                 "role": updated_user.role.value,
                 "is_active": updated_user.is_active,
                 "created_at": updated_user.created_at.isoformat() if updated_user.created_at else None,
@@ -432,6 +488,9 @@ async def update_user_status(
                 "email": updated_user.email,
                 "full_name": updated_user.full_name,
                 "phone_number": updated_user.phone_number,
+                "country": updated_user.country,
+                "city": updated_user.city,
+                "home_number": updated_user.home_number,
                 "role": updated_user.role.value,
                 "is_active": updated_user.is_active,
                 "created_at": updated_user.created_at.isoformat() if updated_user.created_at else None,
