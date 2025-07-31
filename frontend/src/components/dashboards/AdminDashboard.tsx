@@ -365,9 +365,9 @@ export default function AdminDashboard() {
                 <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm">Total Incidents</p>
+                      <p className="text-gray-400 text-sm">Recent Incidents</p>
                       <p className="text-3xl font-bold text-white">{overviewData?.incidents?.recent || 0}</p>
-                      <p className="text-xs text-gray-500 mt-1">{overviewData?.incidents?.trend || 'N/A'}</p>
+                      <p className="text-xs text-gray-500 mt-1">Last 30 days</p>
                     </div>
                     <div className="p-3 bg-orange-500/20 rounded-lg">
                       <AlertTriangle className="h-8 w-8 text-orange-400" />

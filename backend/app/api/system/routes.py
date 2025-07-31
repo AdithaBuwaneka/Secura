@@ -360,10 +360,30 @@ async def get_system_overview(
             # Recent incidents (last 30 days)
             from datetime import datetime, timedelta
             thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-            recent_incidents = len([i for i in incidents 
-                                 if i.to_dict().get('created_at') and 
-                                 i.to_dict().get('created_at').replace(tzinfo=None) > thirty_days_ago])
-        except:
+            recent_incidents = 0
+            
+            for i in incidents:
+                incident_data = i.to_dict()
+                created_at = incident_data.get('created_at')
+                if created_at:
+                    try:
+                        # Handle different datetime formats
+                        if hasattr(created_at, 'timestamp'):
+                            # Firestore timestamp
+                            incident_date = created_at.replace(tzinfo=None)
+                        elif isinstance(created_at, datetime):
+                            # Regular datetime
+                            incident_date = created_at.replace(tzinfo=None) if created_at.tzinfo else created_at
+                        else:
+                            continue
+                        
+                        if incident_date > thirty_days_ago:
+                            recent_incidents += 1
+                    except:
+                        continue
+                        
+        except Exception as e:
+            print(f"Error counting incidents: {e}")
             total_incidents = 0
             recent_incidents = 0
         
