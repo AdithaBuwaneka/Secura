@@ -157,21 +157,13 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center space-x-2">
                   {/* Profile Avatar */}
                   <Link href="/profile/edit" className="relative group">
-                    {userProfile?.profile_picture_url ? (
-                      <img
-                        src={userProfile.profile_picture_url}
-                        alt="Profile"
-                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105">
-                        {userProfile?.full_name ? (
-                          userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
-                        ) : (
-                          'EM'
-                        )}
-                      </div>
-                    )}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105">
+                      {userProfile?.full_name ? (
+                        userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
+                      ) : (
+                        'EM'
+                      )}
+                    </div>
                     {/* Online Status Indicator */}
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-[#2A2D35]"></div>
                     {/* Tooltip */}

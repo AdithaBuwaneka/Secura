@@ -3,7 +3,7 @@ Authentication API Routes - Aditha's Module
 Handles Firebase Auth integration, role-based access control, and user management
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth
 from typing import Optional
@@ -11,7 +11,6 @@ from datetime import datetime
 import os
 
 from app.models.auth import UserRegistration, UserLogin, UserProfile, UserProfileCreate, TokenVerification, ProfileUpdateRequest
-from app.core.cloudinary_config import cloudinary_config
 from app.models.user import User
 from app.models.common import UserRole
 from app.services.auth.auth_service import AuthService
@@ -283,153 +282,7 @@ async def update_user_profile_new(
             detail=f"Profile update failed: {str(e)}"
         )
 
-@router.post("/upload-profile-picture")
-async def upload_profile_picture(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends()
-):
-    """
-    Upload profile picture to Cloudinary and update user profile
-    """
-    print(f"DEBUG: Upload request received for user: {current_user.uid}")
-    print(f"DEBUG: File name: {file.filename}, Content type: {file.content_type}")
-    
-    try:
-        # Validate file type
-        if not file.content_type.startswith('image/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an image"
-            )
-        
-        # Validate file size (max 5MB)
-        if file.size and file.size > 5 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size must be less than 5MB"
-            )
-        
-        # Check if Cloudinary is configured
-        print(f"DEBUG: Cloudinary configured: {cloudinary_config.is_configured}")
-        if not cloudinary_config.is_configured:
-            print("DEBUG: Using fallback mock URL")
-            # For testing purposes, create a mock URL when Cloudinary is not configured
-            # Using a base64 encoded placeholder image that will definitely work
-            initials = current_user.full_name[:2].upper() if current_user.full_name else "U"
-            # Create a simple SVG placeholder as base64
-            svg_content = f'''<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-              <rect width="400" height="400" fill="#00D4FF"/>
-              <text x="200" y="220" font-family="Arial, sans-serif" font-size="120" font-weight="bold" text-anchor="middle" fill="white">{initials}</text>
-            </svg>'''
-            import base64
-            svg_bytes = svg_content.encode('utf-8')
-            svg_base64 = base64.b64encode(svg_bytes).decode('utf-8')
-            mock_url = f"data:image/svg+xml;base64,{svg_base64}"
-            print(f"DEBUG: Generated mock URL: {mock_url}")
-            
-            # Update user profile with mock image URL
-            update_data = {
-                'profile_picture_url': mock_url
-            }
-            
-            updated_user = await auth_service.update_user_profile_fields(
-                current_user.uid,
-                update_data
-            )
-            
-            print(f"DEBUG: Profile updated successfully with mock URL")
-            return {
-                "message": "Profile picture uploaded successfully (mock URL for testing)",
-                "image_url": mock_url,
-                "user": updated_user
-            }
-        
-        print("DEBUG: Using Cloudinary for upload")
-        # Read file data
-        file_data = await file.read()
-        print(f"DEBUG: File data size: {len(file_data)} bytes")
-        
-        # Generate unique public ID for the image
-        public_id = f"profile_{current_user.uid}_{int(datetime.utcnow().timestamp())}"
-        print(f"DEBUG: Generated public_id: {public_id}")
-        
-        # Upload to Cloudinary
-        upload_result = await cloudinary_config.upload_image(
-            file_data=file_data,
-            public_id=public_id
-        )
-        print(f"DEBUG: Cloudinary upload result: {upload_result}")
-        
-        # Update user profile with new image URL
-        update_data = {
-            'profile_picture_url': upload_result['url']
-        }
-        
-        updated_user = await auth_service.update_user_profile_fields(
-            current_user.uid,
-            update_data
-        )
-        
-        print(f"DEBUG: Profile updated successfully with Cloudinary URL")
-        return {
-            "message": "Profile picture uploaded successfully",
-            "image_url": upload_result['url'],
-            "user": updated_user
-        }
-        
-    except HTTPException as e:
-        print(f"DEBUG: HTTPException raised: {e}")
-        raise
-    except Exception as e:
-        print(f"DEBUG: Exception occurred: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Profile picture upload failed: {str(e)}"
-        )
 
-@router.get("/test-upload")
-async def test_upload_endpoint():
-    """
-    Test endpoint to verify the upload functionality is accessible
-    """
-    return {
-        "message": "Upload endpoint is accessible",
-        "cloudinary_configured": cloudinary_config.is_configured,
-        "status": "ok"
-    }
-
-@router.get("/test-no-auth")
-async def test_no_auth():
-    """
-    Test endpoint that doesn't require authentication
-    """
-    return {
-        "message": "Backend is working without authentication",
-        "cloudinary_configured": cloudinary_config.is_configured,
-        "status": "ok"
-    }
-
-@router.get("/test-image")
-async def test_image():
-    """
-    Test endpoint to generate a test image URL
-    """
-    # Create a simple SVG placeholder as base64
-    svg_content = '''<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="400" fill="#00D4FF"/>
-      <text x="200" y="220" font-family="Arial, sans-serif" font-size="120" font-weight="bold" text-anchor="middle" fill="white">TEST</text>
-    </svg>'''
-    import base64
-    svg_bytes = svg_content.encode('utf-8')
-    svg_base64 = base64.b64encode(svg_bytes).decode('utf-8')
-    test_url = f"data:image/svg+xml;base64,{svg_base64}"
-    
-    return {
-        "message": "Test image URL generated",
-        "image_url": test_url,
-        "status": "ok"
-    }
 
 @router.post("/admin/manage-security-team")
 async def manage_security_team(

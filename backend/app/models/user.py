@@ -9,7 +9,6 @@ class User(BaseModel):
     full_name: str
     role: UserRole
     phone_number: Optional[str] = None
-    profile_picture_url: Optional[str] = None
     country: Optional[str] = None
     city: Optional[str] = None
     home_number: Optional[str] = None
@@ -23,7 +22,6 @@ class UserProfile(BaseModel):
     full_name: str
     role: UserRole
     phone_number: Optional[str] = None
-    profile_picture_url: Optional[str] = None
     country: Optional[str] = None
     city: Optional[str] = None
     home_number: Optional[str] = None
@@ -41,7 +39,6 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
-    profile_picture_url: Optional[str] = None
     country: Optional[str] = None
     city: Optional[str] = None
     home_number: Optional[str] = None
