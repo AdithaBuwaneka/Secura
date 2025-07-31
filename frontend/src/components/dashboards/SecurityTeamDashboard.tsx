@@ -54,6 +54,7 @@ export default function SecurityTeamDashboard() {
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [showTeamDetails, setShowTeamDetails] = useState(false);
+  const [showCriticalIncidents, setShowCriticalIncidents] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   // Fetch incidents function (moved outside useEffect for reusability)
@@ -434,7 +435,10 @@ export default function SecurityTeamDashboard() {
                   </p>
                 </div>
               </div>
-              <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => setShowCriticalIncidents(true)}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
                 Review Now
               </button>
             </div>
@@ -1264,6 +1268,145 @@ ${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Critical Incidents Modal */}
+      {showCriticalIncidents && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl max-h-[90vh] bg-[#2A2D35] rounded-lg border border-red-500/30 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-red-500/30 bg-gradient-to-r from-red-500/20 to-orange-500/20">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-6 w-6 text-red-400" />
+                <div>
+                  <h2 className="text-xl font-bold text-white">Critical Incidents</h2>
+                  <p className="text-sm text-red-300 mt-1">
+                    {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length} high-priority incidents requiring immediate attention
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCriticalIncidents(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+              {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length > 0 ? (
+                <div className="p-6 space-y-4">
+                  {incidents
+                    .filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed')
+                    .sort((a, b) => {
+                      // Sort by severity (critical first) then by creation date
+                      if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+                      if (b.severity === 'critical' && a.severity !== 'critical') return 1;
+                      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                    })
+                    .map((incident) => {
+                      const timeAgo = new Date(incident.created_at).toLocaleString();
+                      const isCritical = incident.severity === 'critical';
+                      
+                      return (
+                        <div key={incident.id} className={`bg-[#1A1D23] p-4 rounded-lg border transition-colors hover:border-gray-600 ${
+                          isCritical ? 'border-red-500/50' : 'border-orange-500/50'
+                        }`}>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  isCritical ? 'bg-red-500 animate-pulse' : 'bg-orange-500'
+                                }`}></div>
+                                <h3 className="font-medium text-white">
+                                  {incident.title || 'Untitled Incident'}
+                                </h3>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  isCritical ? 'bg-red-500/20 text-red-300' : 'bg-orange-500/20 text-orange-300'
+                                }`}>
+                                  {incident.severity.toUpperCase()}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  incident.status === 'investigating' ? 'bg-blue-500/20 text-blue-300' :
+                                  incident.status === 'assigned' ? 'bg-purple-500/20 text-purple-300' :
+                                  'bg-gray-500/20 text-gray-300'
+                                }`}>
+                                  {incident.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-300 mb-2 line-clamp-2">
+                                {incident.description || 'No description provided'}
+                              </p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-400">
+                                <span>Type: {incident.incident_type?.replace('_', ' ') || 'Unknown'}</span>
+                                <span>•</span>
+                                <span>Reported: {timeAgo}</span>
+                                <span>•</span>
+                                <span>Reporter: {incident.reporter_name || 'Unknown'}</span>
+                                {incident.assigned_to_name && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Assigned: {incident.assigned_to_name}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <button
+                                onClick={() => {
+                                  setSelectedIncident(incident);
+                                  setShowIncidentDetails(true);
+                                  setShowCriticalIncidents(false);
+                                }}
+                                className="p-2 text-gray-400 hover:text-[#00D4FF] hover:bg-gray-700 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Additional Info */}
+                          {(incident.location || incident.attachments?.length > 0) && (
+                            <div className="pt-3 border-t border-gray-700">
+                              <div className="flex flex-wrap items-center gap-4">
+                                {incident.location && (
+                                  <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>
+                                      {typeof incident.location === 'string' 
+                                        ? incident.location 
+                                        : incident.location.address || 
+                                          `${incident.location.building || ''}${incident.location.floor ? ` Floor ${incident.location.floor}` : ''}${incident.location.room ? ` Room ${incident.location.room}` : ''}`.trim() ||
+                                          'Location provided'
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                {incident.attachments?.length > 0 && (
+                                  <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                    <Paperclip className="h-3 w-3" />
+                                    <span>{incident.attachments.length} attachment{incident.attachments.length > 1 ? 's' : ''}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-white mb-2">No Critical Incidents</h3>
+                  <p className="text-gray-400">All high-priority incidents have been resolved or are being handled.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
