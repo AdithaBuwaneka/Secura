@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { 
   TrendingUp, 
-  TrendingDown, 
   BarChart3, 
   PieChart, 
   Download,
@@ -44,6 +43,12 @@ ChartJS.register(
 );
 
 interface AnalyticsData {
+  total_incidents: number;
+  open_incidents: number;
+  resolved_incidents: number;
+  avg_resolution_time: number;
+  severity_breakdown: Record<string, number>;
+  category_breakdown: Record<string, number>;
   incident_trends: {
     labels: string[];
     data: number[];
@@ -68,29 +73,35 @@ interface AnalyticsData {
   };
 }
 
-// Mock data for development
-const mockAnalyticsData: AnalyticsData = {
+// Fallback data for when API fails
+const fallbackAnalyticsData: AnalyticsData = {
+  total_incidents: 0,
+  open_incidents: 0,
+  resolved_incidents: 0,
+  avg_resolution_time: 0,
+  severity_breakdown: {},
+  category_breakdown: {},
   incident_trends: {
     labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-    data: [23, 45, 32, 67]
+    data: [0, 0, 0, 0]
   },
   severity_distribution: {
     labels: ['Critical', 'High', 'Medium', 'Low'],
-    data: [8, 25, 42, 33]
+    data: [0, 0, 0, 0]
   },
   response_times: {
     labels: ['Critical', 'High', 'Medium', 'Low'],
-    data: [0.5, 2.1, 4.3, 8.7]
+    data: [0, 0, 0, 0]
   },
   team_performance: {
-    labels: ['Alex Chen', 'Sarah Kim', 'Mike Johnson', 'Emma Wilson', 'David Lee'],
-    data: [34, 28, 31, 25, 29]
+    labels: [],
+    data: []
   },
   monthly_summary: {
-    total_incidents: 167,
-    resolved_incidents: 142,
-    avg_response_time: 3.8,
-    critical_incidents: 8
+    total_incidents: 0,
+    resolved_incidents: 0,
+    avg_response_time: 0,
+    critical_incidents: 0
   }
 };
 
@@ -117,12 +128,12 @@ export default function AnalyticsDashboard(): React.JSX.Element {
         const data = await response.json();
         setAnalyticsData(data);
       } else {
-        // Use mock data if API fails
-        setAnalyticsData(mockAnalyticsData);
+        console.error('API request failed:', response.status, response.statusText);
+        setAnalyticsData(fallbackAnalyticsData);
       }
     } catch (error) {
       console.error('Failed to load analytics data:', error);
-      setAnalyticsData(mockAnalyticsData);
+      setAnalyticsData(fallbackAnalyticsData);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -296,10 +307,10 @@ export default function AnalyticsDashboard(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-400 text-sm">Total Incidents</p>
-                  <p className="text-3xl font-bold text-white">{analyticsData?.monthly_summary.total_incidents}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.total_incidents || 0}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="h-4 w-4 text-green-400 mr-1" />
-                    <span className="text-green-400 text-sm">+12% from last month</span>
+                    <span className="text-green-400 text-sm">Last {selectedTimeRange}</span>
                   </div>
                 </div>
                 <div className="p-3 bg-blue-500/20 rounded-lg">
@@ -312,11 +323,11 @@ export default function AnalyticsDashboard(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-400 text-sm">Resolved</p>
-                  <p className="text-3xl font-bold text-white">{analyticsData?.monthly_summary.resolved_incidents}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.resolved_incidents || 0}</p>
                   <div className="flex items-center mt-2">
                     <TrendingUp className="h-4 w-4 text-green-400 mr-1" />
                     <span className="text-green-400 text-sm">
-                      {((analyticsData?.monthly_summary.resolved_incidents || 0) / (analyticsData?.monthly_summary.total_incidents || 1) * 100).toFixed(1)}% resolution rate
+                      {((analyticsData?.resolved_incidents || 0) / (analyticsData?.total_incidents || 1) * 100).toFixed(1)}% resolution rate
                     </span>
                   </div>
                 </div>
@@ -330,10 +341,10 @@ export default function AnalyticsDashboard(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-400 text-sm">Avg Response Time</p>
-                  <p className="text-3xl font-bold text-white">{analyticsData?.monthly_summary.avg_response_time}h</p>
+                  <p className="text-3xl font-bold text-white">{(analyticsData?.avg_resolution_time || 0).toFixed(1)}h</p>
                   <div className="flex items-center mt-2">
-                    <TrendingDown className="h-4 w-4 text-green-400 mr-1" />
-                    <span className="text-green-400 text-sm">-0.7h improvement</span>
+                    <Clock className="h-4 w-4 text-blue-400 mr-1" />
+                    <span className="text-blue-400 text-sm">Average resolution time</span>
                   </div>
                 </div>
                 <div className="p-3 bg-orange-500/20 rounded-lg">
@@ -346,10 +357,10 @@ export default function AnalyticsDashboard(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-400 text-sm">Critical Incidents</p>
-                  <p className="text-3xl font-bold text-white">{analyticsData?.monthly_summary.critical_incidents}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.severity_breakdown?.critical || 0}</p>
                   <div className="flex items-center mt-2">
-                    <TrendingDown className="h-4 w-4 text-green-400 mr-1" />
-                    <span className="text-green-400 text-sm">-3 from last month</span>
+                    <AlertTriangle className="h-4 w-4 text-red-400 mr-1" />
+                    <span className="text-red-400 text-sm">High priority items</span>
                   </div>
                 </div>
                 <div className="p-3 bg-red-500/20 rounded-lg">
@@ -426,23 +437,28 @@ export default function AnalyticsDashboard(): React.JSX.Element {
             <h3 className="text-lg font-semibold text-white mb-4">📊 Key Insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <h4 className="font-medium text-blue-300 mb-2">Trend Analysis</h4>
+                <h4 className="font-medium text-blue-300 mb-2">Current Status</h4>
                 <p className="text-sm text-blue-400">
-                  Incident volume increased by 12% this month, primarily driven by phishing attempts.
+                  {analyticsData?.total_incidents || 0} total incidents in the selected period with {analyticsData?.open_incidents || 0} still open.
                 </p>
               </div>
               
               <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                <h4 className="font-medium text-green-300 mb-2">Performance</h4>
+                <h4 className="font-medium text-green-300 mb-2">Resolution Rate</h4>
                 <p className="text-sm text-green-400">
-                  Team response time improved by 0.7 hours compared to last month.
+                  {((analyticsData?.resolved_incidents || 0) / (analyticsData?.total_incidents || 1) * 100).toFixed(1)}% of incidents have been resolved successfully.
                 </p>
               </div>
               
               <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <h4 className="font-medium text-yellow-300 mb-2">Recommendation</h4>
+                <h4 className="font-medium text-yellow-300 mb-2">Top Category</h4>
                 <p className="text-sm text-yellow-400">
-                  Consider additional training on email security awareness.
+                  {analyticsData?.category_breakdown ? 
+                    Object.keys(analyticsData.category_breakdown).length > 0 ? 
+                      `${Object.entries(analyticsData.category_breakdown).sort(([,a], [,b]) => b - a)[0]?.[0]?.toUpperCase() || 'N/A'} incidents are most common` 
+                      : 'No incidents reported'
+                    : 'Loading category data...'
+                  }
                 </p>
               </div>
             </div>

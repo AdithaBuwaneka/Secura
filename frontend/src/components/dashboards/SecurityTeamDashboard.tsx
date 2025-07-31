@@ -30,6 +30,7 @@ import SecurityStatsGrid from '@/components/security/SecurityStatsGrid';
 import IncidentQueue from '@/components/security/IncidentQueue';
 import TeamStatusPanel from '@/components/security/TeamStatusPanel';
 import AIInsightsPanel from '@/components/security/AIInsightsPanel';
+import IncidentChatButton from '@/components/messaging/IncidentChatButton';
 import toast from 'react-hot-toast';
 
 export default function SecurityTeamDashboard() {
@@ -777,24 +778,38 @@ export default function SecurityTeamDashboard() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => {
-                    setShowIncidentDetails(false);
-                    setSelectedIncident(null);
-                  }}
-                  className="px-6 py-3 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-                {!selectedIncident.assigned_to && !isTeamLeader() && (
-                  <button 
-                    onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
-                    className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                  <IncidentChatButton 
+                    incidentId={selectedIncident.id}
+                    incidentTitle={selectedIncident.title}
+                    assignedToId={selectedIncident.assigned_to}
+                    assignedToName={selectedIncident.assigned_to_name}
+                    incidentStatus={selectedIncident.status}
+                    size="md"
+                    showLabel={true}
+                  />
+                </div>
+                
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => {
+                      setShowIncidentDetails(false);
+                      setSelectedIncident(null);
+                    }}
+                    className="px-6 py-3 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
                   >
-                    Pick This Incident
+                    Close
                   </button>
-                )}
+                  {!selectedIncident.assigned_to && !isTeamLeader() && (
+                    <button 
+                      onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
+                      className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+                    >
+                      Pick This Incident
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
