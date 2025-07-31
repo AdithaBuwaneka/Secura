@@ -147,6 +147,90 @@ async def get_incidents(
             detail=f"Failed to retrieve incidents: {str(e)}"
         )
 
+@router.get("/assigned/{user_id}")
+async def get_assigned_incidents(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Get incidents assigned to a specific user
+    """
+    # Check permissions - users can only access their own assigned incidents unless admin/team leader
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team members can access incident assignments"
+        )
+    
+    # Security team members can only access their own data unless they're team leader or admin
+    if (current_user.uid != user_id and 
+        current_user.role.value != "admin" and 
+        current_user.email != "security.lead@secura.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - can only view your own assignments"
+        )
+    
+    try:
+        # Get all incidents and filter by currently assigned user (excluding resolved/closed)
+        all_incidents = await incident_service.get_all_incidents()
+        assigned_incidents = [
+            incident for incident in all_incidents 
+            if incident.get('assigned_to') == user_id and 
+            incident.get('status') not in ['resolved', 'closed']
+        ]
+        
+        return assigned_incidents
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve assigned incidents: {str(e)}"
+        )
+
+@router.get("/resolved/{user_id}")
+async def get_resolved_incidents(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Get incidents resolved by a specific user
+    """
+    # Check permissions - users can only access their own resolved incidents unless admin/team leader
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team members can access incident resolutions"
+        )
+    
+    # Security team members can only access their own data unless they're team leader or admin
+    if (current_user.uid != user_id and 
+        current_user.role.value != "admin" and 
+        current_user.email != "security.lead@secura.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - can only view your own resolutions"
+        )
+    
+    try:
+        # Get all incidents and filter by those resolved by this user
+        all_incidents = await incident_service.get_all_incidents()
+        resolved_incidents = [
+            incident for incident in all_incidents 
+            if (incident.get('assigned_to') == user_id or incident.get('resolved_by') == user_id) and 
+            incident.get('status') in ['resolved', 'closed']
+        ]
+        
+        return resolved_incidents
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve resolved incidents: {str(e)}"
+        )
+
 @router.get("/{incident_id}")
 async def get_incident(
     incident_id: str,
@@ -467,6 +551,67 @@ async def upload_attachment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"File upload failed: {str(e)}"
+        )
+
+@router.post("/{incident_id}/resolve")
+async def resolve_incident(
+    incident_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Mark incident as resolved
+    Only assigned user or team leader can resolve incidents
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team can resolve incidents"
+        )
+    
+    try:
+        # Get current incident to check assignment
+        current_incident = await incident_service.get_incident(incident_id)
+        
+        if not current_incident:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Incident not found"
+            )
+        
+        # Check if user can resolve this incident
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        is_assigned_user = current_incident.get('assigned_to') == current_user.uid
+        
+        if not (is_team_leader or is_admin or is_assigned_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only assigned user or team leader can resolve incidents"
+            )
+        
+        # Update incident status to resolved
+        from app.models.incident import IncidentUpdate
+        from app.models.common import IncidentStatus
+        
+        update_data = IncidentUpdate(status=IncidentStatus.RESOLVED)
+        incident = await incident_service.update_incident(
+            incident_id, update_data, current_user.uid
+        )
+        
+        # Broadcast real-time update
+        await manager.broadcast(json.dumps({
+            "type": "incident_resolved",
+            "incident_id": incident_id,
+            "resolved_by": current_user.full_name
+        }))
+        
+        return {"message": "Incident marked as resolved successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resolve incident: {str(e)}"
         )
 
 @router.websocket("/ws/{user_id}")

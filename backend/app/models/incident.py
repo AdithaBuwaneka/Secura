@@ -100,6 +100,7 @@ class IncidentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
     closed_at: Optional[datetime] = None
     
     # Additional context
