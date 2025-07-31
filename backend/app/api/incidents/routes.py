@@ -222,7 +222,7 @@ async def update_incident(
         await manager.broadcast(json.dumps({
             "type": "incident_updated",
             "incident_id": incident_id,
-            "status": updated_incident.status.value,
+            "status": updated_incident.get("status", "unknown"),
             "updated_by": current_user.full_name
         }))
         
@@ -239,13 +239,16 @@ async def update_incident(
 @router.post("/{incident_id}/assign")
 async def assign_incident(
     incident_id: str,
-    assignee_id: str,
+    assignment_data: dict,
     current_user: User = Depends(get_current_user),
     incident_service: IncidentService = Depends()
 ):
     """
     Assign incident to security team member
-    Security Team and Admin only
+    Role-based permissions:
+    - Team Leader (security.lead@secura.com): Can assign to anyone
+    - Security Team Members: Can only assign to themselves
+    - Admin: Can assign to anyone
     """
     if current_user.role.value not in ["security_team", "admin"]:
         raise HTTPException(
@@ -254,6 +257,35 @@ async def assign_incident(
         )
     
     try:
+        assignee_id = assignment_data.get("assignee_id")
+        if not assignee_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="assignee_id is required"
+            )
+        
+        # Check role-based assignment permissions
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        
+        # Regular team members can only assign to themselves
+        if not is_team_leader and not is_admin:
+            if assignee_id != current_user.uid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Team members can only assign incidents to themselves"
+                )
+        
+        # Get the current incident to check if it's already assigned
+        current_incident = await incident_service.get_incident(incident_id)
+        if current_incident.get('assigned_to') and current_incident.get('assigned_to') != current_user.uid:
+            # Only team leader and admin can reassign incidents assigned to others
+            if not is_team_leader and not is_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only team leaders can reassign incidents from other members"
+                )
+        
         incident = await incident_service.assign_incident(
             incident_id, assignee_id, current_user.uid
         )
@@ -262,7 +294,7 @@ async def assign_incident(
         await manager.send_to_user(assignee_id, json.dumps({
             "type": "incident_assigned",
             "incident_id": incident_id,
-            "title": incident.title,
+            "title": incident.get("title", "Untitled Incident"),
             "assigned_by": current_user.full_name
         }))
         
@@ -272,6 +304,51 @@ async def assign_incident(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assign incident: {str(e)}"
+        )
+
+@router.post("/{incident_id}/unassign")
+async def unassign_incident(
+    incident_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Unassign incident (remove assignee)
+    Role-based permissions:
+    - Team Leader: Can unassign any incident
+    - Team Members: Can only unassign incidents assigned to themselves
+    - Admin: Can unassign any incident
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team can unassign incidents"
+        )
+    
+    try:
+        # Check role-based unassignment permissions
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        
+        # Get the current incident to check assignment
+        current_incident = await incident_service.get_incident(incident_id)
+        
+        # Regular team members can only unassign incidents assigned to themselves
+        if not is_team_leader and not is_admin:
+            if current_incident.get('assigned_to') != current_user.uid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Team members can only unassign incidents assigned to themselves"
+                )
+        
+        incident = await incident_service.unassign_incident(incident_id, current_user.uid)
+        
+        return {"message": "Incident unassigned successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unassign incident: {str(e)}"
         )
 
 @router.post("/{incident_id}/messages", response_model=Message)
