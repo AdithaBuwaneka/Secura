@@ -9,6 +9,7 @@ import {
   Shield, 
   TrendingUp,
   AlertTriangle,
+  Bell,
   LogOut,
   UserPlus,
   Download,
@@ -23,10 +24,9 @@ import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AdminApplicationReview from '@/components/applications/AdminApplicationReview';
 import UserManagement from '@/components/users/UserManagement';
 import SystemConfig from '@/components/system/SystemConfig';
-import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import toast from 'react-hot-toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface OverviewData {
   users: {
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
     const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
     const [loading, setLoading] = useState(false);
     const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     interface SystemLog {
       id?: string;
@@ -112,9 +112,13 @@ export default function AdminDashboard() {
     }, [idToken, isAuthenticated, API_URL]);
 
     const fetchRecentIncidents = React.useCallback(async () => {
+      if (!idToken || !isAuthenticated) return;
       try {
-        // Use public admin endpoint for recent incidents
-        const response = await fetch(`${API_URL}/api/incidents/admin/recent`);
+        const response = await fetch(`${API_URL}/api/incidents/?limit=5`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
 
         if (response.ok) {
           const incidents = await response.json();
@@ -123,19 +127,14 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error('Failed to fetch recent incidents:', error);
       }
-    }, [API_URL]);
+    }, [idToken, isAuthenticated, API_URL]);
 
     useEffect(() => {
       dispatch(fetchPendingApplications());
-      if (activeTab === 'overview') {
-        // Always fetch recent incidents (public endpoint)
+      if (activeTab === 'overview' && idToken && isAuthenticated) {
+        fetchOverviewData();
+        fetchRecentLogs();
         fetchRecentIncidents();
-        
-        // Only fetch authenticated endpoints if user is logged in
-        if (idToken && isAuthenticated) {
-          fetchOverviewData();
-          fetchRecentLogs();
-        }
       }
     }, [dispatch, activeTab, idToken, isAuthenticated, fetchOverviewData, fetchRecentLogs, fetchRecentIncidents]);
 
@@ -267,12 +266,38 @@ export default function AdminDashboard() {
 
             {/* User Info and Actions */}
             <div className="flex items-center space-x-4">
-              <NotificationDropdown />
+              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
+                  <span className="text-xs text-white font-bold">5</span>
+                </span>
+              </button>
               
               <div className="flex items-center space-x-3">
                 <div className="text-right">
                   <p className="text-sm font-medium text-white">{userProfile?.full_name}</p>
                   <p className="text-xs text-gray-400">System Administrator</p>
+                </div>
+                <div className="relative group">
+                  {userProfile?.profile_picture_url ? (
+                    <img
+                      src={userProfile.profile_picture_url}
+                      alt="Profile"
+                      className="w-10 h-10 rounded-full object-cover border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#0099CC] flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-600 hover:border-[#00D4FF] transition-all duration-200 group-hover:scale-105">
+                      {userProfile?.full_name ? (
+                        userProfile.full_name.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)
+                      ) : (
+                        'AD'
+                      )}
+                    </div>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-[#2A2D35]"></div>
+                  <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    Admin Profile
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300">
@@ -361,9 +386,9 @@ export default function AdminDashboard() {
                 <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm">Total Incidents</p>
+                      <p className="text-gray-400 text-sm">Recent Incidents</p>
                       <p className="text-3xl font-bold text-white">{overviewData?.incidents?.recent || 0}</p>
-                      <p className="text-xs text-gray-500 mt-1">{overviewData?.incidents?.trend || 'N/A'}</p>
+                      <p className="text-xs text-gray-500 mt-1">Last 30 days</p>
                     </div>
                     <div className="p-3 bg-orange-500/20 rounded-lg">
                       <AlertTriangle className="h-8 w-8 text-orange-400" />

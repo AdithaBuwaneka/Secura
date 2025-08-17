@@ -11,11 +11,14 @@ from app.models.user import User
 from app.models.common import UserRole
 from app.models.auth import UserProfile
 from app.core.firebase_config import FirebaseConfig
+from app.services.user_activity.activity_service import UserActivityService
+from app.models.user_activity import ActivityType
 
 class AuthService:
     def __init__(self):
         self.db = FirebaseConfig.get_firestore()
         self.users_collection = self.db.collection('users')
+        self.activity_service = UserActivityService()
 
     async def create_user_profile(self, user: User) -> User:
         """Create user profile in Firestore"""
@@ -24,6 +27,9 @@ class AuthService:
             'email': user.email,
             'full_name': user.full_name,
             'phone_number': user.phone_number,
+            'country': user.country,
+            'city': user.city,
+            'home_number': user.home_number,
             'role': user.role.value,
             'is_active': user.is_active,
             'created_at': datetime.utcnow(),
@@ -46,6 +52,9 @@ class AuthService:
             email=data['email'],
             full_name=data['full_name'],
             phone_number=data.get('phone_number'),
+            country=data.get('country'),
+            city=data.get('city'),
+            home_number=data.get('home_number'),
             role=UserRole(data['role']),
             is_active=data['is_active'],
             created_at=data['created_at'],
@@ -59,6 +68,14 @@ class AuthService:
             'phone_number': profile_data.phone_number,
             'updated_at': datetime.utcnow()
         }
+        
+        self.users_collection.document(uid).update(update_data)
+        return await self.get_user_profile(uid)
+
+    async def update_user_profile_fields(self, uid: str, update_data: dict) -> User:
+        """Update specific user profile fields"""
+        # Add updated_at timestamp
+        update_data['updated_at'] = datetime.utcnow()
         
         self.users_collection.document(uid).update(update_data)
         return await self.get_user_profile(uid)
@@ -99,6 +116,9 @@ class AuthService:
                 email=data['email'],
                 full_name=data['full_name'],
                 phone_number=data.get('phone_number'),
+                country=data.get('country'),
+                city=data.get('city'),
+                home_number=data.get('home_number'),
                 role=UserRole(data['role']),
                 is_active=data['is_active'],
                 created_at=data['created_at'],
@@ -108,11 +128,29 @@ class AuthService:
         print(f"AuthService: Total users found: {len(users)}")
         return users
 
-    async def update_last_login(self, uid: str):
-        """Update user's last login timestamp"""
+    async def update_last_login(self, uid: str, ip_address: str = None, user_agent: str = None):
+        """Update user's last login timestamp and track activity"""
+        # Update in users collection
         self.users_collection.document(uid).update({
             'last_login': datetime.utcnow()
         })
+        
+        # Track login activity
+        await self.activity_service.track_user_activity(
+            user_id=uid,
+            activity_type=ActivityType.LOGIN,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    
+    async def track_logout(self, uid: str, ip_address: str = None, user_agent: str = None):
+        """Track user logout activity"""
+        await self.activity_service.track_user_activity(
+            user_id=uid,
+            activity_type=ActivityType.LOGOUT,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
 
     async def update_user_status(self, uid: str, is_active: bool) -> bool:
         """Update user active status"""

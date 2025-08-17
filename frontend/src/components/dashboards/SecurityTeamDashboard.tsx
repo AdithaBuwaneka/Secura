@@ -3,30 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-  Shield, 
-  AlertTriangle, 
-  Users, 
-  TrendingUp, 
-  Search,
-  Filter,
-  LogOut,
-  Eye,
-  MessageSquare,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   X,
-  Brain,
   Calendar,
   MapPin,
   User,
+  Users,
   Paperclip,
   Image as ImageIcon,
   FileText,
   Download,
   ScanLine,
-  FileSearch
-
+  UserCheck,
+  AlertTriangle,
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { logoutUser } from '@/store/auth/authSlice';
@@ -34,18 +24,23 @@ import SecurityMessaging from '@/components/messaging/SecurityMessaging';
 import { useMessaging } from '@/components/messaging/MessagingProvider';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import AIAnalysisDashboard from '@/components/ai/AIAnalysisDashboard';
-import NotificationDropdown from '@/components/ui/NotificationDropdown';
+import SecurityTeamProfile from '@/components/profile/SecurityTeamProfile';
+import SecurityHeader from '@/components/security/SecurityHeader';
+import SecurityStatsGrid from '@/components/security/SecurityStatsGrid';
+import IncidentQueue from '@/components/security/IncidentQueue';
+import TeamStatusPanel from '@/components/security/TeamStatusPanel';
+import AIInsightsPanel from '@/components/security/AIInsightsPanel';
+import IncidentChatButton from '@/components/messaging/IncidentChatButton';
 import toast from 'react-hot-toast';
 
 export default function SecurityTeamDashboard() {
-  const { userProfile } = useSelector((state: RootState) => state.auth);
+  const { userProfile, idToken } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
   const { unreadCount } = useMessaging();
   const [searchTerm, setSearchTerm] = useState('');
   const [showMessaging, setShowMessaging] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showAI, setShowAI] = useState(false);
-
   const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
@@ -53,23 +48,119 @@ export default function SecurityTeamDashboard() {
   const [showImageAnalysis, setShowImageAnalysis] = useState(false);
   const [imageAnalysis, setImageAnalysis] = useState<any>(null);
   const [analyzingImage, setAnalyzingImage] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [showTeamDetails, setShowTeamDetails] = useState(false);
+  const [showCriticalIncidents, setShowCriticalIncidents] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+  // Fetch incidents function (moved outside useEffect for reusability)
+  const fetchIncidents = async () => {
+    if (idToken) {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/api/incidents/`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Security team fetched incidents:', data);
+          console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
+          setIncidents(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch incidents:', error);
+        toast.error('Failed to load incidents');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
-  // Listen for messaging events from notifications
   useEffect(() => {
-    const handleOpenMessaging = (event: CustomEvent) => {
-      if (event.detail?.source === 'notification') {
-        setShowMessaging(true);
+    
+    // Fetch team members with online status
+    const fetchTeamMembers = async () => {
+      if (idToken) {
+        try {
+          const response = await fetch(`${API_URL}/api/user-activity/team-status`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const teamStatus = await response.json();
+            setTeamMembers(teamStatus.members);
+            console.log('Team status:', teamStatus);
+          } else {
+            // Fallback to admin/users endpoint if user-activity fails
+            console.log('Falling back to admin/users endpoint');
+            const fallbackResponse = await fetch(`${API_URL}/api/admin/users`, {
+              headers: {
+                'Authorization': `Bearer ${idToken}`
+              }
+            });
+            
+            if (fallbackResponse.ok) {
+              const allUsers = await fallbackResponse.json();
+              const securityTeam = allUsers.filter((user: any) => 
+                user.role === 'security_team'
+              ).map((user: any) => ({
+                user_id: user.uid,
+                email: user.email,
+                full_name: user.full_name,
+                role: user.role,
+                is_online: false, // Default to offline for fallback
+                last_activity: new Date(user.last_login || new Date()).toISOString(),
+                last_login: user.last_login
+              }));
+              setTeamMembers(securityTeam);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch team members:', error);
+          // Don't show error toast for team members as it's not critical
+        }
       }
     };
-
-    window.addEventListener('openMessaging', handleOpenMessaging as EventListener);
+    
+    fetchIncidents();
+    fetchTeamMembers();
+    
+    // Note: Removed automatic 30-second refresh to reduce server load
+    // Data will be updated via WebSocket notifications and manual refresh
+    
+    // Listen for WebSocket messages about new incidents
+    const handleWebSocketMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'new_incident') {
+          console.log('New incident notification received:', data);
+          // Refresh incidents when a new one is reported
+          fetchIncidents();
+          toast.info(`New incident reported: ${data.title || 'Untitled'}`);
+        }
+      } catch (error) {
+        // Ignore non-JSON messages
+      }
+    };
+    
+    // Add WebSocket listener if available
+    const ws = (window as any).securaWebSocket;
+    if (ws) {
+      ws.addEventListener('message', handleWebSocketMessage);
+    }
     
     return () => {
-      window.removeEventListener('openMessaging', handleOpenMessaging as EventListener);
+      if (ws) {
+        ws.removeEventListener('message', handleWebSocketMessage);
+      }
     };
-  }, []);
+  }, [idToken, API_URL]);
 
   const handleLogout = async () => {
     try {
@@ -79,13 +170,6 @@ export default function SecurityTeamDashboard() {
       toast.error('Logout failed');
     }
   };
-  const mockIncidents = [
-    { id: 'INC-2024-001', title: 'Phishing Email Campaign Detected', severity: 'Critical', time: '2 min ago', status: 'Investigating', reporter: 'John Doe', category: 'Phishing' },
-    { id: 'INC-2024-002', title: 'Unusual Network Traffic Patterns', severity: 'High', time: '15 min ago', status: 'New', reporter: 'Sarah Wilson', category: 'Network' },
-    { id: 'INC-2024-003', title: 'Malware Detection on Workstation', severity: 'High', time: '32 min ago', status: 'Assigned', reporter: 'Mike Johnson', category: 'Malware' },
-    { id: 'INC-2024-004', title: 'Unauthorized Access Attempt', severity: 'Medium', time: '1 hour ago', status: 'In Progress', reporter: 'Emily Chen', category: 'Access' },
-    { id: 'INC-2024-005', title: 'Suspicious Email Attachment', severity: 'Low', time: '2 hours ago', status: 'Resolved', reporter: 'David Kim', category: 'Email' },
-  ];
 
   const analyzeImage = async (imageUrl: string, incidentContext?: string) => {
     setAnalyzingImage(true);
@@ -118,271 +202,231 @@ export default function SecurityTeamDashboard() {
     }
   };
 
+  const handleAssignIncident = async (incidentId: string, assigneeId: string) => {
+    try {
+      if (assigneeId === '') {
+        // Handle unassignment
+        const response = await fetch(`${API_URL}/api/incidents/${incidentId}/unassign`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          setSelectedIncident(prev => ({
+            ...prev,
+            assigned_to: null,
+            assigned_to_name: null,
+            assigned_at: null,
+            status: 'new'
+          }));
+          
+          fetchIncidents();
+          toast.success('Incident unassigned successfully');
+        } else {
+          toast.error('Failed to unassign incident');
+        }
+        return;
+      }
+      
+      // Handle assignment
+      const response = await fetch(`${API_URL}/api/incidents/${incidentId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          assignee_id: assigneeId
+        })
+      });
+
+      if (response.ok) {
+        const assigneeName = teamMembers.find(m => m.user_id === assigneeId)?.full_name;
+        
+        // Update the selected incident with assignment info
+        setSelectedIncident(prev => ({
+          ...prev,
+          assigned_to: assigneeId,
+          assigned_to_name: assigneeName,
+          assigned_at: new Date().toISOString(),
+          status: 'investigating'
+        }));
+        
+        // Refresh incidents list to update the UI and stats
+        fetchIncidents();
+        
+        toast.success(`Incident assigned to ${assigneeName}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to assign incident');
+      }
+    } catch (error) {
+      console.error('Assignment error:', error);
+      toast.error('Failed to process assignment');
+    }
+  };
+
+  // Check if current user is team leader
+  const isTeamLeader = () => {
+    return userProfile?.email === 'security.lead@secura.com';
+  };
+
+  // Handle incident click - fetch full details
+  const handleIncidentClick = async (incident: any) => {
+    try {
+      const response = await fetch(`${API_URL}/api/incidents/${incident.id}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const fullIncident = await response.json();
+        console.log('Fetched full incident:', fullIncident);
+        setSelectedIncident(fullIncident);
+        setShowIncidentDetails(true);
+      } else {
+        // Fallback to existing data
+        setSelectedIncident(incident);
+        setShowIncidentDetails(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch incident details:', error);
+      // Fallback to existing data
+      setSelectedIncident(incident);
+      setShowIncidentDetails(true);
+    }
+  };
+
   const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'Critical': return 'bg-red-500';
-      case 'High': return 'bg-orange-500';
-      case 'Medium': return 'bg-yellow-500';
-      case 'Low': return 'bg-green-500';
+    switch (severity.toLowerCase()) {
+      case 'critical': return 'bg-red-500';
+      case 'high': return 'bg-orange-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'low': return 'bg-green-500';
       default: return 'bg-gray-500';
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'New': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'Investigating': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-      case 'Assigned': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      case 'In Progress': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'Resolved': return 'bg-green-500/20 text-green-300 border-green-500/30';
+    switch (status.toLowerCase()) {
+      case 'new':
+      case 'pending': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'investigating': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+      case 'assigned': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case 'in_progress': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'resolved': return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'closed': return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
       default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
     }
   };
+  
+  const getTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return `${seconds} seconds ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    return `${Math.floor(seconds / 86400)} days ago`;
+  };
+  
+  // Filter incidents based on search term
+  const filteredIncidents = incidents.filter(incident => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (incident.title?.toLowerCase().includes(searchLower) || false) ||
+      (incident.description?.toLowerCase().includes(searchLower) || false) ||
+      (incident.reporter_name?.toLowerCase().includes(searchLower) || false) ||
+      (incident.incident_type?.toLowerCase().includes(searchLower) || false)
+    );
+  });
+
+  // Calculate team online status
+  const totalTeamMembers = teamMembers.length;
+  const onlineTeamMembers = teamMembers.filter(member => member.is_online === true).length;
+
+  // Calculate other stats
+  const underInvestigationCount = incidents.filter(i => 
+    i.status === 'investigating' || i.status === 'in_progress'
+  ).length;
+
+  const resolvedTodayCount = incidents.filter(i => {
+    if (i.status !== 'resolved' && i.status !== 'closed') return false;
+    const resolvedDate = new Date(i.resolved_at || i.updated_at);
+    const today = new Date();
+    return resolvedDate.toDateString() === today.toDateString();
+  }).length;
 
   return (
     <div className="min-h-screen bg-[#1A1D23]">
       {/* Header */}
-      <header className="bg-[#2A2D35] border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo and Title */}
-            <div className="flex items-center space-x-4">
-              <Shield className="h-8 w-8 text-[#00D4FF]" />
-              <div>
-                <h1 className="text-xl font-bold text-white">Secura</h1>
-                <p className="text-xs text-gray-400">🛡️ Security Team Dashboard</p>
-              </div>
-            </div>
-
-            {/* User Info and Actions */}
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setShowAnalytics(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="Analytics"
-              >
-                <TrendingUp className="h-5 w-5" />
-              </button>
-              
-              <button 
-                onClick={() => setShowAI(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="AI Analysis"
-              >
-                <Brain className="h-5 w-5" />
-              </button>
-              
-              <button 
-                onClick={() => setShowMessaging(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors relative"
-                title="Messages"
-              >
-                <MessageSquare className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-xs text-white font-bold">{unreadCount}</span>
-                  </span>
-                )}
-              </button>
-              
-              <NotificationDropdown />
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-white">{userProfile?.full_name}</p>
-                  <p className="text-xs text-gray-400">Security Analyst</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300">
-                    🛡️ Security Team
-                  </span>
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                    title="Logout"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <SecurityHeader
+        userProfile={userProfile}
+        unreadCount={unreadCount}
+        isTeamLeader={isTeamLeader}
+        onAnalyticsClick={() => setShowAnalytics(true)}
+        onAIClick={() => setShowAI(true)}
+        onMessagingClick={() => setShowMessaging(true)}
+        onProfileClick={() => setShowProfile(true)}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Critical Alert Banner */}
-        <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 p-4 rounded-lg mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="h-6 w-6 text-red-400 animate-pulse" />
-              <div>
-                <p className="font-semibold text-red-200">Critical Incidents Require Attention</p>
-                <p className="text-sm text-red-300">2 high-priority incidents need immediate investigation</p>
+        {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length > 0 && (
+          <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 p-4 rounded-lg mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-6 w-6 text-red-400 animate-pulse" />
+                <div>
+                  <p className="font-semibold text-red-200">Critical Incidents Require Attention</p>
+                  <p className="text-sm text-red-300">
+                    {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length} high-priority incidents need immediate investigation
+                  </p>
+                </div>
               </div>
+              <button 
+                onClick={() => setShowCriticalIncidents(true)}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Review Now
+              </button>
             </div>
-            <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Review Now
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Active Incidents</p>
-                <p className="text-3xl font-bold text-white">27</p>
-                <p className="text-xs text-gray-500 mt-1">↑ 3 from yesterday</p>
-              </div>
-              <div className="p-3 bg-red-500/20 rounded-lg">
-                <AlertCircle className="h-8 w-8 text-red-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Under Investigation</p>
-                <p className="text-3xl font-bold text-white">15</p>
-                <p className="text-xs text-gray-500 mt-1">Avg: 2.1 hours</p>
-              </div>
-              <div className="p-3 bg-orange-500/20 rounded-lg">
-                <Clock className="h-8 w-8 text-orange-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Team Online</p>
-                <p className="text-3xl font-bold text-white">6/8</p>
-                <p className="text-xs text-gray-500 mt-1">Available analysts</p>
-              </div>
-              <div className="p-3 bg-green-500/20 rounded-lg">
-                <Users className="h-8 w-8 text-green-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Resolved Today</p>
-                <p className="text-3xl font-bold text-white">18</p>
-                <p className="text-xs text-gray-500 mt-1">Target: 20</p>
-              </div>
-              <div className="p-3 bg-blue-500/20 rounded-lg">
-                <CheckCircle2 className="h-8 w-8 text-blue-400" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <SecurityStatsGrid
+          incidents={incidents}
+          onlineTeamMembers={onlineTeamMembers}
+          totalTeamMembers={totalTeamMembers}
+          onTeamDetailsClick={() => setShowTeamDetails(true)}
+        />
 
         {/* Incident Management */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Incident Queue */}
           <div className="lg:col-span-2">
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-white">Incident Queue</h3>
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search incidents..."
-                      className="pl-10 pr-4 py-2 bg-[#1A1D23] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] text-sm"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <button className="p-2 bg-[#1A1D23] border border-gray-600 rounded-lg text-gray-400 hover:text-white transition-colors">
-                    <Filter className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                {mockIncidents.map((incident) => (
-                  <div key={incident.id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${getSeverityColor(incident.severity)}`}></div>
-                        <div>
-                          <p className="font-medium text-white">{incident.title}</p>
-                          <p className="text-sm text-gray-400">{incident.id} • {incident.time}</p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(incident.status)}`}>
-                        {incident.status}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 text-sm text-gray-400">
-                        <span>Reporter: {incident.reporter}</span>
-                        <span>Category: {incident.category}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors">
-                          <MessageSquare className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <IncidentQueue
+              incidents={incidents}
+              loading={loading}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onIncidentClick={handleIncidentClick}
+              getSeverityColor={getSeverityColor}
+              getStatusColor={getStatusColor}
+              getTimeAgo={getTimeAgo}
+            />
           </div>
 
           {/* Side Panel */}
           <div className="space-y-6">
-            {/* AI Analysis */}
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">🤖 AI Insights</h3>
-              <div className="space-y-3">
-                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <p className="text-sm font-medium text-blue-300">Threat Pattern Detected</p>
-                  <p className="text-xs text-blue-400 mt-1">Similar phishing attempts from 3 different sources</p>
-                </div>
-                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-sm font-medium text-yellow-300">Recommendation</p>
-                  <p className="text-xs text-yellow-400 mt-1">Consider blocking domain: suspicious-site.com</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Team Status */}
-            <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">Team Status</h3>
-              <div className="space-y-3">
-                {[
-                  { name: 'Alex Chen', status: 'Available', workload: 3 },
-                  { name: 'Sarah Kim', status: 'Investigating', workload: 5 },
-                  { name: 'Mike Johnson', status: 'Available', workload: 2 },
-                  { name: 'Emma Wilson', status: 'Busy', workload: 7 },
-                ].map((member) => (
-                  <div key={member.name} className="flex items-center justify-between p-2 bg-[#1A1D23] rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium text-white">{member.name}</p>
-                      <p className="text-xs text-gray-400">{member.workload} active cases</p>
-                    </div>
-                    <span className={`w-2 h-2 rounded-full ${
-                      member.status === 'Available' ? 'bg-green-400' :
-                      member.status === 'Investigating' ? 'bg-orange-400' : 'bg-red-400'
-                    }`}></span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AIInsightsPanel />
+            <TeamStatusPanel teamMembers={teamMembers} incidents={incidents} />
           </div>
         </div>
       </main>
@@ -435,7 +479,6 @@ export default function SecurityTeamDashboard() {
           </div>
         </div>
       )}
-
 
       {/* Incident Details Modal */}
       {showIncidentDetails && selectedIncident && (
@@ -608,6 +651,108 @@ export default function SecurityTeamDashboard() {
                 </div>
               )}
 
+              {/* Assignment Section */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Assignment
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Current Assignee</p>
+                    <p className="text-white">
+                      {selectedIncident.assigned_to_name || 'Unassigned'}
+                    </p>
+                    {selectedIncident.assigned_at && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Assigned {new Date(selectedIncident.assigned_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">
+                      {isTeamLeader() ? 'Assign to Team Member' : 'Assignment Actions'}
+                    </p>
+                    
+                    {!selectedIncident.assigned_to ? (
+                      // Unassigned incident
+                      <div className="space-y-2">
+                        {isTeamLeader() ? (
+                          // Team Leader: Can assign to anyone
+                          <select
+                            className="w-full bg-[#1A1D23] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00D4FF]"
+                            onChange={(e) => handleAssignIncident(selectedIncident.id, e.target.value)}
+                          >
+                            <option value="">Select team member...</option>
+                            {teamMembers.map(member => (
+                              <option key={member.user_id} value={member.user_id}>
+                                {member.full_name} {member.is_online ? '(Online)' : '(Offline)'}
+                                {member.user_id === userProfile?.uid ? ' (You)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          // Team Member: Can only assign to themselves
+                          <button
+                            onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
+                            className="w-full bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] py-2 px-3 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Pick This Incident
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      // Already assigned incident
+                      <div className="space-y-2">
+                        <p className="text-white text-sm">
+                          {selectedIncident.assigned_to === userProfile?.uid ? 
+                            'Assigned to you' : 
+                            `Assigned to ${selectedIncident.assigned_to_name}`
+                          }
+                        </p>
+                        
+                        <div className="flex items-center justify-between">
+                          {isTeamLeader() ? (
+                            // Team Leader: Can reassign to anyone or unassign
+                            <div className="flex space-x-2 w-full">
+                              <select
+                                className="flex-1 bg-[#1A1D23] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00D4FF]"
+                                onChange={(e) => handleAssignIncident(selectedIncident.id, e.target.value)}
+                                defaultValue=""
+                              >
+                                <option value="">Reassign to...</option>
+                                {teamMembers.map(member => (
+                                  <option key={member.user_id} value={member.user_id}>
+                                    {member.full_name} {member.is_online ? '(Online)' : '(Offline)'}
+                                    {member.user_id === userProfile?.uid ? ' (You)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleAssignIncident(selectedIncident.id, '')}
+                                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
+                              >
+                                Unassign
+                              </button>
+                            </div>
+                          ) : (
+                            // Team Member: Can only unassign if it's assigned to them
+                            selectedIncident.assigned_to === userProfile?.uid && (
+                              <button
+                                onClick={() => handleAssignIncident(selectedIncident.id, '')}
+                                className="text-xs text-red-400 hover:text-red-300 underline"
+                              >
+                                Release Assignment
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Timeline */}
               <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
                 <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center">
@@ -633,19 +778,38 @@ export default function SecurityTeamDashboard() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => {
-                    setShowIncidentDetails(false);
-                    setSelectedIncident(null);
-                  }}
-                  className="px-6 py-3 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-                <button className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors">
-                  Assign to Me
-                </button>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                  <IncidentChatButton 
+                    incidentId={selectedIncident.id}
+                    incidentTitle={selectedIncident.title}
+                    assignedToId={selectedIncident.assigned_to}
+                    assignedToName={selectedIncident.assigned_to_name}
+                    incidentStatus={selectedIncident.status}
+                    size="md"
+                    showLabel={true}
+                  />
+                </div>
+                
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => {
+                      setShowIncidentDetails(false);
+                      setSelectedIncident(null);
+                    }}
+                    className="px-6 py-3 bg-[#374151] hover:bg-[#4B5563] text-white rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                  {!selectedIncident.assigned_to && !isTeamLeader() && (
+                    <button 
+                      onClick={() => handleAssignIncident(selectedIncident.id, userProfile?.uid || '')}
+                      className="px-6 py-3 bg-[#00D4FF] hover:bg-[#00C4EF] text-[#1A1D23] font-medium rounded-lg transition-colors"
+                    >
+                      Pick This Incident
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -776,6 +940,268 @@ ${imageAnalysis.recommendations.map((r: string, i: number) => `${i + 1}. ${r}`).
         </div>
       )}
 
+      {/* Team Details Modal */}
+      {showTeamDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-2xl max-h-[80vh] bg-[#2A2D35] rounded-lg border border-gray-700 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center">
+                  <Users className="h-6 w-6 mr-2 text-[#00D4FF]" />
+                  Security Team Status
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  {onlineTeamMembers} of {totalTeamMembers} members online
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTeamDetails(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
+              <div className="p-6">
+                {teamMembers.length > 0 ? (
+                  <div className="space-y-3">
+                    {teamMembers.map((member) => {
+                      const assignedIncidents = incidents.filter(i => 
+                        i.assigned_to === member.user_id && 
+                        i.status !== 'resolved' && 
+                        i.status !== 'closed'
+                      ).length;
+                      
+                      const lastActivityTime = member.last_activity ? 
+                        new Date(member.last_activity).toLocaleString() : 'Never';
+                      const lastLoginTime = member.last_login ? 
+                        new Date(member.last_login).toLocaleString() : 'Never';
+                      
+                      return (
+                        <div key={member.user_id} className="bg-[#1A1D23] p-4 rounded-lg border border-gray-700">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <div className={`w-4 h-4 rounded-full ${
+                                  member.is_online ? 'bg-green-400' : 'bg-gray-400'
+                                }`}></div>
+                                <div>
+                                  <h3 className="font-medium text-white">{member.full_name}</h3>
+                                  <p className="text-sm text-gray-400">{member.email}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4 text-xs text-gray-400 mt-3">
+                                <div>
+                                  <p className="text-gray-500">Status:</p>
+                                  <p className={member.is_online ? 'text-green-400' : 'text-gray-400'}>
+                                    {member.is_online ? 'Online' : 'Offline'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Active Cases:</p>
+                                  <p className="text-white">{assignedIncidents}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Last Activity:</p>
+                                  <p className="text-gray-300">{lastActivityTime}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Last Login:</p>
+                                  <p className="text-gray-300">{lastLoginTime}</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Status Badge */}
+                            <div className="ml-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                member.is_online 
+                                  ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                                  : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                              }`}>
+                                {member.is_online ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-white mb-2">No Team Members Found</h3>
+                    <p className="text-gray-400">Unable to load security team information.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-700 bg-[#1A1D23]">
+              <div className="flex items-center justify-between text-sm text-gray-400">
+                <div>
+                  Last updated: {new Date().toLocaleTimeString()}
+                </div>
+                <button
+                  onClick={() => setShowTeamDetails(false)}
+                  className="px-4 py-2 bg-[#00D4FF] text-[#1A1D23] font-medium rounded-lg hover:bg-[#00C4EF] transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Critical Incidents Modal */}
+      {showCriticalIncidents && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl max-h-[90vh] bg-[#2A2D35] rounded-lg border border-red-500/30 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-red-500/30 bg-gradient-to-r from-red-500/20 to-orange-500/20">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-6 w-6 text-red-400" />
+                <div>
+                  <h2 className="text-xl font-bold text-white">Critical Incidents</h2>
+                  <p className="text-sm text-red-300 mt-1">
+                    {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length} high-priority incidents requiring immediate attention
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCriticalIncidents(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+              {incidents.filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed').length > 0 ? (
+                <div className="p-6 space-y-4">
+                  {incidents
+                    .filter(i => (i.severity === 'critical' || i.severity === 'high') && i.status !== 'resolved' && i.status !== 'closed')
+                    .sort((a, b) => {
+                      // Sort by severity (critical first) then by creation date
+                      if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+                      if (b.severity === 'critical' && a.severity !== 'critical') return 1;
+                      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                    })
+                    .map((incident) => {
+                      const timeAgo = new Date(incident.created_at).toLocaleString();
+                      const isCritical = incident.severity === 'critical';
+                      
+                      return (
+                        <div key={incident.id} className={`bg-[#1A1D23] p-4 rounded-lg border transition-colors hover:border-gray-600 ${
+                          isCritical ? 'border-red-500/50' : 'border-orange-500/50'
+                        }`}>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  isCritical ? 'bg-red-500 animate-pulse' : 'bg-orange-500'
+                                }`}></div>
+                                <h3 className="font-medium text-white">
+                                  {incident.title || 'Untitled Incident'}
+                                </h3>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  isCritical ? 'bg-red-500/20 text-red-300' : 'bg-orange-500/20 text-orange-300'
+                                }`}>
+                                  {incident.severity.toUpperCase()}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  incident.status === 'investigating' ? 'bg-blue-500/20 text-blue-300' :
+                                  incident.status === 'assigned' ? 'bg-purple-500/20 text-purple-300' :
+                                  'bg-gray-500/20 text-gray-300'
+                                }`}>
+                                  {incident.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-300 mb-2 line-clamp-2">
+                                {incident.description || 'No description provided'}
+                              </p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-400">
+                                <span>Type: {incident.incident_type?.replace('_', ' ') || 'Unknown'}</span>
+                                <span>•</span>
+                                <span>Reported: {timeAgo}</span>
+                                <span>•</span>
+                                <span>Reporter: {incident.reporter_name || 'Unknown'}</span>
+                                {incident.assigned_to_name && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Assigned: {incident.assigned_to_name}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <button
+                                onClick={() => {
+                                  setSelectedIncident(incident);
+                                  setShowIncidentDetails(true);
+                                  setShowCriticalIncidents(false);
+                                }}
+                                className="p-2 text-gray-400 hover:text-[#00D4FF] hover:bg-gray-700 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Additional Info */}
+                          {(incident.location || incident.attachments?.length > 0) && (
+                            <div className="pt-3 border-t border-gray-700">
+                              <div className="flex flex-wrap items-center gap-4">
+                                {incident.location && (
+                                  <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>
+                                      {typeof incident.location === 'string' 
+                                        ? incident.location 
+                                        : incident.location.address || 
+                                          `${incident.location.building || ''}${incident.location.floor ? ` Floor ${incident.location.floor}` : ''}${incident.location.room ? ` Room ${incident.location.room}` : ''}`.trim() ||
+                                          'Location provided'
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                {incident.attachments?.length > 0 && (
+                                  <div className="flex items-center space-x-1 text-xs text-gray-400">
+                                    <Paperclip className="h-3 w-3" />
+                                    <span>{incident.attachments.length} attachment{incident.attachments.length > 1 ? 's' : ''}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-white mb-2">No Critical Incidents</h3>
+                  <p className="text-gray-400">All high-priority incidents have been resolved or are being handled.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <SecurityTeamProfile onClose={() => setShowProfile(false)} />
+      )}
     </div>
   );
 }

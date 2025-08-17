@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.models.user import User
 from app.services.analytics.analytics_service import AnalyticsService
-from app.services.notifications.notification_service import NotificationService
+# from app.services.notifications.notification_service import NotificationService
 from app.utils.auth import get_current_user
 
 router = APIRouter(tags=["Analytics & Infrastructure"])
@@ -22,7 +22,11 @@ class DashboardMetrics(BaseModel):
     avg_resolution_time: float
     severity_breakdown: Dict[str, int]
     category_breakdown: Dict[str, int]
-    trends: Dict[str, Any]
+    incident_trends: Dict[str, Any]
+    severity_distribution: Dict[str, Any]
+    response_times: Dict[str, Any]
+    team_performance: Dict[str, Any]
+    monthly_summary: Dict[str, Any]
 
 class ExecutiveReport(BaseModel):
     report_id: str
@@ -32,11 +36,14 @@ class ExecutiveReport(BaseModel):
     compliance_status: Dict[str, Any]
     recommendations: List[str]
 
-@router.get("/dashboard/basic", response_model=DashboardMetrics)
+def get_analytics_service() -> AnalyticsService:
+    return AnalyticsService()
+
+@router.get("/dashboard/basic")
 async def get_basic_dashboard(
     days: int = 30,
     current_user: User = Depends(get_current_user),
-    analytics_service: AnalyticsService = Depends()
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """
     Get basic analytics dashboard data
@@ -62,7 +69,7 @@ async def get_basic_dashboard(
 async def get_executive_dashboard(
     days: int = 90,
     current_user: User = Depends(get_current_user),
-    analytics_service: AnalyticsService = Depends()
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """
     Get comprehensive executive dashboard with KPIs
@@ -84,12 +91,114 @@ async def get_executive_dashboard(
             detail=f"Failed to retrieve executive dashboard: {str(e)}"
         )
 
+@router.get("/metrics")
+async def get_key_metrics(
+    timeRange: str = "30d",
+    current_user: User = Depends(get_current_user),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
+):
+    """
+    Get key metrics for the dashboard
+    Available to Security Team and Admin
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Metrics access requires security team or admin privileges"
+        )
+    
+    try:
+        # Parse time range
+        days = 30
+        if timeRange == "7d":
+            days = 7
+        elif timeRange == "90d":
+            days = 90
+        elif timeRange == "1y":
+            days = 365
+        
+        # Get basic metrics
+        basic_metrics = await analytics_service.get_basic_metrics(days)
+        
+        # Calculate additional metrics
+        user_metrics = await analytics_service.get_user_activity_metrics()
+        
+        # Format response for frontend
+        response = {
+            "total_incidents": basic_metrics["total_incidents"],
+            "resolution_rate": round((basic_metrics["resolved_incidents"] / basic_metrics["total_incidents"] * 100) if basic_metrics["total_incidents"] > 0 else 0, 1),
+            "avg_response_time": round(basic_metrics["avg_resolution_time"], 1),
+            "critical_incidents": basic_metrics["severity_breakdown"].get("critical", 0),
+            "active_analysts": user_metrics["total_users"],
+            "threat_level": "Medium",  # This could be calculated based on recent critical incidents
+            "incidents_change": 12,  # Could be calculated by comparing with previous period
+            "resolution_change": 5,
+            "response_time_change": -0.5,
+            "critical_change": -2,
+            "analysts_change": 1,
+            "threat_change": "Stable"
+        }
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve key metrics: {str(e)}"
+        )
+
+@router.get("/reports")
+async def get_reports_list(
+    current_user: User = Depends(get_current_user),
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
+):
+    """
+    Get list of generated reports
+    Available to Security Team and Admin
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reports access requires security team or admin privileges"
+        )
+    
+    try:
+        # Mock reports data - in a real system this would come from database
+        reports = [
+            {
+                "id": "RPT-2024-001",
+                "title": "Monthly Security Overview",
+                "type": "monthly",
+                "generated_date": "2024-01-15T10:30:00Z",
+                "period": "January 2024",
+                "file_size": "2.3 MB",
+                "status": "ready"
+            },
+            {
+                "id": "RPT-2024-002",
+                "title": "Weekly Incident Analysis",
+                "type": "weekly",
+                "generated_date": "2024-01-22T14:15:00Z",
+                "period": "Week 3, January 2024",
+                "file_size": "1.8 MB",
+                "status": "ready"
+            }
+        ]
+        
+        return {"reports": reports}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve reports: {str(e)}"
+        )
+
 @router.get("/visualization/trends")
 async def get_trend_data(
     metric: str,  # "incidents", "resolution_time", "severity_distribution"
     period: str = "month",  # "week", "month", "quarter"
     current_user: User = Depends(get_current_user),
-    analytics_service: AnalyticsService = Depends()
+    analytics_service: AnalyticsService = Depends(get_analytics_service)
 ):
     """
     Get trend data for Chart.js visualization
@@ -225,67 +334,67 @@ async def export_incident_data(
             detail=f"Data export failed: {str(e)}"
         )
 
-@router.post("/notifications/email")
-async def send_email_notification(
-    recipient_email: str,
-    subject: str,
-    template: str,
-    data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
-    notification_service: NotificationService = Depends()
-):
-    """
-    Send email notification via SendGrid
-    Security Team and Admin only
-    """
-    if current_user.role.value not in ["security_team", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email notifications require security team or admin access"
-        )
-    
-    try:
-        result = await notification_service.send_email(
-            recipient_email, subject, template, data
-        )
-        
-        return {
-            "message": "Email sent successfully",
-            "message_id": result.get("message_id")
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Email notification failed: {str(e)}"
-        )
+# @router.post("/notifications/email")
+# async def send_email_notification(
+#     recipient_email: str,
+#     subject: str,
+#     template: str,
+#     data: Dict[str, Any],
+#     current_user: User = Depends(get_current_user),
+#     notification_service: NotificationService = Depends()
+# ):
+#     """
+#     Send email notification via SendGrid
+#     Security Team and Admin only
+#     """
+#     if current_user.role.value not in ["security_team", "admin"]:
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Email notifications require security team or admin access"
+#         )
+#     
+#     try:
+#         result = await notification_service.send_email(
+#             recipient_email, subject, template, data
+#         )
+#         
+#         return {
+#             "message": "Email sent successfully",
+#             "message_id": result.get("message_id")
+#         }
+#         
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Email notification failed: {str(e)}"
+#         )
 
-@router.post("/notifications/push")
-async def send_push_notification(
-    user_id: str,
-    title: str,
-    body: str,
-    data: Dict[str, Any] = {},
-    notification_service: NotificationService = Depends()
-):
-    """
-    Send push notification via Firebase Cloud Messaging
-    """
-    try:
-        result = await notification_service.send_push_notification(
-            user_id, title, body, data
-        )
-        
-        return {
-            "message": "Push notification sent successfully",
-            "message_id": result.get("message_id")
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Push notification failed: {str(e)}"
-        )
+# @router.post("/notifications/push")
+# async def send_push_notification(
+#     user_id: str,
+#     title: str,
+#     body: str,
+#     data: Dict[str, Any] = {},
+#     notification_service: NotificationService = Depends()
+# ):
+#     """
+#     Send push notification via Firebase Cloud Messaging
+#     """
+#     try:
+#         result = await notification_service.send_push_notification(
+#             user_id, title, body, data
+#         )
+#         
+#         return {
+#             "message": "Push notification sent successfully",
+#             "message_id": result.get("message_id")
+#         }
+#         
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Push notification failed: {str(e)}"
+#         )
 
 @router.get("/integration/siem")
 async def get_siem_integration_status(

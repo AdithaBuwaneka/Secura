@@ -51,6 +51,7 @@ class IncidentService:
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
             'resolved_at': None,
+            'resolved_by': None,
             'closed_at': None,
             'additional_context': incident_data.additional_context or {},
             'last_activity': datetime.utcnow(),
@@ -102,17 +103,16 @@ class IncidentService:
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
             'resolved_at': None,
+            'resolved_by': None,
             'closed_at': None,
             'additional_context': incident_data.additional_context or {},
             'last_activity': datetime.utcnow(),
             'priority_score': None
         }
 
-
         self.incidents_collection.document(incident_id).set(incident_doc)
 
         return IncidentResponse(**incident_doc)
-
 
     async def get_incident(self, incident_id: str) -> Optional[dict]:
         """Get incident by ID with attachments"""
@@ -233,6 +233,10 @@ class IncidentService:
                 if field in data and data[field] is not None:
                     # Firestore timestamps are already datetime objects
                     pass
+            
+            # Ensure resolved_by field exists (for backwards compatibility)
+            if 'resolved_by' not in data:
+                data['resolved_by'] = None
             
             try:
                 incident = IncidentResponse(**data)
@@ -362,6 +366,10 @@ class IncidentService:
                     # Firestore timestamps are already datetime objects
                     pass
             
+            # Ensure resolved_by field exists (for backwards compatibility)
+            if 'resolved_by' not in data:
+                data['resolved_by'] = None
+            
             try:
                 incident = IncidentResponse(**data)
                 incident_dict = incident.dict()
@@ -428,6 +436,7 @@ class IncidentService:
             update_data['status'] = incident_data.status.value
             if incident_data.status in [IncidentStatus.RESOLVED, IncidentStatus.CLOSED]:
                 update_data['resolved_at'] = datetime.utcnow()
+                update_data['resolved_by'] = updated_by
         if incident_data.assigned_to:
             update_data['assigned_to'] = incident_data.assigned_to
         
@@ -442,11 +451,45 @@ class IncidentService:
         assigned_by: str
     ) -> IncidentResponse:
         """Assign incident to security team member"""
+        
+        # Get assignee information from users collection
+        assignee_name = "Unknown User"
+        try:
+            users_collection = self.db.collection('users')
+            assignee_doc = users_collection.document(assignee_id).get()
+            if assignee_doc.exists:
+                assignee_data = assignee_doc.to_dict()
+                assignee_name = assignee_data.get('full_name', 'Unknown User')
+        except Exception as e:
+            print(f"Warning: Could not get assignee name: {e}")
+        
         update_data = {
             'assigned_to': assignee_id,
+            'assigned_to_name': assignee_name,
+            'assigned_at': datetime.utcnow(),
             'status': IncidentStatus.INVESTIGATING.value,
             'updated_at': datetime.utcnow(),
             'assigned_by': assigned_by
+        }
+        
+        self.incidents_collection.document(incident_id).update(update_data)
+        
+        return await self.get_incident(incident_id)
+
+    async def unassign_incident(
+        self, 
+        incident_id: str,
+        unassigned_by: str
+    ) -> IncidentResponse:
+        """Unassign incident (remove assignee)"""
+        update_data = {
+            'assigned_to': None,
+            'assigned_to_name': None,
+            'assigned_at': None,
+            'status': IncidentStatus.PENDING.value,
+            'updated_at': datetime.utcnow(),
+            'unassigned_by': unassigned_by,
+            'unassigned_at': datetime.utcnow()
         }
         
         self.incidents_collection.document(incident_id).update(update_data)

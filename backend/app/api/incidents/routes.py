@@ -1,61 +1,48 @@
 """
-Incident Management Routes
-Handles incident creation, updates, and real-time notifications
+Incident Management API Routes - Jayasanka's Module
+Handles CRUD operations, real-time communication, and file attachments
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
-from typing import List, Optional
-import json
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, WebSocket, WebSocketDisconnect
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+import json
 
-from app.models.incident import IncidentCreate, IncidentUpdate, IncidentResponse, IncidentStatus, IncidentSeverity
+from app.models.incident import IncidentResponse, IncidentCreate, IncidentUpdate, IncidentStatus
 from app.models.message import Message, MessageCreate
 from app.services.incidents.incident_service import IncidentService
 from app.services.incidents.messaging_service import MessagingService
 from app.services.incidents.file_service import FileService
-from app.services.messaging.connection_manager import ConnectionManager
-from app.services.messaging.notification_service import NotificationService
 from app.utils.auth import get_current_user
 from app.models.user import User
 
-router = APIRouter(tags=["Incidents"])
+router = APIRouter(tags=["Incident Management"])
 
-# Connection manager for real-time notifications
+# WebSocket connection manager for real-time updates
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.user_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        self.user_connections[user_id] = websocket
+
+    def disconnect(self, websocket: WebSocket, user_id: str):
+        self.active_connections.remove(websocket)
+        if user_id in self.user_connections:
+            del self.user_connections[user_id]
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+    async def send_to_user(self, user_id: str, message: str):
+        if user_id in self.user_connections:
+            await self.user_connections[user_id].send_text(message)
+
 manager = ConnectionManager()
-notification_service = NotificationService(manager)
-
-@router.get("/admin/recent")
-async def get_recent_incidents_for_admin(limit: int = 5):
-    """
-    Get recent incidents for admin dashboard (public endpoint)
-    Returns real incidents from database or empty list if none exist
-    """
-    try:
-        from app.core.firebase_config import FirebaseConfig
-        db = FirebaseConfig.get_firestore()
-        
-        # Query recent incidents from Firebase
-        incidents_ref = db.collection('incidents').order_by('created_at', direction='DESCENDING').limit(limit)
-        incidents = list(incidents_ref.stream())
-        
-        incident_list = []
-        for incident in incidents:
-            incident_data = incident.to_dict()
-            incident_list.append({
-                "id": incident.id,
-                "title": incident_data.get('title', 'Untitled Incident'),
-                "severity": incident_data.get('severity', 'medium'),
-                "status": incident_data.get('status', 'open'),
-                "created_at": incident_data.get('created_at'),
-                "reporter_name": incident_data.get('reporter_name', 'Unknown Reporter')
-            })
-        
-        return incident_list
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve recent incidents: {str(e)}"
-        )
 
 @router.post("/", response_model=IncidentResponse)
 async def create_incident(
@@ -67,6 +54,13 @@ async def create_incident(
     Create a new security incident report
     Available to all authenticated users
     """
+    # Validate that at least one of title or description is provided
+    if (not incident_data.title or incident_data.title == "") and (not incident_data.description or incident_data.description == ""):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one of title or description must be provided"
+        )
+    
     try:
         # Create incident with user information
         incident = await incident_service.create_incident(
@@ -77,14 +71,14 @@ async def create_incident(
             reporter_department=getattr(current_user, 'department', None)
         )
         
-        # Send role-based notification instead of broadcasting to all
-        await notification_service.send_incident_notification({
+        # Broadcast real-time notification to security team
+        await manager.broadcast(json.dumps({
+            "type": "new_incident",
             "incident_id": incident.id,
             "title": incident.title,
             "severity": incident.severity.value,
-            "reporter": current_user.full_name,
-            "reporter_id": current_user.uid
-        }, "new_incident")
+            "reporter": current_user.full_name
+        }))
         
         return incident
         
@@ -94,7 +88,7 @@ async def create_incident(
             detail=f"Failed to create incident: {str(e)}"
         )
 
-@router.get("/", response_model=List[IncidentResponse])
+@router.get("/")
 async def get_incidents(
     status_filter: Optional[IncidentStatus] = None,
     limit: int = 20,
@@ -120,15 +114,124 @@ async def get_incidents(
                 status_filter, limit, offset
             )
         
+        # The service now returns dicts with attachments included
+        # Just ensure enums are strings if they're still objects
+        for incident in incidents:
+            if isinstance(incident, dict):
+                # Already a dict from the service
+                if 'status' in incident and hasattr(incident['status'], 'value'):
+                    incident['status'] = incident['status'].value
+                if 'severity' in incident and hasattr(incident['severity'], 'value'):
+                    incident['severity'] = incident['severity'].value
+                if 'incident_type' in incident and hasattr(incident['incident_type'], 'value'):
+                    incident['incident_type'] = incident['incident_type'].value
+            else:
+                # Convert to dict if it's still a Pydantic model
+                incident_dict = incident.dict()
+                if 'status' in incident_dict and hasattr(incident_dict['status'], 'value'):
+                    incident_dict['status'] = incident_dict['status'].value
+                if 'severity' in incident_dict and hasattr(incident_dict['severity'], 'value'):
+                    incident_dict['severity'] = incident_dict['severity'].value
+                if 'incident_type' in incident_dict and hasattr(incident_dict['incident_type'], 'value'):
+                    incident_dict['incident_type'] = incident_dict['incident_type'].value
+                incidents[incidents.index(incident)] = incident_dict
+        
         return incidents
         
     except Exception as e:
+        import traceback
+        print(f"Error retrieving incidents: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve incidents: {str(e)}"
         )
 
-@router.get("/{incident_id}", response_model=IncidentResponse)
+@router.get("/assigned/{user_id}")
+async def get_assigned_incidents(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Get incidents assigned to a specific user
+    """
+    # Check permissions - users can only access their own assigned incidents unless admin/team leader
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team members can access incident assignments"
+        )
+    
+    # Security team members can only access their own data unless they're team leader or admin
+    if (current_user.uid != user_id and 
+        current_user.role.value != "admin" and 
+        current_user.email != "security.lead@secura.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - can only view your own assignments"
+        )
+    
+    try:
+        # Get all incidents and filter by currently assigned user (excluding resolved/closed)
+        all_incidents = await incident_service.get_all_incidents()
+        assigned_incidents = [
+            incident for incident in all_incidents 
+            if incident.get('assigned_to') == user_id and 
+            incident.get('status') not in ['resolved', 'closed']
+        ]
+        
+        return assigned_incidents
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve assigned incidents: {str(e)}"
+        )
+
+@router.get("/resolved/{user_id}")
+async def get_resolved_incidents(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Get incidents resolved by a specific user
+    """
+    # Check permissions - users can only access their own resolved incidents unless admin/team leader
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team members can access incident resolutions"
+        )
+    
+    # Security team members can only access their own data unless they're team leader or admin
+    if (current_user.uid != user_id and 
+        current_user.role.value != "admin" and 
+        current_user.email != "security.lead@secura.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - can only view your own resolutions"
+        )
+    
+    try:
+        # Get all incidents and filter by those resolved by this user
+        all_incidents = await incident_service.get_all_incidents()
+        resolved_incidents = [
+            incident for incident in all_incidents 
+            if (incident.get('assigned_to') == user_id or incident.get('resolved_by') == user_id) and 
+            incident.get('status') in ['resolved', 'closed']
+        ]
+        
+        return resolved_incidents
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve resolved incidents: {str(e)}"
+        )
+
+@router.get("/{incident_id}")
 async def get_incident(
     incident_id: str,
     current_user: User = Depends(get_current_user),
@@ -173,26 +276,39 @@ async def update_incident(
 ):
     """
     Update incident details
-    Security Team and Admin only
+    - Employees: Can update their own incidents if status is 'open'
+    - Security Team: Can update any incident
+    - Admin: Can update any incident
     """
-    if current_user.role.value not in ["security_team", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only security team can update incidents"
-        )
-    
     try:
+        incident = await incident_service.get_incident(incident_id)
+        
+        if not incident:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Incident not found"
+            )
+        
+        # Check permissions
+        if current_user.role.value == "employee":
+            if (incident.reporter_id != current_user.uid or 
+                incident.status != IncidentStatus.PENDING):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify this incident"
+                )
+        
         updated_incident = await incident_service.update_incident(
             incident_id, incident_data, current_user.uid
         )
         
-        # Send role-based notification for incident update
-        await notification_service.send_incident_notification({
+        # Broadcast real-time update
+        await manager.broadcast(json.dumps({
+            "type": "incident_updated",
             "incident_id": incident_id,
-            "status": incident_data.status.value if incident_data.status else None,
-            "reporter_id": updated_incident.reporter_id,
-            "assignee_id": updated_incident.assignee_id if hasattr(updated_incident, 'assignee_id') else None
-        }, "incident_update")
+            "status": updated_incident.get("status", "unknown"),
+            "updated_by": current_user.full_name
+        }))
         
         return updated_incident
         
@@ -207,13 +323,16 @@ async def update_incident(
 @router.post("/{incident_id}/assign")
 async def assign_incident(
     incident_id: str,
-    assignee_id: str,
+    assignment_data: dict,
     current_user: User = Depends(get_current_user),
     incident_service: IncidentService = Depends()
 ):
     """
     Assign incident to security team member
-    Security Team and Admin only
+    Role-based permissions:
+    - Team Leader (security.lead@secura.com): Can assign to anyone
+    - Security Team Members: Can only assign to themselves
+    - Admin: Can assign to anyone
     """
     if current_user.role.value not in ["security_team", "admin"]:
         raise HTTPException(
@@ -222,17 +341,46 @@ async def assign_incident(
         )
     
     try:
+        assignee_id = assignment_data.get("assignee_id")
+        if not assignee_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="assignee_id is required"
+            )
+        
+        # Check role-based assignment permissions
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        
+        # Regular team members can only assign to themselves
+        if not is_team_leader and not is_admin:
+            if assignee_id != current_user.uid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Team members can only assign incidents to themselves"
+                )
+        
+        # Get the current incident to check if it's already assigned
+        current_incident = await incident_service.get_incident(incident_id)
+        if current_incident.get('assigned_to') and current_incident.get('assigned_to') != current_user.uid:
+            # Only team leader and admin can reassign incidents assigned to others
+            if not is_team_leader and not is_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only team leaders can reassign incidents from other members"
+                )
+        
         incident = await incident_service.assign_incident(
             incident_id, assignee_id, current_user.uid
         )
         
-        # Send role-based notification for incident assignment
-        await notification_service.send_incident_notification({
+        # Send real-time notification to assignee
+        await manager.send_to_user(assignee_id, json.dumps({
+            "type": "incident_assigned",
             "incident_id": incident_id,
-            "title": incident.title,
-            "assigned_by": current_user.full_name,
-            "assignee_id": assignee_id
-        }, "incident_assigned")
+            "title": incident.get("title", "Untitled Incident"),
+            "assigned_by": current_user.full_name
+        }))
         
         return {"message": "Incident assigned successfully"}
         
@@ -240,6 +388,51 @@ async def assign_incident(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assign incident: {str(e)}"
+        )
+
+@router.post("/{incident_id}/unassign")
+async def unassign_incident(
+    incident_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Unassign incident (remove assignee)
+    Role-based permissions:
+    - Team Leader: Can unassign any incident
+    - Team Members: Can only unassign incidents assigned to themselves
+    - Admin: Can unassign any incident
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team can unassign incidents"
+        )
+    
+    try:
+        # Check role-based unassignment permissions
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        
+        # Get the current incident to check assignment
+        current_incident = await incident_service.get_incident(incident_id)
+        
+        # Regular team members can only unassign incidents assigned to themselves
+        if not is_team_leader and not is_admin:
+            if current_incident.get('assigned_to') != current_user.uid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Team members can only unassign incidents assigned to themselves"
+                )
+        
+        incident = await incident_service.unassign_incident(incident_id, current_user.uid)
+        
+        return {"message": "Incident unassigned successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unassign incident: {str(e)}"
         )
 
 @router.post("/{incident_id}/messages", response_model=Message)
@@ -328,6 +521,9 @@ async def upload_attachment(
     Upload file attachment to incident (Max 10MB)
     """
     try:
+        print(f"Uploading attachment for incident {incident_id}")
+        print(f"File: {file.filename}, Size: {file.size}, Type: {file.content_type}")
+        
         # Validate file size (10MB limit)
         if file.size > 10 * 1024 * 1024:
             raise HTTPException(
@@ -342,9 +538,11 @@ async def upload_attachment(
             uploader_id=current_user.uid
         )
         
+        print(f"File uploaded successfully: {attachment}")
+        
         return {
             "message": "File uploaded successfully",
-            "attachment": attachment
+            "attachment": attachment.dict() if hasattr(attachment, 'dict') else attachment
         }
         
     except HTTPException:
@@ -355,8 +553,69 @@ async def upload_attachment(
             detail=f"File upload failed: {str(e)}"
         )
 
+@router.post("/{incident_id}/resolve")
+async def resolve_incident(
+    incident_id: str,
+    current_user: User = Depends(get_current_user),
+    incident_service: IncidentService = Depends()
+):
+    """
+    Mark incident as resolved
+    Only assigned user or team leader can resolve incidents
+    """
+    if current_user.role.value not in ["security_team", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security team can resolve incidents"
+        )
+    
+    try:
+        # Get current incident to check assignment
+        current_incident = await incident_service.get_incident(incident_id)
+        
+        if not current_incident:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Incident not found"
+            )
+        
+        # Check if user can resolve this incident
+        is_team_leader = current_user.email == "security.lead@secura.com"
+        is_admin = current_user.role.value == "admin"
+        is_assigned_user = current_incident.get('assigned_to') == current_user.uid
+        
+        if not (is_team_leader or is_admin or is_assigned_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only assigned user or team leader can resolve incidents"
+            )
+        
+        # Update incident status to resolved
+        from app.models.incident import IncidentUpdate
+        from app.models.common import IncidentStatus
+        
+        update_data = IncidentUpdate(status=IncidentStatus.RESOLVED)
+        incident = await incident_service.update_incident(
+            incident_id, update_data, current_user.uid
+        )
+        
+        # Broadcast real-time update
+        await manager.broadcast(json.dumps({
+            "type": "incident_resolved",
+            "incident_id": incident_id,
+            "resolved_by": current_user.full_name
+        }))
+        
+        return {"message": "Incident marked as resolved successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resolve incident: {str(e)}"
+        )
+
 @router.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket, user_id: str):
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
     """
     WebSocket endpoint for real-time incident updates
     """

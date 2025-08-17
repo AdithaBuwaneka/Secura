@@ -46,6 +46,12 @@ class AnalyticsService:
         # Generate trends data for frontend charts
         incident_trends = await self._generate_weekly_trends(incidents, days)
         
+        # Get real response times by severity
+        response_times = await self._get_response_times_by_severity(incidents)
+        
+        # Get real team performance data
+        team_performance = await self._get_team_performance_data(incidents)
+        
         return {
             "total_incidents": total_incidents,
             "open_incidents": open_incidents,
@@ -53,26 +59,18 @@ class AnalyticsService:
             "avg_resolution_time": avg_resolution_time,
             "severity_breakdown": dict(severity_breakdown),
             "category_breakdown": dict(category_breakdown),
-            "trends": {
-                "incident_trends": incident_trends,
-                "severity_distribution": {
-                    "labels": list(severity_breakdown.keys()),
-                    "data": list(severity_breakdown.values())
-                },
-                "response_times": {
-                    "labels": ["Critical", "High", "Medium", "Low"],
-                    "data": [0.5, 2.1, 4.3, 8.7]  # Mock data for now
-                },
-                "team_performance": {
-                    "labels": ["Team Member 1", "Team Member 2", "Team Member 3"],
-                    "data": [15, 12, 18]  # Mock data for now
-                },
-                "monthly_summary": {
-                    "total_incidents": total_incidents,
-                    "resolved_incidents": resolved_incidents,
-                    "avg_response_time": avg_resolution_time,
-                    "critical_incidents": severity_breakdown.get('critical', 0)
-                }
+            "incident_trends": incident_trends,
+            "severity_distribution": {
+                "labels": list(severity_breakdown.keys()) if severity_breakdown else ["Low", "Medium", "High", "Critical"],
+                "data": list(severity_breakdown.values()) if severity_breakdown else [0, 0, 0, 0]
+            },
+            "response_times": response_times,
+            "team_performance": team_performance,
+            "monthly_summary": {
+                "total_incidents": total_incidents,
+                "resolved_incidents": resolved_incidents,
+                "avg_response_time": avg_resolution_time,
+                "critical_incidents": severity_breakdown.get('critical', 0)
             }
         }
     
@@ -571,3 +569,60 @@ class AnalyticsService:
             return "Decreasing trend - incidents are declining"
         else:
             return "Stable trend - incident levels are consistent"
+    
+    async def _get_response_times_by_severity(self, incidents: List) -> Dict[str, Any]:
+        """Get real response times grouped by severity"""
+        severity_times = defaultdict(list)
+        
+        for incident_doc in incidents:
+            incident_data = incident_doc.to_dict()
+            severity = incident_data.get('severity', 'medium')
+            created_at = incident_data.get('created_at')
+            updated_at = incident_data.get('updated_at')
+            
+            if created_at and updated_at and isinstance(created_at, datetime) and isinstance(updated_at, datetime):
+                response_time = (updated_at - created_at).total_seconds() / 3600  # Hours
+                severity_times[severity].append(response_time)
+        
+        # Calculate averages
+        avg_times = {}
+        for severity, times in severity_times.items():
+            avg_times[severity] = sum(times) / len(times) if times else 0
+        
+        return {
+            "labels": ["Critical", "High", "Medium", "Low"],
+            "data": [
+                avg_times.get('critical', 0),
+                avg_times.get('high', 0), 
+                avg_times.get('medium', 0),
+                avg_times.get('low', 0)
+            ]
+        }
+    
+    async def _get_team_performance_data(self, incidents: List) -> Dict[str, Any]:
+        """Get real team performance data"""
+        team_performance = defaultdict(int)
+        
+        # Count resolved incidents by assigned team member
+        for incident_doc in incidents:
+            incident_data = incident_doc.to_dict()
+            assigned_to_name = incident_data.get('assigned_to_name')
+            status = incident_data.get('status', '')
+            
+            if assigned_to_name and status in ['resolved', 'closed']:
+                team_performance[assigned_to_name] += 1
+        
+        # If no data, return empty structure
+        if not team_performance:
+            return {
+                "labels": [],
+                "data": []
+            }
+        
+        # Sort by performance (descending)
+        sorted_performance = sorted(team_performance.items(), key=lambda x: x[1], reverse=True)
+        
+        return {
+            "labels": [name for name, _ in sorted_performance[:10]],  # Top 10
+            "data": [count for _, count in sorted_performance[:10]]
+        }
