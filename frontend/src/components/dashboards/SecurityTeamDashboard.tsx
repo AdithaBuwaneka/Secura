@@ -854,8 +854,16 @@ export default function SecurityTeamDashboard() {
               <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
                 <h3 className="text-sm font-medium text-gray-400 mb-2">Summary</h3>
                 <p className="text-white">{imageAnalysis.summary}</p>
-                <div className="mt-3 flex items-center space-x-4">
-                  <div className="flex items-center">
+              </div>
+              
+              {/* Assessment Section */}
+              <div className="bg-[#2A2D35] p-4 rounded-lg border border-gray-700 mb-6">
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Assessment</h3>
+                <div className="flex items-center justify-between">
+                  <p className="text-white font-medium">
+                    {imageAnalysis.assessment || 'Assessment not available'}
+                  </p>
+                  <div className="flex items-center ml-4">
                     <span className="text-xs text-gray-400 mr-2">Confidence:</span>
                     <div className="flex items-center">
                       <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">

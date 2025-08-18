@@ -228,7 +228,7 @@ export default function AIAnalysisDashboard() {
             body: JSON.stringify({
               image_url: imageUrl,
               incident_id: selectedIncident.id,
-              context: selectedIncident.title || selectedIncident.description || 'Security incident'
+              context: 'use_gemini'  // Enable Gemini AI analysis
             })
           });
 

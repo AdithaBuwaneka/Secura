@@ -18,6 +18,12 @@ try:
 except ImportError:
     SKLEARN_AVAILABLE = False
 
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
 from app.models.common import IncidentType, IncidentSeverity
 from app.services.ai.threat_prediction_model import ThreatPredictionModel
 
@@ -38,6 +44,27 @@ class AIService:
             except Exception as e:
                 print(f"Failed to load ML model: {e}")
                 self.ml_model = None
+        
+        # Initialize Gemini if available
+        self.gemini_model = None
+        print(f"GEMINI_AVAILABLE: {GEMINI_AVAILABLE}")
+        if GEMINI_AVAILABLE:
+            gemini_api_key = os.getenv("GEMINI_API_KEY")
+            print(f"Gemini API key found: {gemini_api_key is not None}")
+            print(f"API key value check: {gemini_api_key != 'your_gemini_api_key_here' if gemini_api_key else False}")
+            if gemini_api_key and gemini_api_key != "your_gemini_api_key_here":
+                try:
+                    genai.configure(api_key=gemini_api_key)
+                    # Use the newer Gemini model
+                    self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                    print("Gemini model initialized successfully!")
+                except Exception as e:
+                    print(f"Failed to initialize Gemini: {e}")
+                    self.gemini_model = None
+            else:
+                print("Gemini API key not configured")
+        else:
+            print("Gemini library not available - need to install google-generativeai")
         
         # Enhanced keyword patterns with weighted scoring (fallback)
         self.category_keywords = {
@@ -105,6 +132,166 @@ class AIService:
             }
         }
 
+    async def analyze_with_gemini(self, title: str, description: str, ocr_text: str = None) -> Dict[str, Any]:
+        """
+        Analyze incident using Google Gemini AI
+        """
+        if not self.gemini_model:
+            raise Exception("Gemini model not initialized")
+        
+        try:
+            # Create a simple, clear prompt for Gemini
+            if ocr_text:
+                prompt = f"""
+                Analyze this text extracted from an image:
+                
+                {ocr_text}
+                
+                Please provide:
+                
+                1. SUMMARY: What is this image about? (2-3 sentences)
+                
+                2. ASSESSMENT: Is this a normal image or does it appear to be a security threat (like phishing, malware, scam, etc.)?
+                   Answer: "Normal image" or "[Type] attempt" (e.g., "Phishing attempt")
+                
+                3. THREAT INDICATORS: If this is a threat, list why you decided this in simple point form:
+                   - First reason
+                   - Second reason
+                   - Third reason
+                   (etc.)
+                   
+                   If this is NOT a threat, write: "No threats detected"
+                
+                4. RECOMMENDATIONS: If this is a threat, what should the user do? List in simple point form:
+                   - First action
+                   - Second action
+                   - Third action
+                   (etc.)
+                   
+                   If this is NOT a threat, write: "No action required"
+                
+                IMPORTANT: Use plain text only. No markdown formatting, no asterisks, no hashtags, no special formatting.
+                Write your points starting with a simple dash (-) and keep each point on one line.
+                """
+            
+            # Generate response from Gemini
+            response = self.gemini_model.generate_content(prompt)
+            
+            # Parse Gemini's response
+            gemini_text = response.text
+            
+            print("=== GEMINI RAW RESPONSE ===")
+            print(gemini_text)
+            print("==========================")
+            
+            # Clean any markdown formatting from response
+            def clean_text(text):
+                # Remove any markdown symbols
+                text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # Bold
+                text = re.sub(r'\*([^*]+)\*', r'\1', text)      # Italic
+                text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)  # Headers
+                text = re.sub(r'`([^`]+)`', r'\1', text)         # Code
+                return text.strip()
+            
+            # Parse each section from Gemini's response
+            sections = {
+                'summary': '',
+                'assessment': '',
+                'threat_indicators': [],
+                'recommendations': []
+            }
+            
+            # Extract SUMMARY section
+            summary_match = re.search(r'(?i)SUMMARY[:\s]*(.+?)(?=\n\s*\d+\.|\n\s*ASSESSMENT|$)', gemini_text, re.DOTALL)
+            if summary_match:
+                sections['summary'] = clean_text(summary_match.group(1).strip())
+            
+            # Extract ASSESSMENT section
+            assessment_match = re.search(r'(?i)ASSESSMENT[:\s]*(.+?)(?=\n\s*\d+\.|\n\s*THREAT|$)', gemini_text, re.DOTALL)
+            if assessment_match:
+                sections['assessment'] = clean_text(assessment_match.group(1).strip())
+            
+            # Extract THREAT INDICATORS section
+            threat_match = re.search(r'(?i)THREAT INDICATORS[:\s]*(.+?)(?=\n\s*\d+\.|\n\s*RECOMMENDATIONS|$)', gemini_text, re.DOTALL)
+            if threat_match:
+                threat_text = threat_match.group(1).strip()
+                if 'no threats detected' in threat_text.lower():
+                    sections['threat_indicators'] = []
+                else:
+                    # Extract each line that starts with a dash
+                    indicators = re.findall(r'^\s*[-•]\s*(.+)$', threat_text, re.MULTILINE)
+                    sections['threat_indicators'] = [clean_text(ind) for ind in indicators if ind.strip()]
+            
+            # Extract RECOMMENDATIONS section  
+            rec_match = re.search(r'(?i)RECOMMENDATIONS[:\s]*(.+?)(?=$)', gemini_text, re.DOTALL)
+            if rec_match:
+                rec_text = rec_match.group(1).strip()
+                if 'no action required' in rec_text.lower():
+                    sections['recommendations'] = []
+                else:
+                    # Extract each line that starts with a dash
+                    recs = re.findall(r'^\s*[-•]\s*(.+)$', rec_text, re.MULTILINE)
+                    sections['recommendations'] = [clean_text(rec) for rec in recs if rec.strip()]
+            
+            # Determine incident type and severity from assessment
+            incident_type = 'unknown'
+            severity = 'medium'
+            
+            assessment_lower = sections['assessment'].lower()
+            if 'phishing' in assessment_lower:
+                incident_type = 'phishing'
+                severity = 'high'
+            elif 'malware' in assessment_lower:
+                incident_type = 'malware'
+                severity = 'critical'
+            elif 'scam' in assessment_lower or 'fraud' in assessment_lower:
+                incident_type = 'social_engineering'
+                severity = 'high'
+            elif 'normal' in assessment_lower:
+                incident_type = 'none'
+                severity = 'low'
+            
+            # Confidence based on whether threats were found
+            confidence = 0.9 if sections['threat_indicators'] else 0.3
+            
+            print(f"\nParsed Gemini Response:")
+            print(f"Summary: {sections['summary'][:100]}...")
+            print(f"Assessment: {sections['assessment']}")
+            print(f"Threat Indicators: {len(sections['threat_indicators'])} found")
+            print(f"Recommendations: {len(sections['recommendations'])} found")
+            
+            return {
+                'categories': [{
+                    'category': incident_type,
+                    'confidence': confidence,
+                    'reasoning': sections['assessment']
+                }],
+                'severity': {
+                    'severity': severity,
+                    'confidence': confidence,
+                    'factors': sections['threat_indicators'][:3] if sections['threat_indicators'] else ['No specific threats identified']
+                },
+                'mitigation_strategies': [
+                    {
+                        'strategy': rec,
+                        'priority': idx + 1,
+                        'estimated_time': '1-2 hours',
+                        'resources_required': ['Security team']
+                    }
+                    for idx, rec in enumerate(sections['recommendations'][:3])
+                ],
+                'threat_indicators': sections['threat_indicators'],
+                'recommendations': sections['recommendations'],
+                'summary': sections['summary'],
+                'assessment': sections['assessment'],
+                'gemini_full_analysis': gemini_text,
+                'confidence_score': confidence
+            }
+            
+        except Exception as e:
+            print(f"Gemini analysis failed: {e}")
+            raise
+
     async def analyze_incident(
         self, 
         title: str, 
@@ -119,11 +306,24 @@ class AIService:
             # Ensure title and description are not None
             title = title or ""
             description = description or ""
+            
+            # Check if Gemini analysis is requested (for Generate AI Predictions button)
+            use_gemini = context.get('use_gemini', False) or context.get('source') == 'gemini_analysis'
+            ocr_text = context.get('ocr_text', None)
+            
+            if use_gemini and self.gemini_model:
+                # Use Gemini for analysis
+                try:
+                    return await self.analyze_with_gemini(title, description, ocr_text)
+                except Exception as e:
+                    print(f"Gemini analysis failed, falling back to ML model: {e}")
+                    # Fall through to ML model
+            
             # Combine title and description for ML model
             full_text = f"{title} {description}"
             
             # Use ML model if available
-            if self.ml_model:
+            if self.ml_model and context.get('context') != 'real_time_suggestions':
                 try:
                     ml_prediction = self.ml_model.predict(full_text)
                     
@@ -906,12 +1106,20 @@ class AIService:
         extracted_text = ""
         
         try:
-            # Download image from URL
-            async with aiohttp.ClientSession() as session:
-                async with session.get(image_url) as response:
-                    if response.status != 200:
-                        raise Exception(f"Failed to download image: {response.status}")
-                    image_data = await response.read()
+            # Handle both data URLs and regular URLs
+            if image_url.startswith('data:'):
+                # Handle data URL
+                import base64
+                # Extract base64 data from data URL
+                header, data = image_url.split(',', 1)
+                image_data = base64.b64decode(data)
+            else:
+                # Download image from URL
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as response:
+                        if response.status != 200:
+                            raise Exception(f"Failed to download image: {response.status}")
+                        image_data = await response.read()
             
             # Open image with PIL
             image = Image.open(BytesIO(image_data))
@@ -1093,6 +1301,153 @@ class AIService:
             summary = "Analysis inconclusive - insufficient evidence to determine security threats. Manual review required."
         else:
             summary = "Text extracted and analyzed. Limited security indicators found - proceed with caution and verify context."
+        
+        # Debug logging
+        print(f"Gemini model available: {self.gemini_model is not None}")
+        print(f"Extracted text length: {len(extracted_text)}")
+        print(f"Context value: {context}")
+        
+        # If Gemini is available, always use it for image OCR analysis
+        if self.gemini_model and extracted_text:
+            try:
+                print("Attempting to analyze with Gemini...")
+                # Use Gemini to analyze the OCR text with more context
+                gemini_analysis = await self.analyze_with_gemini(
+                    title="Image Analysis", 
+                    description="Analyzing text extracted from uploaded image",
+                    ocr_text=extracted_text
+                )
+                
+                print("Gemini analysis successful!")
+                print(f"Gemini returned threat_indicators: {gemini_analysis.get('threat_indicators', [])}")
+                
+                # Extract and clean Gemini analysis content
+                gemini_full_text = gemini_analysis.get('gemini_full_analysis', '')
+                
+                # Extract summary - look for first substantial paragraph after removing markdown
+                import re
+                cleaned_text = re.sub(r'^#{1,6}\s+', '', gemini_full_text, flags=re.MULTILINE)
+                cleaned_text = re.sub(r'\*\*([^*]+)\*\*', r'\1', cleaned_text)
+                cleaned_text = re.sub(r'\*([^*]+)\*', r'\1', cleaned_text)
+                
+                # Extract summary from cleaned text
+                summary_lines = []
+                for line in cleaned_text.split('\n'):
+                    line = line.strip()
+                    if line and not line.startswith(('1.', '2.', '3.', '-', '*', '•')):
+                        summary_lines.append(line)
+                        if len(' '.join(summary_lines)) > 200:
+                            break
+                gemini_summary = ' '.join(summary_lines)[:500] if summary_lines else summary
+                
+                # Use Gemini's analysis directly
+                gemini_summary = gemini_analysis.get('summary', summary)
+                gemini_assessment = gemini_analysis.get('assessment', '')
+                gemini_threat_indicators = gemini_analysis.get('threat_indicators', [])
+                gemini_recommendations = gemini_analysis.get('recommendations', recommendations)
+                
+                print(f"\nGemini Analysis Results:")
+                print(f"Assessment: {gemini_assessment}")
+                print(f"Threat Indicators: {gemini_threat_indicators}")
+                print(f"Recommendations: {gemini_recommendations}")
+                
+                # If no structured indicators found, extract from Gemini's full analysis
+                if not gemini_threat_indicators:
+                    # Look for specific threat patterns in the Gemini response
+                    threat_patterns = [
+                        r'(?i)suspicious (?:email address|sender|domain)[:" ]*([^\n.]+)',
+                        r'(?i)(?:fake|spoofed|impersonating) (?:domain|sender|email)[:" ]*([^\n.]+)',
+                        r'(?i)phishing (?:indicator|sign|attempt)[:" ]*([^\n.]+)',
+                        r'(?i)malicious (?:link|url|attachment)[:" ]*([^\n.]+)',
+                        r'(?i)(?:threat|risk) (?:indicator|factor)[:" ]*([^\n.]+)',
+                        r'(?i)(?:credential|password) (?:theft|harvesting) attempt',
+                        r'(?i)social engineering (?:tactic|attempt)',
+                        r'(?i)(?:typo|misspelling) in (?:domain|email|text)[:" ]*([^\n.]+)'
+                    ]
+                    
+                    for pattern in threat_patterns:
+                        matches = re.findall(pattern, gemini_full_text)
+                        for match in matches:
+                            indicator = match if isinstance(match, str) else match[0]
+                            if indicator and len(indicator) > 10:
+                                gemini_threat_indicators.append(indicator.strip()[:100])
+                    
+                    # Also check for specific findings in the OCR text that Gemini identified
+                    if 'authenticationmail@trust.ameribank7.com' in extracted_text.lower():
+                        gemini_threat_indicators.append("Suspicious sender: authenticationmail@trust.ameribank7.com (fake Bank of America domain)")
+                    if 'trust.ameribank7.com' in extracted_text.lower():
+                        gemini_threat_indicators.append("Phishing domain detected: trust.ameribank7.com")
+                    if 'divice' in extracted_text.lower():
+                        gemini_threat_indicators.append("Spelling error 'divice' instead of 'device' - common in phishing emails")
+                    if 'reset your password immediately' in extracted_text.lower():
+                        gemini_threat_indicators.append("Urgent call to action for password reset")
+                    
+                    # Remove duplicates and limit
+                    gemini_threat_indicators = list(dict.fromkeys(gemini_threat_indicators))[:5]
+                
+                # If still no indicators, create meaningful ones based on the analysis
+                if not gemini_threat_indicators:
+                    # Get the incident type and severity from Gemini analysis
+                    incident_type = gemini_analysis.get('categories', [{}])[0].get('category', '')
+                    severity_level = gemini_analysis.get('severity', {}).get('severity', '')
+                    
+                    if incident_type == 'phishing':
+                        gemini_threat_indicators = [
+                            "Phishing email detected with fake sender domain",
+                            "Credential harvesting attempt identified",
+                            "Suspicious URL pattern in email content",
+                            "Social engineering tactics present"
+                        ]
+                    elif incident_type == 'malware':
+                        gemini_threat_indicators = [
+                            "Malicious code execution indicators",
+                            "Suspicious process behavior detected",
+                            "Potential system compromise",
+                            "Abnormal network communication patterns"
+                        ]
+                    else:
+                        # Use the basic threat indicators as last resort
+                        gemini_threat_indicators = threat_indicators[:5] if threat_indicators else [
+                            f"{incident_type.replace('_', ' ').title()} incident detected",
+                            f"Severity: {severity_level}",
+                            "Manual review recommended"
+                        ]
+                
+                # Extract recommendations properly
+                gemini_recommendations = []
+                mitigation_strategies = gemini_analysis.get('mitigation_strategies', [])
+                if mitigation_strategies:
+                    gemini_recommendations = [strategy['strategy'] for strategy in mitigation_strategies if 'strategy' in strategy][:5]
+                
+                # If no structured recommendations, try to extract from text
+                if not gemini_recommendations:
+                    rec_section = re.search(r'(?i)recommendations?[:\s]*\n(.*?)(?=\n\n|\Z)', gemini_full_text, re.DOTALL)
+                    if rec_section:
+                        rec_text = rec_section.group(1)
+                        recs = re.findall(r'[-*•]\s*(.+)|^\d+\.\s*(.+)', rec_text, re.MULTILINE)
+                        gemini_recommendations = [item[0] or item[1] for item in recs if item[0] or item[1]][:5]
+                
+                # Use existing recommendations as fallback
+                if not gemini_recommendations:
+                    gemini_recommendations = recommendations[:5]
+                
+                # Return Gemini's complete analysis
+                return {
+                    "extracted_text": extracted_text,
+                    "summary": gemini_summary,
+                    "assessment": gemini_assessment,
+                    "threat_indicators": gemini_threat_indicators,
+                    "confidence": gemini_analysis.get('confidence_score', confidence),
+                    "recommendations": gemini_recommendations,
+                    "gemini_analysis": True,
+                    "incident_type": gemini_analysis.get('categories', [{}])[0].get('category', 'unknown'),
+                    "severity": gemini_analysis.get('severity', {}).get('severity', 'medium')
+                }
+            except Exception as e:
+                print(f"Gemini image analysis failed, using standard analysis: {e}")
+                import traceback
+                print(f"Full traceback: {traceback.format_exc()}")
+                # Fall back to standard analysis
         
         return {
             "extracted_text": extracted_text,

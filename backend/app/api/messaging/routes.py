@@ -399,6 +399,9 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
     """
     WebSocket endpoint for general messaging
     """
+    # Accept the WebSocket connection first
+    await websocket.accept()
+    
     current_time = time.time()
     print(f"DEBUG: WebSocket connection attempt for user_id: {user_id} at {current_time}")
     
@@ -511,6 +514,9 @@ async def websocket_conversation_endpoint(websocket: WebSocket, conversation_id:
     """
     WebSocket endpoint for conversation-specific messaging
     """
+    # Accept the WebSocket connection first
+    await websocket.accept()
+    
     # Authenticate the connection
     user_data = await authenticate_websocket(websocket, token)
     if not user_data:
