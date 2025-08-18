@@ -28,6 +28,13 @@ interface MLPrediction {
   incident_type: string;
   incident_type_confidence: number;
   was_revised: boolean;
+  gemini_analysis?: boolean;
+  mitigation_strategies?: Array<{
+    strategy: string;
+    priority: number;
+  }>;
+  threat_summary?: string;
+  risk_factors?: string[];
 }
 
 interface IncidentReportFormProps {
@@ -54,23 +61,29 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  // AI-powered suggestions based on description
+  // AI-powered suggestions based on description using our trained ML model
   const handleDescriptionChange = useCallback(async (description: string) => {
     setFormData(prev => ({ ...prev, description }));
     
-    // Call real AI API for categorization suggestions
+    // Call our trained ML model API for real-time predictions
     if (description.length > 20 && idToken) {
       try {
-        const response = await fetch(`${API_URL}/api/ai/categorize?title=${encodeURIComponent(formData.title)}&description=${encodeURIComponent(description)}`, {
+        const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({
+            title: formData.title,
+            description: description,
+            context: { source: 'real_time_suggestions' }
+          })
         });
 
         if (response.ok) {
           const data = await response.json();
+          // Convert ML model predictions to suggestions format
           const suggestions: AISuggestion[] = data.categories?.map((cat: {category: string, confidence: number, reasoning: string}) => ({
             category: cat.category,
             confidence: cat.confidence,
@@ -78,6 +91,14 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           })) || [];
           
           setAISuggestions(suggestions);
+          
+          // Also auto-update severity if it's still at default 'low'
+          if (data.severity?.severity && formData.severity === 'low') {
+            setFormData(prev => ({ 
+              ...prev, 
+              severity: data.severity.severity 
+            }));
+          }
         } else {
           // Fallback to keyword-based suggestions if API fails
           const suggestions: AISuggestion[] = [];
@@ -99,7 +120,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           setAISuggestions(suggestions);
         }
       } catch (error) {
-        console.error('AI categorization failed:', error);
+        console.error('ML model prediction failed:', error);
         // Fallback to basic keyword matching
         setAISuggestions([]);
       }
@@ -116,6 +137,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     }
 
     setIsGeneratingPrediction(true);
+    
     try {
       const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
         method: 'POST',
@@ -125,7 +147,10 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         },
         body: JSON.stringify({
           title: formData.title || '',
-          description: formData.description || ''
+          description: formData.description || '',
+          context: { 
+            source: 'gemini_analysis'
+          }
         })
       });
 
@@ -138,7 +163,11 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           severity_confidence: data.severity?.confidence || 0,
           incident_type: data.categories?.[0]?.category || '',
           incident_type_confidence: data.categories?.[0]?.confidence || 0,
-          was_revised: false
+          was_revised: false,
+          gemini_analysis: data.gemini_analysis || false,
+          mitigation_strategies: data.mitigation_strategies || [],
+          threat_summary: data.gemini_full_analysis || data.summary || '',
+          risk_factors: data.severity?.factors || []
         };
 
         setMlPrediction(prediction);
@@ -172,6 +201,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     }
   }, []);
 
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -183,8 +213,9 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         ...prev,
         attachments: [...prev.attachments, ...files]
       }));
+      
     }
-  }, []);
+  }, [idToken]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -393,7 +424,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
             {aiSuggestions.length > 0 && (
               <div className="mt-3 p-4 bg-[#00D4FF]/10 border border-[#00D4FF]/30 rounded-lg">
                 <p className="text-sm text-[#00D4FF] mb-3 flex items-center">
-                  🤖 AI-Powered Category Suggestions:
+                  🤖 ML Model-Powered Category Suggestions (Trained on 1000+ incidents):
                 </p>
                 {aiSuggestions.map((suggestion, index) => (
                   <button
@@ -437,31 +468,92 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                 )}
               </button>
 
-              {/* Show ML Predictions */}
+              {/* Show ML/Gemini Predictions */}
               {mlPrediction && (
-                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                  <p className="text-sm text-purple-300 mb-3 flex items-center">
-                    🤖 AI Predictions Applied:
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-300">Severity:</span>
-                      <span className="text-sm font-medium text-white">
-                        {mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1)} 
-                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.severity_confidence * 100)}%)</span>
+                <div className="mt-4 space-y-4">
+                  {/* Main Prediction Card */}
+                  <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-purple-300 flex items-center">
+                        {mlPrediction.gemini_analysis ? (
+                          <>✨ Gemini AI Analysis</>
+                        ) : (
+                          <>🤖 ML Model Predictions</>
+                        )}
+                      </p>
+                      <span className="text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded">
+                        {Math.round(((mlPrediction.severity_confidence + mlPrediction.incident_type_confidence) / 2) * 100)}% confidence
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-300">Incident Type:</span>
-                      <span className="text-sm font-medium text-white">
-                        {mlPrediction.incident_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
-                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.incident_type_confidence * 100)}%)</span>
-                      </span>
+                    
+                    {/* Classification Results */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-[#1A1D23] p-3 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Incident Type</p>
+                        <p className="text-sm font-medium text-white">
+                          {mlPrediction.incident_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </p>
+                        <p className="text-xs text-purple-400 mt-1">
+                          {Math.round(mlPrediction.incident_type_confidence * 100)}% confident
+                        </p>
+                      </div>
+                      <div className="bg-[#1A1D23] p-3 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Severity Level</p>
+                        <div className="flex items-center space-x-2">
+                          <div className={`h-2 w-2 rounded-full ${getSeverityColor(mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1))}`}></div>
+                          <p className="text-sm font-medium text-white">
+                            {mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-purple-400 mt-1">
+                          {Math.round(mlPrediction.severity_confidence * 100)}% confident
+                        </p>
+                      </div>
                     </div>
+                    
+                    {/* Threat Summary if available */}
+                    {mlPrediction.threat_summary && (
+                      <div className="bg-[#1A1D23] p-3 rounded-lg mb-3">
+                        <p className="text-xs text-gray-400 mb-2">Analysis Summary</p>
+                        <p className="text-sm text-white whitespace-pre-wrap">
+                          {mlPrediction.threat_summary.substring(0, 200)}...
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Risk Factors */}
+                    {mlPrediction.risk_factors && mlPrediction.risk_factors.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-400 mb-2">Risk Factors</p>
+                        <div className="flex flex-wrap gap-2">
+                          {mlPrediction.risk_factors.slice(0, 3).map((factor, idx) => (
+                            <span key={idx} className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">
+                              {factor}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Mitigation Strategies */}
+                    {mlPrediction.mitigation_strategies && mlPrediction.mitigation_strategies.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-2">Recommended Actions</p>
+                        <div className="space-y-2">
+                          {mlPrediction.mitigation_strategies.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="flex items-start space-x-2">
+                              <span className="text-xs text-green-400 mt-0.5">•</span>
+                              <p className="text-xs text-gray-300 flex-1">{item.strategy}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-gray-400 mt-3 italic">
+                      💡 Review and modify these predictions if needed before submitting
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    💡 You can modify these predictions if they don't seem accurate
-                  </p>
                 </div>
               )}
             </div>
@@ -578,7 +670,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                       ) : (
                         <FileText className="h-4 w-4 text-gray-400" />
                       )}
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-white">{file.name}</p>
                         <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                       </div>

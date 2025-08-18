@@ -277,6 +277,7 @@ async def analyze_image(
     """
     Analyze image content for text extraction and threat analysis
     Security Team and Admin only
+    Can use Gemini for enhanced analysis by passing context="use_gemini"
     """
     if current_user.role.value not in ["security_team", "admin"]:
         raise HTTPException(
@@ -289,7 +290,7 @@ async def analyze_image(
         analysis_result = await ai_service.analyze_image(
             image_url=request.image_url,
             incident_id=request.incident_id,
-            context=request.context
+            context=request.context  # Pass "use_gemini" to use Gemini AI
         )
         
         return analysis_result
@@ -302,3 +303,52 @@ async def analyze_image(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Image analysis failed: {str(e)}"
         )
+
+@router.post("/analyze-incident-image")
+async def analyze_incident_image(
+    request: ImageAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    ai_service: AIService = Depends()
+):
+    """
+    Analyze image for incident reporting - Available to all authenticated users
+    Extracts text using OCR and analyzes with Gemini AI
+    """
+    try:
+        # Perform image analysis with Gemini
+        analysis_result = await ai_service.analyze_image(
+            image_url=request.image_url,
+            incident_id=request.incident_id,
+            context="use_gemini"  # Always use Gemini for incident images
+        )
+        
+        # Also return extracted text for incident context
+        return {
+            **analysis_result,
+            "ocr_text": analysis_result.get("extracted_text", "")
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"Incident image analysis error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image analysis failed: {str(e)}"
+        )
+
+@router.get("/gemini-status")
+async def check_gemini_status(
+    current_user: User = Depends(get_current_user),
+    ai_service: AIService = Depends()
+):
+    """Check if Gemini is properly initialized"""
+    import os
+    api_key = os.getenv("GEMINI_API_KEY")
+    return {
+        "gemini_available": ai_service.gemini_model is not None,
+        "ml_model_available": ai_service.ml_model is not None,
+        "api_key_exists": api_key is not None,
+        "api_key_configured": api_key != "your_gemini_api_key_here" if api_key else False,
+        "message": "Gemini is ready" if ai_service.gemini_model else "Gemini not initialized"
+    }

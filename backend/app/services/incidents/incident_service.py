@@ -409,6 +409,7 @@ class IncidentService:
             all_docs = list(query.stream())
             
             # Sort by created_at in descending order
+            from datetime import datetime
             all_docs.sort(key=lambda doc: doc.to_dict().get('created_at', datetime.min), reverse=True)
             
         except Exception as e:
