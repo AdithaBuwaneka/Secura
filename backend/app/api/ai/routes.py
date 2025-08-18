@@ -217,21 +217,26 @@ async def get_predictive_analytics(
 ):
     """
     Get predictive analytics for security threats
-    Admin only
+    Admin and Security Team access
     """
-    if current_user.role.value != "admin":
+    if current_user.role.value not in ["admin", "security_team"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Predictive analytics requires admin access"
+            detail="Predictive analytics requires admin or security team access"
         )
     
     try:
+        print(f"Requesting predictive analytics for user: {current_user.email}, timeframe: {timeframe_days} days")
         analytics = await ai_service.get_predictive_analytics(
             organization_id, timeframe_days
         )
+        print(f"Predictive analytics successful, returning data")
         return analytics
         
     except Exception as e:
+        import traceback
+        print(f"Predictive analytics error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Predictive analytics failed: {str(e)}"

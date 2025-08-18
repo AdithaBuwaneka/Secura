@@ -154,16 +154,20 @@ export default function AIAnalysisDashboard() {
       if (response.ok) {
         const data = await response.json();
         setPredictiveAnalytics(data);
+        toast.success('Predictive analytics loaded from real incident data');
       } else {
-        toast.error('Failed to fetch predictive analytics');
+        const errorText = await response.text();
+        console.error('API error:', response.status, errorText);
+        toast.error(`Failed to load predictive analytics: ${response.status}`);
       }
     } catch (error) {
       console.error('Predictive analytics error:', error);
-      toast.error('Failed to load predictive analytics');
+      toast.error('Failed to connect to predictive analytics service');
     } finally {
       setIsLoadingIntel(false);
     }
   };
+
 
   React.useEffect(() => {
     fetchIncidents();
@@ -838,6 +842,53 @@ export default function AIAnalysisDashboard() {
                   ))}
                 </div>
               </div>
+
+              {/* Data Analysis Summary */}
+              {predictiveAnalytics.data_summary && (
+                <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                    <BarChart3 className="h-5 w-5 text-blue-400 mr-2" />
+                    Analysis Summary
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-3 bg-[#1A1D23] rounded-lg text-center">
+                      <p className="text-gray-400 text-xs mb-1">Incidents Analyzed</p>
+                      <p className="text-2xl font-bold text-[#00D4FF]">
+                        {predictiveAnalytics.data_summary.analyzed_incidents}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-[#1A1D23] rounded-lg text-center">
+                      <p className="text-gray-400 text-xs mb-1">Trend Direction</p>
+                      <p className={`text-lg font-semibold ${
+                        predictiveAnalytics.data_summary.trend_direction === 'increasing' ? 'text-orange-400' :
+                        predictiveAnalytics.data_summary.trend_direction === 'decreasing' ? 'text-green-400' :
+                        'text-gray-400'
+                      }`}>
+                        {predictiveAnalytics.data_summary.trend_direction}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-[#1A1D23] rounded-lg text-center">
+                      <p className="text-gray-400 text-xs mb-1">Most Common Type</p>
+                      <p className="text-lg font-semibold text-white">
+                        {predictiveAnalytics.data_summary.most_common_type?.replace('_', ' ') || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-[#1A1D23] rounded-lg text-center">
+                      <p className="text-gray-400 text-xs mb-1">Timeframe</p>
+                      <p className="text-lg font-semibold text-white">
+                        {predictiveAnalytics.data_summary.timeframe_days} days
+                      </p>
+                    </div>
+                  </div>
+                  {predictiveAnalytics.data_summary.note && (
+                    <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                      <p className="text-yellow-400 text-sm">
+                        ℹ️ {predictiveAnalytics.data_summary.note}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : null}
         </div>
