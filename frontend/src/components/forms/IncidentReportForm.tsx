@@ -28,6 +28,13 @@ interface MLPrediction {
   incident_type: string;
   incident_type_confidence: number;
   was_revised: boolean;
+  gemini_analysis?: boolean;
+  mitigation_strategies?: Array<{
+    strategy: string;
+    priority: number;
+  }>;
+  threat_summary?: string;
+  risk_factors?: string[];
 }
 
 interface IncidentReportFormProps {
@@ -53,24 +60,32 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   const [isGeneratingPrediction, setIsGeneratingPrediction] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [imageAnalysisResults, setImageAnalysisResults] = useState<Record<string, any>>({});
+  const [isAnalyzingImages, setIsAnalyzingImages] = useState(false);
 
-  // AI-powered suggestions based on description
+  // AI-powered suggestions based on description using our trained ML model
   const handleDescriptionChange = useCallback(async (description: string) => {
     setFormData(prev => ({ ...prev, description }));
     
-    // Call real AI API for categorization suggestions
+    // Call our trained ML model API for real-time predictions
     if (description.length > 20 && idToken) {
       try {
-        const response = await fetch(`${API_URL}/api/ai/categorize?title=${encodeURIComponent(formData.title)}&description=${encodeURIComponent(description)}`, {
+        const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({
+            title: formData.title,
+            description: description,
+            context: 'real_time_suggestions'
+          })
         });
 
         if (response.ok) {
           const data = await response.json();
+          // Convert ML model predictions to suggestions format
           const suggestions: AISuggestion[] = data.categories?.map((cat: {category: string, confidence: number, reasoning: string}) => ({
             category: cat.category,
             confidence: cat.confidence,
@@ -78,6 +93,14 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           })) || [];
           
           setAISuggestions(suggestions);
+          
+          // Also auto-update severity if it's still at default 'low'
+          if (data.severity?.severity && formData.severity === 'low') {
+            setFormData(prev => ({ 
+              ...prev, 
+              severity: data.severity.severity 
+            }));
+          }
         } else {
           // Fallback to keyword-based suggestions if API fails
           const suggestions: AISuggestion[] = [];
@@ -99,7 +122,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           setAISuggestions(suggestions);
         }
       } catch (error) {
-        console.error('AI categorization failed:', error);
+        console.error('ML model prediction failed:', error);
         // Fallback to basic keyword matching
         setAISuggestions([]);
       }
@@ -116,6 +139,32 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     }
 
     setIsGeneratingPrediction(true);
+    
+    // First, analyze any uploaded images to get OCR text
+    let ocrTexts: string[] = [];
+    if (formData.attachments.length > 0) {
+      toast.info('Analyzing uploaded images...');
+      
+      for (const file of formData.attachments) {
+        if (file.type.startsWith('image/')) {
+          try {
+            // Upload image temporarily to get URL
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', file);
+            
+            // You might need to upload to a temporary endpoint or use ImageKit
+            // For now, let's assume we have the analysis results from earlier
+            const analysisResult = imageAnalysisResults[file.name];
+            if (analysisResult?.ocr_text) {
+              ocrTexts.push(analysisResult.ocr_text);
+            }
+          } catch (error) {
+            console.error('Error processing image:', error);
+          }
+        }
+      }
+    }
+    
     try {
       const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
         method: 'POST',
@@ -125,7 +174,11 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         },
         body: JSON.stringify({
           title: formData.title || '',
-          description: formData.description || ''
+          description: formData.description || '',
+          context: { 
+            source: 'gemini_analysis',
+            ocr_text: ocrTexts.join('\n\n---\n\n')  // Combine all OCR texts
+          }
         })
       });
 
@@ -138,7 +191,11 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           severity_confidence: data.severity?.confidence || 0,
           incident_type: data.categories?.[0]?.category || '',
           incident_type_confidence: data.categories?.[0]?.confidence || 0,
-          was_revised: false
+          was_revised: false,
+          gemini_analysis: data.gemini_analysis || false,
+          mitigation_strategies: data.mitigation_strategies || [],
+          threat_summary: data.gemini_full_analysis || data.summary || '',
+          risk_factors: data.severity?.factors || []
         };
 
         setMlPrediction(prediction);
@@ -172,6 +229,94 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     }
   }, []);
 
+  const analyzeImageWithGemini = async (file: File) => {
+    if (!idToken) return;
+    
+    setIsAnalyzingImages(true);
+    try {
+      // First, upload the image to ImageKit to get a URL
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      
+      toast.info(`Uploading ${file.name} for analysis...`);
+      
+      // Upload to a temporary endpoint or ImageKit
+      // For now, we'll use a data URL approach
+      const reader = new FileReader();
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      
+      // Store analyzing status
+      setImageAnalysisResults(prev => ({
+        ...prev,
+        [file.name]: {
+          status: 'analyzing',
+          ocr_text: '',
+          threat_indicators: []
+        }
+      }));
+      
+      toast.info(`Analyzing ${file.name} with OCR and Gemini AI...`);
+      
+      // Call the analyze-incident-image endpoint
+      const response = await fetch(`${API_URL}/api/ai/analyze-incident-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image_url: imageDataUrl,  // Send as data URL
+          context: 'use_gemini'
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Image analysis result:', result);
+        
+        // Store the analysis results
+        setImageAnalysisResults(prev => ({
+          ...prev,
+          [file.name]: {
+            status: 'completed',
+            ocr_text: result.extracted_text || result.ocr_text || '',
+            threat_indicators: result.threat_indicators || [],
+            summary: result.summary || '',
+            confidence: result.confidence || 0,
+            recommendations: result.recommendations || []
+          }
+        }));
+        
+        toast.success(`Analysis complete for ${file.name}`);
+      } else {
+        const error = await response.text();
+        console.error('Analysis failed:', error);
+        throw new Error(`Analysis failed: ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      toast.error(`Failed to analyze ${file.name}`);
+      
+      // Update status to failed
+      setImageAnalysisResults(prev => ({
+        ...prev,
+        [file.name]: {
+          status: 'failed',
+          ocr_text: '',
+          threat_indicators: ['Analysis failed'],
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      }));
+    } finally {
+      setIsAnalyzingImages(false);
+    }
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -183,8 +328,15 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         ...prev,
         attachments: [...prev.attachments, ...files]
       }));
+      
+      // Analyze dropped images
+      files.forEach(file => {
+        if (file.type.startsWith('image/')) {
+          analyzeImageWithGemini(file);
+        }
+      });
     }
-  }, []);
+  }, [idToken]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -393,7 +545,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
             {aiSuggestions.length > 0 && (
               <div className="mt-3 p-4 bg-[#00D4FF]/10 border border-[#00D4FF]/30 rounded-lg">
                 <p className="text-sm text-[#00D4FF] mb-3 flex items-center">
-                  🤖 AI-Powered Category Suggestions:
+                  🤖 ML Model-Powered Category Suggestions (Trained on 1000+ incidents):
                 </p>
                 {aiSuggestions.map((suggestion, index) => (
                   <button
@@ -437,31 +589,92 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                 )}
               </button>
 
-              {/* Show ML Predictions */}
+              {/* Show ML/Gemini Predictions */}
               {mlPrediction && (
-                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                  <p className="text-sm text-purple-300 mb-3 flex items-center">
-                    🤖 AI Predictions Applied:
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-300">Severity:</span>
-                      <span className="text-sm font-medium text-white">
-                        {mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1)} 
-                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.severity_confidence * 100)}%)</span>
+                <div className="mt-4 space-y-4">
+                  {/* Main Prediction Card */}
+                  <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-purple-300 flex items-center">
+                        {mlPrediction.gemini_analysis ? (
+                          <>✨ Gemini AI Analysis</>
+                        ) : (
+                          <>🤖 ML Model Predictions</>
+                        )}
+                      </p>
+                      <span className="text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded">
+                        {Math.round(((mlPrediction.severity_confidence + mlPrediction.incident_type_confidence) / 2) * 100)}% confidence
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-300">Incident Type:</span>
-                      <span className="text-sm font-medium text-white">
-                        {mlPrediction.incident_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
-                        <span className="text-xs text-purple-400 ml-1">({Math.round(mlPrediction.incident_type_confidence * 100)}%)</span>
-                      </span>
+                    
+                    {/* Classification Results */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-[#1A1D23] p-3 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Incident Type</p>
+                        <p className="text-sm font-medium text-white">
+                          {mlPrediction.incident_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </p>
+                        <p className="text-xs text-purple-400 mt-1">
+                          {Math.round(mlPrediction.incident_type_confidence * 100)}% confident
+                        </p>
+                      </div>
+                      <div className="bg-[#1A1D23] p-3 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Severity Level</p>
+                        <div className="flex items-center space-x-2">
+                          <div className={`h-2 w-2 rounded-full ${getSeverityColor(mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1))}`}></div>
+                          <p className="text-sm font-medium text-white">
+                            {mlPrediction.severity.charAt(0).toUpperCase() + mlPrediction.severity.slice(1)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-purple-400 mt-1">
+                          {Math.round(mlPrediction.severity_confidence * 100)}% confident
+                        </p>
+                      </div>
                     </div>
+                    
+                    {/* Threat Summary if available */}
+                    {mlPrediction.threat_summary && (
+                      <div className="bg-[#1A1D23] p-3 rounded-lg mb-3">
+                        <p className="text-xs text-gray-400 mb-2">Analysis Summary</p>
+                        <p className="text-sm text-white whitespace-pre-wrap">
+                          {mlPrediction.threat_summary.substring(0, 200)}...
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Risk Factors */}
+                    {mlPrediction.risk_factors && mlPrediction.risk_factors.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-400 mb-2">Risk Factors</p>
+                        <div className="flex flex-wrap gap-2">
+                          {mlPrediction.risk_factors.slice(0, 3).map((factor, idx) => (
+                            <span key={idx} className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">
+                              {factor}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Mitigation Strategies */}
+                    {mlPrediction.mitigation_strategies && mlPrediction.mitigation_strategies.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-2">Recommended Actions</p>
+                        <div className="space-y-2">
+                          {mlPrediction.mitigation_strategies.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="flex items-start space-x-2">
+                              <span className="text-xs text-green-400 mt-0.5">•</span>
+                              <p className="text-xs text-gray-300 flex-1">{item.strategy}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-gray-400 mt-3 italic">
+                      💡 Review and modify these predictions if needed before submitting
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    💡 You can modify these predictions if they don't seem accurate
-                  </p>
                 </div>
               )}
             </div>
@@ -560,6 +773,13 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                       ...prev,
                       attachments: [...prev.attachments, ...validFiles]
                     }));
+                    
+                    // Analyze images immediately for OCR
+                    validFiles.forEach(file => {
+                      if (file.type.startsWith('image/')) {
+                        analyzeImageWithGemini(file);
+                      }
+                    });
                   }
                 }}
               />
@@ -578,9 +798,24 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                       ) : (
                         <FileText className="h-4 w-4 text-gray-400" />
                       )}
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-white">{file.name}</p>
                         <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        {/* Show OCR analysis status */}
+                        {file.type.startsWith('image/') && imageAnalysisResults[file.name] && (
+                          <div className="mt-1">
+                            {imageAnalysisResults[file.name].status === 'analyzing' ? (
+                              <p className="text-xs text-[#00D4FF] flex items-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#00D4FF] mr-2"></div>
+                                Analyzing with OCR + Gemini AI...
+                              </p>
+                            ) : (
+                              <p className="text-xs text-green-400">
+                                ✓ OCR Complete - {imageAnalysisResults[file.name].threat_indicators?.length || 0} threats found
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <button
