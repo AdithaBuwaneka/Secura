@@ -536,6 +536,52 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* Incident Management */}
+            <div className="mt-8 bg-[#2A2D35] p-6 rounded-lg border border-gray-700 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white">Recent Incidents</h3>
+                <a 
+                  href="/incidents/all"
+                  className="text-[#00D4FF] hover:underline text-sm"
+                >
+                  View All Incidents
+                </a>
+              </div>
+              <div className="space-y-4">
+                {recentIncidents.length > 0 ? (
+                  recentIncidents.slice(0, 3).map((incident) => (
+                    <div key={incident.id} className="flex items-center space-x-4 p-3 bg-[#1A1D23] rounded-lg">
+                      <div className={`w-2 h-2 rounded-full ${
+                        incident.severity === 'critical' ? 'bg-red-400' :
+                        incident.severity === 'high' ? 'bg-orange-400' :
+                        incident.severity === 'medium' ? 'bg-yellow-400' :
+                        'bg-green-400'
+                      }`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">
+                          {incident.title || 'Untitled Incident'}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {incident.reporter_name} • {new Date(incident.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        incident.status === 'resolved' ? 'bg-green-500/20 text-green-300' :
+                        incident.status === 'investigating' ? 'bg-orange-500/20 text-orange-300' :
+                        'bg-blue-500/20 text-blue-300'
+                      }`}>
+                        {incident.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-400">
+                    <p>No recent incidents</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Recent Activity */}
             <div className="mt-8 bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
               <div className="flex items-center justify-between mb-6">

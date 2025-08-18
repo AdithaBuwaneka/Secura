@@ -91,8 +91,13 @@ async def create_incident(
 @router.get("/")
 async def get_incidents(
     status_filter: Optional[IncidentStatus] = None,
+    severity_filter: Optional[str] = None,
+    type_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    date_range: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
+    include_pagination: bool = False,
     current_user: User = Depends(get_current_user),
     incident_service: IncidentService = Depends()
 ):
@@ -106,35 +111,70 @@ async def get_incidents(
         if current_user.role.value == "employee":
             # Employees can only see their own incidents
             incidents = await incident_service.get_user_incidents(
-                current_user.uid, status_filter, limit, offset
+                current_user.uid, status_filter, severity_filter, type_filter, search, date_range, limit, offset
             )
+            pagination_info = None  # User incidents method doesn't return pagination yet
         else:
             # Security team and admin can see all incidents
-            incidents = await incident_service.get_all_incidents(
-                status_filter, limit, offset
+            result = await incident_service.get_all_incidents(
+                status_filter, severity_filter, type_filter, search, date_range, limit, offset
             )
+            
+            # Handle the new format that includes pagination
+            if isinstance(result, dict) and 'incidents' in result:
+                incidents = result['incidents']
+                pagination_info = result['pagination']
+            else:
+                # Fallback for old format
+                incidents = result
+                pagination_info = None
         
         # The service now returns dicts with attachments included
         # Just ensure enums are strings if they're still objects
-        for incident in incidents:
-            if isinstance(incident, dict):
-                # Already a dict from the service
-                if 'status' in incident and hasattr(incident['status'], 'value'):
-                    incident['status'] = incident['status'].value
-                if 'severity' in incident and hasattr(incident['severity'], 'value'):
-                    incident['severity'] = incident['severity'].value
-                if 'incident_type' in incident and hasattr(incident['incident_type'], 'value'):
-                    incident['incident_type'] = incident['incident_type'].value
+        if isinstance(incidents, list):
+            for incident in incidents:
+                if isinstance(incident, dict):
+                    # Already a dict from the service
+                    if 'status' in incident and hasattr(incident['status'], 'value'):
+                        incident['status'] = incident['status'].value
+                    if 'severity' in incident and hasattr(incident['severity'], 'value'):
+                        incident['severity'] = incident['severity'].value
+                    if 'incident_type' in incident and hasattr(incident['incident_type'], 'value'):
+                        incident['incident_type'] = incident['incident_type'].value
+                else:
+                    # Convert to dict if it's still a Pydantic model
+                    incident_dict = incident.dict()
+                    if 'status' in incident_dict and hasattr(incident_dict['status'], 'value'):
+                        incident_dict['status'] = incident_dict['status'].value
+                    if 'severity' in incident_dict and hasattr(incident_dict['severity'], 'value'):
+                        incident_dict['severity'] = incident_dict['severity'].value
+                    if 'incident_type' in incident_dict and hasattr(incident_dict['incident_type'], 'value'):
+                        incident_dict['incident_type'] = incident_dict['incident_type'].value
+                    incidents[incidents.index(incident)] = incident_dict
+        
+        # Return with pagination info if requested
+        if include_pagination:
+            if pagination_info:
+                # Use pagination info from service
+                return {
+                    "incidents": incidents,
+                    "pagination": pagination_info
+                }
             else:
-                # Convert to dict if it's still a Pydantic model
-                incident_dict = incident.dict()
-                if 'status' in incident_dict and hasattr(incident_dict['status'], 'value'):
-                    incident_dict['status'] = incident_dict['status'].value
-                if 'severity' in incident_dict and hasattr(incident_dict['severity'], 'value'):
-                    incident_dict['severity'] = incident_dict['severity'].value
-                if 'incident_type' in incident_dict and hasattr(incident_dict['incident_type'], 'value'):
-                    incident_dict['incident_type'] = incident_dict['incident_type'].value
-                incidents[incidents.index(incident)] = incident_dict
+                # Fallback pagination calculation
+                total_incidents = len(incidents)
+                current_page = (offset // limit) + 1
+                total_pages = max(1, (total_incidents + limit - 1) // limit)
+                
+                return {
+                    "incidents": incidents,
+                    "pagination": {
+                        "current_page": current_page,
+                        "total_pages": total_pages,
+                        "total_incidents": total_incidents,
+                        "incidents_per_page": limit
+                    }
+                }
         
         return incidents
         
