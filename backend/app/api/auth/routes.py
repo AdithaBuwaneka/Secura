@@ -33,6 +33,9 @@ async def create_profile_for_existing_user(
     """
     print(f"DEBUG: Received profile data: {profile_data}")
     print(f"DEBUG: Profile data type: {type(profile_data)}")
+    print(f"DEBUG: Phone number from request: '{profile_data.phone_number}'")
+    print(f"DEBUG: Phone number type: {type(profile_data.phone_number)}")
+    print(f"DEBUG: Full request data dict: {profile_data.dict()}")
     try:
         # Verify Firebase ID token
         decoded_token = auth.verify_id_token(credentials.credentials)

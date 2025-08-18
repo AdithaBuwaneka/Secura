@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { 
   Search, 
   Filter, 
   Eye, 
-  MessageSquare,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 
 interface IncidentQueueProps {
@@ -44,7 +45,16 @@ export default function IncidentQueue({
   return (
     <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-white">Incident Queue</h3>
+        <div className="flex items-center space-x-4">
+          <h3 className="text-lg font-semibold text-white">Incident Queue</h3>
+          <Link 
+            href="/incidents/all"
+            className="flex items-center space-x-2 text-sm text-[#00D4FF] hover:text-[#00C4EF] transition-colors"
+          >
+            <span>View All</span>
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        </div>
         <div className="flex items-center space-x-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -104,9 +114,6 @@ export default function IncidentQueue({
                       title="View Details"
                     >
                       <Eye className="h-4 w-4" />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" title="Message">
-                      <MessageSquare className="h-4 w-4" />
                     </button>
                   </div>
                 </div>

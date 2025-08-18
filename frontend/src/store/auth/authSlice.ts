@@ -39,11 +39,22 @@ export const registerUser = createAsyncThunk(
       const idToken = await userCredential.user.getIdToken();
       
       // 3. Create user profile in backend
+      const phoneNumber = data.phoneNumber && data.phoneNumber.trim() !== '' ? data.phoneNumber.trim() : null;
+      
       const requestBody = {
         email: data.email,
         full_name: data.fullName,
-        phone_number: data.phoneNumber || null
+        phone_number: phoneNumber,
+        country: null,
+        city: null,
+        home_number: null
       };
+      
+      console.log('DEBUG: Phone number processing:', {
+        original: data.phoneNumber,
+        processed: phoneNumber,
+        requestBody: requestBody
+      });
       
       console.log('Sending to create-profile:', requestBody);
       console.log('ID Token:', idToken ? 'present' : 'missing');
@@ -84,7 +95,25 @@ export const registerUser = createAsyncThunk(
         };
       }
       
-      const userProfile = await response.json();
+      const createProfileResponse = await response.json();
+      console.log('Create profile response:', createProfileResponse);
+      
+      // After creating profile, fetch the complete user profile
+      const profileResponse = await fetch(`${API_URL}/api/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      let userProfile;
+      if (profileResponse.ok) {
+        userProfile = await profileResponse.json();
+        console.log('Complete user profile fetched:', userProfile);
+      } else {
+        // Fallback to the create response if profile fetch fails
+        userProfile = createProfileResponse;
+        console.log('Using create profile response as fallback:', userProfile);
+      }
       
       return {
         firebaseUser: {

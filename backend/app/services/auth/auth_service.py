@@ -22,6 +22,10 @@ class AuthService:
 
     async def create_user_profile(self, user: User) -> User:
         """Create user profile in Firestore"""
+        print(f"AUTH_SERVICE DEBUG: Creating user profile for {user.uid}")
+        print(f"AUTH_SERVICE DEBUG: Phone number: '{user.phone_number}' (type: {type(user.phone_number)})")
+        print(f"AUTH_SERVICE DEBUG: Country: '{user.country}' (type: {type(user.country)})")
+        
         user_data = {
             'uid': user.uid,
             'email': user.email,
@@ -36,7 +40,9 @@ class AuthService:
             'last_login': None
         }
         
+        print(f"AUTH_SERVICE DEBUG: Data to be stored: {user_data}")
         self.users_collection.document(user.uid).set(user_data)
+        print(f"AUTH_SERVICE DEBUG: User profile stored successfully")
         return user
 
     async def get_user_profile(self, uid: str) -> Optional[User]:

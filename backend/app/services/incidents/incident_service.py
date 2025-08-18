@@ -172,19 +172,118 @@ class IncidentService:
     async def get_all_incidents(
         self, 
         status_filter: Optional[IncidentStatus] = None,
+        severity_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        search: Optional[str] = None,
+        date_range: Optional[str] = None,
         limit: int = 20,
         offset: int = 0
-    ) -> List[IncidentResponse]:
-        """Get all incidents (Security Team/Admin view)"""
-        query = self.incidents_collection.order_by('created_at', direction='DESCENDING')
+    ) -> dict:
+        """Get all incidents (Security Team/Admin view) with pagination info"""
+        # To avoid Firestore composite index requirements, we'll fetch all incidents
+        # and apply all filtering in memory. This works well for moderate data sizes.
         
-        if status_filter:
-            query = query.where('status', '==', status_filter.value)
+        # Get all incidents ordered by creation date
+        try:
+            if status_filter:
+                # If there's a status filter, try to use it (might require simple index)
+                try:
+                    base_query = self.incidents_collection.where('status', '==', status_filter.value).order_by('created_at', direction='DESCENDING')
+                    all_docs = list(base_query.stream())
+                except Exception as e:
+                    print(f"Status filter query failed, falling back to get all: {e}")
+                    # Fallback: get all incidents and filter in memory
+                    base_query = self.incidents_collection.order_by('created_at', direction='DESCENDING')
+                    all_docs = list(base_query.stream())
+            else:
+                # No status filter, just get all incidents
+                base_query = self.incidents_collection.order_by('created_at', direction='DESCENDING')
+                all_docs = list(base_query.stream())
+        except Exception as e:
+            print(f"Error fetching all incidents: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            all_docs = []
         
-        docs = query.limit(limit).offset(offset).stream()
+        # Apply additional filters in memory
+        filtered_docs = []
+        for doc in all_docs:
+            data = doc.to_dict()
+            
+            # Apply status filter (in case database filter failed)
+            if status_filter and str(data.get('status', '') or '').lower() != status_filter.value.lower():
+                continue
+            
+            # Apply severity filter
+            if severity_filter and str(data.get('severity', '') or '').lower() != severity_filter.lower():
+                continue
+            
+            # Apply type filter  
+            if type_filter and str(data.get('incident_type', '') or '').lower() != type_filter.lower():
+                continue
+            
+            # Apply date range filter
+            if date_range:
+                from datetime import datetime, timedelta
+                now = datetime.utcnow()
+                created_at = data.get('created_at')
+                
+                if created_at:
+                    # Handle Firestore timestamp
+                    if hasattr(created_at, 'seconds'):
+                        created_date = datetime.fromtimestamp(created_at.seconds)
+                    else:
+                        created_date = created_at
+                    
+                    if date_range == 'today':
+                        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                        if created_date < start_date:
+                            continue
+                    elif date_range == 'yesterday':
+                        yesterday = now - timedelta(days=1)
+                        start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+                        end_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                        if not (start_date <= created_date < end_date):
+                            continue
+                    elif date_range == 'last_7_days':
+                        start_date = now - timedelta(days=7)
+                        if created_date < start_date:
+                            continue
+                    elif date_range == 'last_30_days':
+                        start_date = now - timedelta(days=30)
+                        if created_date < start_date:
+                            continue
+                    elif date_range == 'last_90_days':
+                        start_date = now - timedelta(days=90)
+                        if created_date < start_date:
+                            continue
+            
+            # Apply search filter
+            if search:
+                search_lower = search.lower()
+                searchable_text = ' '.join([
+                    str(data.get('title', '') or ''),
+                    str(data.get('description', '') or ''),
+                    str(data.get('reporter_name', '') or ''),
+                    str(data.get('incident_type', '') or ''),
+                    str(data.get('reporter_email', '') or '')
+                ]).lower()
+                
+                if search_lower not in searchable_text:
+                    continue
+            
+            filtered_docs.append(doc)
+        
+        # Calculate pagination info
+        total_incidents = len(filtered_docs)
+        total_pages = max(1, (total_incidents + limit - 1) // limit)
+        current_page = (offset // limit) + 1
+        
+        # Apply pagination
+        paginated_docs = filtered_docs[offset:offset + limit]
         
         incidents = []
-        for doc in docs:
+        for doc in paginated_docs:
             data = doc.to_dict()
             print(f"Processing incident {data.get('id', 'unknown')}")
             
@@ -280,43 +379,120 @@ class IncidentService:
                 # Skip this incident if we can't create a valid response
                 continue
         
-        return incidents
+        # Return response with pagination info
+        return {
+            "incidents": incidents,
+            "pagination": {
+                "current_page": current_page,
+                "total_pages": total_pages,
+                "total_incidents": total_incidents,
+                "incidents_per_page": limit
+            }
+        }
 
     async def get_user_incidents(
         self, 
         user_id: str,
         status_filter: Optional[IncidentStatus] = None,
+        severity_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        search: Optional[str] = None,
+        date_range: Optional[str] = None,
         limit: int = 20,
         offset: int = 0
     ) -> List[IncidentResponse]:
         """Get incidents for specific user (Employee view)"""
+        # Simplified approach: get all user incidents and filter in memory
         try:
-            # Try with composite index first
-            query = self.incidents_collection.where('reporter_id', '==', user_id).order_by('created_at', direction='DESCENDING')
-            
-            if status_filter:
-                query = query.where('status', '==', status_filter.value)
-            
-            docs = query.limit(limit).offset(offset).stream()
-        except Exception as e:
-            # Fallback: Get all user incidents without ordering, then sort in memory
-            print(f"Index not available, using fallback query: {str(e)}")
+            # Simple query without ordering to avoid index issues
             query = self.incidents_collection.where('reporter_id', '==', user_id)
-            
-            if status_filter:
-                query = query.where('status', '==', status_filter.value)
-            
-            # Get all documents and sort in memory
             all_docs = list(query.stream())
             
             # Sort by created_at in descending order
             all_docs.sort(key=lambda doc: doc.to_dict().get('created_at', datetime.min), reverse=True)
             
-            # Apply offset and limit
-            docs = all_docs[offset:offset + limit]
+        except Exception as e:
+            print(f"Error fetching user incidents: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            all_docs = []
+        
+        # Apply filters in memory (all_docs is already populated above)
+        
+        # Apply additional filters in memory
+        if status_filter or severity_filter or type_filter or date_range or search:
+            filtered_docs = []
+            for doc in all_docs:
+                data = doc.to_dict()
+                
+                # Apply status filter
+                if status_filter and str(data.get('status', '') or '').lower() != status_filter.value.lower():
+                    continue
+                
+                # Apply severity filter
+                if severity_filter and str(data.get('severity', '') or '').lower() != severity_filter.lower():
+                    continue
+                
+                # Apply type filter  
+                if type_filter and str(data.get('incident_type', '') or '').lower() != type_filter.lower():
+                    continue
+                
+                # Apply date range filter
+                if date_range:
+                    from datetime import datetime, timedelta
+                    now = datetime.utcnow()
+                    created_at = data.get('created_at')
+                    
+                    if created_at:
+                        # Handle Firestore timestamp
+                        if hasattr(created_at, 'seconds'):
+                            created_date = datetime.fromtimestamp(created_at.seconds)
+                        else:
+                            created_date = created_at
+                        
+                        if date_range == 'today':
+                            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                            if created_date < start_date:
+                                continue
+                        elif date_range == 'yesterday':
+                            yesterday = now - timedelta(days=1)
+                            start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+                            end_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                            if not (start_date <= created_date < end_date):
+                                continue
+                        elif date_range == 'last_7_days':
+                            start_date = now - timedelta(days=7)
+                            if created_date < start_date:
+                                continue
+                        elif date_range == 'last_30_days':
+                            start_date = now - timedelta(days=30)
+                            if created_date < start_date:
+                                continue
+                        elif date_range == 'last_90_days':
+                            start_date = now - timedelta(days=90)
+                            if created_date < start_date:
+                                continue
+                
+                # Apply search filter
+                if search:
+                    search_lower = search.lower()
+                    searchable_text = ' '.join([
+                        str(data.get('title', '') or ''),
+                        str(data.get('description', '') or ''),
+                        str(data.get('reporter_name', '') or ''),
+                        str(data.get('incident_type', '') or ''),
+                        str(data.get('reporter_email', '') or '')
+                    ]).lower()
+                    
+                    if search_lower not in searchable_text:
+                        continue
+                
+                filtered_docs.append(doc)
+            
+            all_docs = filtered_docs
         
         incidents = []
-        for doc in docs:
+        for doc in all_docs:
             data = doc.to_dict()
             print(f"Processing incident {data.get('id', 'unknown')}")
             

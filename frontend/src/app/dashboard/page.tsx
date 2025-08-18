@@ -18,6 +18,11 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00D4FF] mb-4"></div>
             <p className="text-gray-400">Loading dashboard...</p>
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-gray-500 mt-2">
+                Debug: isInitialized={String(isInitialized)}, loading={String(loading)}, userProfile={userProfile ? 'exists' : 'null'}
+              </p>
+            )}
           </div>
         </div>
       );

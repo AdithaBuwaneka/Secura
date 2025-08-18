@@ -61,11 +61,15 @@ export default function RegisterPage() {
       return;
     }
     
+    console.log('Form data before registration:', formData);
+    console.log('Phone number value:', formData.phoneNumber);
+    console.log('Phone number length:', formData.phoneNumber?.length);
+    
     const result = await dispatch(registerUser({
       email: formData.email,
       password: formData.password,
       fullName: formData.fullName,
-      phoneNumber: formData.phoneNumber || undefined
+      phoneNumber: formData.phoneNumber?.trim() || undefined
     }));
     
     if (registerUser.fulfilled.match(result)) {
@@ -73,7 +77,11 @@ export default function RegisterPage() {
       toast.success('Account created successfully!');
       // Clear any residual errors
       dispatch(clearError());
-      router.push('/dashboard');
+      
+      // Small delay to ensure Redux state is updated before navigation
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 100);
     } else {
       const error = result.payload;
       console.log('Registration error type:', typeof error);
@@ -85,7 +93,11 @@ export default function RegisterPage() {
       if (isAuthenticated) {
         console.log('User is authenticated despite error - treating as success');
         toast.success('Account created successfully!');
-        router.push('/dashboard');
+        
+        // Small delay to ensure Redux state is updated before navigation
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 100);
         return;
       }
       

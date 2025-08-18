@@ -59,7 +59,9 @@ export default function SecurityTeamDashboard() {
     if (idToken) {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/incidents/`, {
+        // Fetch ALL incidents for accurate statistics
+        // Use the pagination endpoint to get all incidents with accurate counts
+        const response = await fetch(`${API_URL}/api/incidents/?limit=10000&include_pagination=true`, {
           headers: {
             'Authorization': `Bearer ${idToken}`
           }
@@ -67,9 +69,19 @@ export default function SecurityTeamDashboard() {
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Security team fetched incidents:', data);
-          console.log('First incident with attachments:', data.find((inc: any) => inc.attachments && inc.attachments.length > 0));
-          setIncidents(data);
+          
+          // Check if we got paginated response
+          if (data.incidents && data.pagination) {
+            console.log('Security team fetched incidents with pagination:', data);
+            console.log(`Total incidents: ${data.pagination.total_incidents}`);
+            setIncidents(data.incidents);
+          } else {
+            // Fallback to old format
+            console.log('Security team fetched incidents:', data);
+            setIncidents(data);
+          }
+          
+          console.log('First incident with attachments:', (data.incidents || data).find((inc: any) => inc.attachments && inc.attachments.length > 0));
         }
       } catch (error) {
         console.error('Failed to fetch incidents:', error);

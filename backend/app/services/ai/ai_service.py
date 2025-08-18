@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Optional
 import re
 import os
 from datetime import datetime, timedelta
+from collections import defaultdict, Counter
+import math
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.naive_bayes import MultinomialNB
@@ -21,6 +23,10 @@ from app.services.ai.threat_prediction_model import ThreatPredictionModel
 
 class AIService:
     def __init__(self):
+        # Initialize Firestore connection
+        from app.core.firebase_config import FirebaseConfig
+        self.db = FirebaseConfig.get_firestore()
+        
         # Try to load the trained ML model
         self.ml_model = None
         model_dir = 'backend/app/models/ml_models'
@@ -538,31 +544,291 @@ class AIService:
         timeframe_days: int = 90
     ) -> Dict[str, Any]:
         """
-        Get predictive analytics for security threats
+        Get predictive analytics for security threats based on historical data
         """
+        try:
+            # Get historical incidents directly from Firestore to avoid circular imports
+            incidents = await self._get_historical_incidents_for_analytics(timeframe_days)
+            
+            if not incidents or len(incidents) < 10:
+                # Fallback to enhanced mock data if insufficient historical data
+                return await self._generate_enhanced_mock_analytics(timeframe_days)
+            
+            # Incidents are already filtered by timeframe in the helper method
+            relevant_incidents = incidents
+            
+            # Calculate incident trends
+            weekly_counts = self._calculate_weekly_trends(relevant_incidents, timeframe_days)
+            incident_types = Counter([inc.get('incident_type', 'unknown') for inc in relevant_incidents])
+            severity_distribution = Counter([inc.get('severity', 'low') for inc in relevant_incidents])
+            
+            # Predict future volume based on trends
+            recent_avg = sum(weekly_counts[-4:]) / 4 if len(weekly_counts) >= 4 else sum(weekly_counts) / max(len(weekly_counts), 1)
+            trend_factor = self._calculate_trend_factor(weekly_counts)
+            
+            # Calculate predictions
+            next_week_prediction = max(1, int(recent_avg * trend_factor))
+            next_month_prediction = max(4, int(next_week_prediction * 4.2 * trend_factor))
+            
+            # Calculate confidence based on data quality
+            confidence = min(0.95, 0.5 + (len(relevant_incidents) / 100.0))
+            
+            # Analyze risk factors based on recent patterns
+            risk_factors = self._analyze_risk_factors(relevant_incidents, incident_types, severity_distribution)
+            
+            # Generate recommendations based on data
+            recommendations = self._generate_data_driven_recommendations(incident_types, severity_distribution, trend_factor)
+            
+            return {
+                'predicted_incident_volume': {
+                    'next_week': next_week_prediction,
+                    'next_month': next_month_prediction,
+                    'confidence': confidence
+                },
+                'risk_factors': risk_factors,
+                'recommended_actions': recommendations,
+                'data_summary': {
+                    'analyzed_incidents': len(relevant_incidents),
+                    'timeframe_days': timeframe_days,
+                    'trend_direction': 'increasing' if trend_factor > 1.1 else 'decreasing' if trend_factor < 0.9 else 'stable',
+                    'most_common_type': incident_types.most_common(1)[0][0] if incident_types else 'unknown',
+                    'highest_severity': severity_distribution.most_common(1)[0][0] if severity_distribution else 'low'
+                }
+            }
+            
+        except Exception as e:
+            print(f"Predictive analytics error: {e}")
+            # Fallback to enhanced mock data on error
+            return await self._generate_enhanced_mock_analytics(timeframe_days)
+    
+    def _calculate_weekly_trends(self, incidents: List[Dict], timeframe_days: int) -> List[int]:
+        """Calculate weekly incident counts for trend analysis"""
+        weekly_counts = []
+        current_time = datetime.now()
+        
+        for week in range(min(timeframe_days // 7, 12)):  # Max 12 weeks
+            week_start = current_time - timedelta(weeks=week+1)
+            week_end = current_time - timedelta(weeks=week)
+            
+            count = 0
+            for incident in incidents:
+                try:
+                    if isinstance(incident.get('created_at'), str):
+                        created_at = datetime.fromisoformat(incident['created_at'].replace('Z', '+00:00'))
+                    else:
+                        created_at = incident.get('created_at', current_time)
+                    
+                    if week_start <= created_at < week_end:
+                        count += 1
+                except:
+                    continue
+            
+            weekly_counts.append(count)
+        
+        return list(reversed(weekly_counts))  # Return chronological order
+    
+    def _calculate_trend_factor(self, weekly_counts: List[int]) -> float:
+        """Calculate trend factor (>1 = increasing, <1 = decreasing)"""
+        if len(weekly_counts) < 2:
+            return 1.0
+        
+        # Simple linear regression slope calculation
+        n = len(weekly_counts)
+        x_sum = sum(range(n))
+        y_sum = sum(weekly_counts)
+        xy_sum = sum(i * count for i, count in enumerate(weekly_counts))
+        x2_sum = sum(i * i for i in range(n))
+        
+        try:
+            slope = (n * xy_sum - x_sum * y_sum) / (n * x2_sum - x_sum * x_sum)
+            avg_count = y_sum / n
+            
+            if avg_count > 0:
+                trend_factor = 1 + (slope / avg_count)
+                return max(0.5, min(2.0, trend_factor))  # Bound between 0.5 and 2.0
+            else:
+                return 1.0
+        except:
+            return 1.0
+    
+    def _analyze_risk_factors(self, incidents: List[Dict], incident_types: Counter, severity_distribution: Counter) -> List[Dict]:
+        """Analyze risk factors based on incident patterns"""
+        risk_factors = []
+        
+        # Analyze incident type trends
+        total_incidents = len(incidents)
+        if total_incidents > 0:
+            for incident_type, count in incident_types.most_common(3):
+                percentage = (count / total_incidents) * 100
+                
+                # Map incident types to risk factors
+                type_mapping = {
+                    'phishing': {'factor': 'Phishing Campaign Activity', 'base_impact': 0.7},
+                    'malware': {'factor': 'Malware Infections', 'base_impact': 0.8},
+                    'unauthorized_access': {'factor': 'Unauthorized Access Attempts', 'base_impact': 0.9},
+                    'data_breach': {'factor': 'Data Security Risks', 'base_impact': 0.95},
+                    'social_engineering': {'factor': 'Social Engineering Attacks', 'base_impact': 0.6},
+                    'physical_security': {'factor': 'Physical Security Gaps', 'base_impact': 0.5}
+                }
+                
+                if incident_type in type_mapping:
+                    factor_info = type_mapping[incident_type]
+                    impact_score = min(0.95, factor_info['base_impact'] * (percentage / 50))  # Scale by prevalence
+                    likelihood = min(0.9, percentage / 100)
+                    
+                    risk_factors.append({
+                        'factor': factor_info['factor'],
+                        'impact_score': impact_score,
+                        'likelihood': likelihood
+                    })
+        
+        # Analyze severity trends
+        high_severity_count = severity_distribution.get('high', 0) + severity_distribution.get('critical', 0)
+        if high_severity_count > 0 and total_incidents > 0:
+            high_severity_rate = high_severity_count / total_incidents
+            if high_severity_rate > 0.2:  # More than 20% high/critical
+                risk_factors.append({
+                    'factor': 'High-Severity Incident Escalation',
+                    'impact_score': min(0.9, 0.6 + high_severity_rate),
+                    'likelihood': min(0.8, high_severity_rate * 2)
+                })
+        
+        # Add seasonal/time-based risk factors
+        current_month = datetime.now().month
+        if current_month in [11, 12, 1]:  # Holiday season
+            risk_factors.append({
+                'factor': 'Holiday Season Security Risks',
+                'impact_score': 0.6,
+                'likelihood': 0.7
+            })
+        elif current_month in [3, 4]:  # Tax season
+            risk_factors.append({
+                'factor': 'Tax Season Phishing Campaigns',
+                'impact_score': 0.7,
+                'likelihood': 0.8
+            })
+        
+        return risk_factors[:4]  # Return top 4 risk factors
+    
+    def _generate_data_driven_recommendations(self, incident_types: Counter, severity_distribution: Counter, trend_factor: float) -> List[str]:
+        """Generate recommendations based on incident data analysis"""
+        recommendations = []
+        
+        # Recommendations based on most common incident types
+        type_recommendations = {
+            'phishing': [
+                'Enhance email security filtering and monitoring',
+                'Conduct targeted phishing simulation training',
+                'Implement advanced threat detection for email'
+            ],
+            'malware': [
+                'Update endpoint protection across all systems',
+                'Conduct comprehensive vulnerability assessments',
+                'Implement network segmentation and monitoring'
+            ],
+            'unauthorized_access': [
+                'Strengthen authentication mechanisms (MFA)',
+                'Review and update access control policies',
+                'Implement continuous access monitoring'
+            ],
+            'data_breach': [
+                'Conduct data classification and protection review',
+                'Implement data loss prevention (DLP) solutions',
+                'Review backup and incident response procedures'
+            ],
+            'social_engineering': [
+                'Increase security awareness training frequency',
+                'Implement verification procedures for sensitive requests',
+                'Deploy behavioral analytics and monitoring'
+            ]
+        }
+        
+        # Add recommendations for top incident types
+        for incident_type, count in incident_types.most_common(2):
+            if incident_type in type_recommendations:
+                recommendations.extend(type_recommendations[incident_type][:2])
+        
+        # Recommendations based on trend
+        if trend_factor > 1.2:
+            recommendations.append('Scale up security monitoring due to increasing incident trends')
+            recommendations.append('Consider additional security staff or external support')
+        elif trend_factor < 0.8:
+            recommendations.append('Review and document successful security improvements')
+            recommendations.append('Consider proactive security initiatives')
+        
+        # Recommendations based on severity distribution
+        high_severity_count = severity_distribution.get('high', 0) + severity_distribution.get('critical', 0)
+        total_count = sum(severity_distribution.values())
+        
+        if total_count > 0 and (high_severity_count / total_count) > 0.25:
+            recommendations.append('Prioritize incident response and escalation procedures')
+            recommendations.append('Review and strengthen preventive security controls')
+        
+        # General recommendations if not enough specific data
+        if len(recommendations) < 3:
+            recommendations.extend([
+                'Conduct regular security risk assessments',
+                'Maintain updated incident response playbooks',
+                'Implement continuous security monitoring',
+                'Schedule periodic security awareness training',
+                'Review and test backup and recovery procedures'
+            ])
+        
+        return recommendations[:7]  # Return top 7 recommendations
+    
+    async def _generate_enhanced_mock_analytics(self, timeframe_days: int) -> Dict[str, Any]:
+        """Generate enhanced mock analytics when insufficient real data is available"""
+        import random
+        
+        # Generate more realistic mock data based on industry standards
+        base_weekly_incidents = random.randint(8, 15)
+        seasonal_factor = 1.2 if datetime.now().month in [11, 12, 1] else 1.0
+        
         return {
             'predicted_incident_volume': {
-                'next_week': 12,
-                'next_month': 45,
-                'confidence': 0.78
+                'next_week': int(base_weekly_incidents * seasonal_factor),
+                'next_month': int(base_weekly_incidents * 4.2 * seasonal_factor),
+                'confidence': 0.65  # Lower confidence for mock data
             },
             'risk_factors': [
                 {
-                    'factor': 'Increased phishing activity',
-                    'impact_score': 0.85,
-                    'likelihood': 0.72
+                    'factor': 'Seasonal Phishing Campaign Increase',
+                    'impact_score': 0.75,
+                    'likelihood': 0.8
                 },
                 {
-                    'factor': 'Holiday season social engineering',
+                    'factor': 'Remote Work Security Vulnerabilities',
                     'impact_score': 0.65,
-                    'likelihood': 0.89
+                    'likelihood': 0.7
+                },
+                {
+                    'factor': 'Third-Party Vendor Security Risks',
+                    'impact_score': 0.8,
+                    'likelihood': 0.5
+                },
+                {
+                    'factor': 'Legacy System Vulnerabilities',
+                    'impact_score': 0.7,
+                    'likelihood': 0.6
                 }
             ],
             'recommended_actions': [
-                'Increase security awareness training',
-                'Implement additional email filters',
-                'Schedule vulnerability assessments'
-            ]
+                'Implement advanced email security and phishing protection',
+                'Conduct security awareness training for remote workers',
+                'Review and assess third-party vendor security practices',
+                'Schedule vulnerability assessments for legacy systems',
+                'Enhance endpoint detection and response capabilities',
+                'Implement network segmentation and zero-trust architecture',
+                'Develop incident response playbooks for common attack vectors'
+            ],
+            'data_summary': {
+                'analyzed_incidents': 0,
+                'timeframe_days': timeframe_days,
+                'trend_direction': 'stable',
+                'most_common_type': 'insufficient_data',
+                'highest_severity': 'medium',
+                'note': 'Predictions based on industry baselines due to limited historical data'
+            }
         }
 
     async def detect_anomalies(self, incident_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -835,6 +1101,96 @@ class AIService:
             "confidence": confidence,
             "recommendations": recommendations[:5]  # Limit to top 5
         }
+    
+    async def _get_historical_incidents_for_analytics(self, timeframe_days: int) -> List[Dict[str, Any]]:
+        """
+        Get historical incidents directly from Firestore for analytics
+        """
+        try:
+            # Calculate date cutoff
+            cutoff_date = datetime.now() - timedelta(days=timeframe_days)
+            
+            # Query incidents from Firestore
+            incidents_ref = self.db.collection('incidents')
+            
+            # Get incidents ordered by creation date (most recent first)
+            try:
+                query = incidents_ref.order_by('created_at', direction='DESCENDING').limit(1000)
+                docs = query.stream()
+            except Exception as e:
+                print(f"Failed to order by created_at, trying without ordering: {e}")
+                # Fallback: get all incidents without ordering
+                query = incidents_ref.limit(1000)
+                docs = query.stream()
+            
+            incidents = []
+            all_incidents = []  # Keep track of all incidents for fallback
+            
+            for doc in docs:
+                try:
+                    data = doc.to_dict()
+                    if data:
+                        # Ensure we have the required fields
+                        incident = {
+                            'id': data.get('id', doc.id),
+                            'created_at': data.get('created_at'),
+                            'incident_type': data.get('incident_type'),
+                            'severity': data.get('severity'),
+                            'status': data.get('status'),
+                            'title': data.get('title'),
+                            'description': data.get('description')
+                        }
+                        
+                        all_incidents.append(incident)  # Add to all incidents list
+                        
+                        # Try to filter by timeframe
+                        if incident['created_at']:
+                            try:
+                                if isinstance(incident['created_at'], str):
+                                    created_at = datetime.fromisoformat(incident['created_at'].replace('Z', '+00:00'))
+                                else:
+                                    # Handle Firestore timestamp
+                                    created_at = incident['created_at']
+                                    if hasattr(created_at, 'seconds'):
+                                        created_at = datetime.fromtimestamp(created_at.seconds)
+                                    elif hasattr(created_at, 'timestamp'):
+                                        created_at = datetime.fromtimestamp(created_at.timestamp())
+                                
+                                if created_at >= cutoff_date:
+                                    # Convert datetime back to string for consistency
+                                    incident['created_at'] = created_at.isoformat()
+                                    incidents.append(incident)
+                            except Exception as e:
+                                print(f"Date parsing error for incident {incident['id']}: {e}")
+                                # Add to incidents anyway for fallback data
+                                incident['created_at'] = datetime.now().isoformat()
+                                incidents.append(incident)
+                        else:
+                            # No created_at field, add with current time
+                            incident['created_at'] = datetime.now().isoformat()
+                            incidents.append(incident)
+                        
+                except Exception as e:
+                    print(f"Error processing incident document: {e}")
+                    continue
+            
+            # If we have very few incidents in timeframe, use all incidents as fallback
+            if len(incidents) < 5 and len(all_incidents) >= 5:
+                print(f"Only {len(incidents)} incidents in timeframe, using all {len(all_incidents)} incidents")
+                incidents = all_incidents[:50]  # Limit to 50 for reasonable processing
+                # Ensure all have created_at
+                for inc in incidents:
+                    if not inc.get('created_at'):
+                        inc['created_at'] = datetime.now().isoformat()
+            
+            print(f"Retrieved {len(incidents)} incidents for predictive analytics")
+            return incidents
+            
+        except Exception as e:
+            print(f"Error retrieving historical incidents: {e}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return []
     
     def _generate_image_summary(self, text: str, indicators: List[str]) -> str:
         """Generate a concise summary of the image analysis"""

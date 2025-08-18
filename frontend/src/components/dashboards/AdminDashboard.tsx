@@ -149,21 +149,54 @@ export default function AdminDashboard() {
   };
 
   const handleExecutiveReports = async () => {
-    if (!idToken || !isAuthenticated) return;
+    if (!idToken || !isAuthenticated) {
+      toast.error('Authentication required to generate reports');
+      return;
+    }
+
+    // Check user role
+    if (userProfile?.role !== 'admin') {
+      toast.error(`Access denied. Current role: ${userProfile?.role}. Admin role required.`);
+      return;
+    }
     
     try {
       toast.loading('Generating executive report...');
+      console.log('Generating report with API_URL:', API_URL);
+      console.log('User profile:', userProfile);
+      console.log('User role:', userProfile?.role);
       
       const response = await fetch(`${API_URL}/api/admin/reports/executive`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: { 
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error('Failed to generate report');
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        
+        if (response.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed. Please login again.');
+        } else {
+          throw new Error(`Server error (${response.status}): ${errorText}`);
+        }
       }
 
       const blob = await response.blob();
+      console.log('PDF blob size:', blob.size);
+      
+      if (blob.size === 0) {
+        throw new Error('Received empty report file');
+      }
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -178,7 +211,7 @@ export default function AdminDashboard() {
     } catch (error) {
       toast.dismiss();
       console.error('Error generating report:', error);
-      toast.error('Failed to generate executive report');
+      toast.error(`Failed to generate executive report: ${error.message}`);
     }
   };
 
@@ -501,9 +534,32 @@ export default function AdminDashboard() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-medium">Executive Reports</h4>
-                        <p className="text-sm text-gray-300 mt-1">Generate compliance reports</p>
+                        <p className="text-sm text-gray-300 mt-1">Generate PDF reports with real data analytics</p>
                       </div>
                       <Download className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    </div>
+                  </button>
+                  
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`${API_URL}/health`);
+                        const data = await response.json();
+                        toast.success(`Backend connected: ${data.status}`);
+                        console.log('Backend health:', data);
+                      } catch (error) {
+                        toast.error(`Backend connection failed: ${error.message}`);
+                        console.error('Backend connection error:', error);
+                      }
+                    }}
+                    className="w-full bg-[#059669] text-white p-4 rounded-lg text-left transition-all hover:bg-[#047857] hover:scale-105 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">Test Backend Connection</h4>
+                        <p className="text-sm text-gray-300 mt-1">Check API connectivity and health</p>
+                      </div>
+                      <Activity className="h-5 w-5 group-hover:scale-110 transition-transform" />
                     </div>
                   </button>
                   
@@ -533,6 +589,52 @@ export default function AdminDashboard() {
                     </div>
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Incident Management */}
+            <div className="mt-8 bg-[#2A2D35] p-6 rounded-lg border border-gray-700 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white">Recent Incidents</h3>
+                <a 
+                  href="/incidents/all"
+                  className="text-[#00D4FF] hover:underline text-sm"
+                >
+                  View All Incidents
+                </a>
+              </div>
+              <div className="space-y-4">
+                {recentIncidents.length > 0 ? (
+                  recentIncidents.slice(0, 3).map((incident) => (
+                    <div key={incident.id} className="flex items-center space-x-4 p-3 bg-[#1A1D23] rounded-lg">
+                      <div className={`w-2 h-2 rounded-full ${
+                        incident.severity === 'critical' ? 'bg-red-400' :
+                        incident.severity === 'high' ? 'bg-orange-400' :
+                        incident.severity === 'medium' ? 'bg-yellow-400' :
+                        'bg-green-400'
+                      }`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">
+                          {incident.title || 'Untitled Incident'}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {incident.reporter_name} • {new Date(incident.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        incident.status === 'resolved' ? 'bg-green-500/20 text-green-300' :
+                        incident.status === 'investigating' ? 'bg-orange-500/20 text-orange-300' :
+                        'bg-blue-500/20 text-blue-300'
+                      }`}>
+                        {incident.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-400">
+                    <p>No recent incidents</p>
+                  </div>
+                )}
               </div>
             </div>
 
