@@ -6,7 +6,6 @@ import {
   Search, 
   Filter, 
   Eye, 
-  MessageSquare,
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
@@ -115,9 +114,6 @@ export default function IncidentQueue({
                       title="View Details"
                     >
                       <Eye className="h-4 w-4" />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-[#00D4FF] transition-colors" title="Message">
-                      <MessageSquare className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
