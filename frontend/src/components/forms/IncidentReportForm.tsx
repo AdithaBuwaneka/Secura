@@ -79,7 +79,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           body: JSON.stringify({
             title: formData.title,
             description: description,
-            context: 'real_time_suggestions'
+            context: { source: 'real_time_suggestions' }
           })
         });
 
