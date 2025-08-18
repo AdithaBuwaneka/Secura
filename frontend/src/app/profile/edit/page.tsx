@@ -33,16 +33,32 @@ export default function EditProfilePage() {
 
   useEffect(() => {
     if (userProfile) {
+      console.log('DEBUG: Full userProfile data:', JSON.stringify(userProfile, null, 2));
+      console.log('DEBUG: Phone number field value:', userProfile.phone_number);
+      console.log('DEBUG: Phone number type:', typeof userProfile.phone_number);
+      console.log('DEBUG: Country:', userProfile.country);
+      console.log('DEBUG: City:', userProfile.city);
+      console.log('DEBUG: Home number:', userProfile.home_number);
+      console.log('DEBUG: Available fields:', Object.keys(userProfile));
+      
       setFormData(prev => ({
         ...prev,
+        full_name: userProfile.full_name || '',
+        email: userProfile.email || '',
+        phone_number: userProfile.phone_number?.toString() || '',
+        country: userProfile.country || '',
+        city: userProfile.city || '',
+        home_number: userProfile.home_number || ''
+      }));
+      
+      console.log('DEBUG: Form data after update:', {
         full_name: userProfile.full_name || '',
         email: userProfile.email || '',
         phone_number: userProfile.phone_number || '',
         country: userProfile.country || '',
         city: userProfile.city || '',
         home_number: userProfile.home_number || ''
-      }));
-      console.log('DEBUG: userProfile updated:', userProfile);
+      });
     }
   }, [userProfile]);
 
