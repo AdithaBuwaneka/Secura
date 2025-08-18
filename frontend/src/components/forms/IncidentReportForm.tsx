@@ -60,8 +60,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   const [isGeneratingPrediction, setIsGeneratingPrediction] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [imageAnalysisResults, setImageAnalysisResults] = useState<Record<string, any>>({});
-  const [isAnalyzingImages, setIsAnalyzingImages] = useState(false);
 
   // AI-powered suggestions based on description using our trained ML model
   const handleDescriptionChange = useCallback(async (description: string) => {
@@ -140,31 +138,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
 
     setIsGeneratingPrediction(true);
     
-    // First, analyze any uploaded images to get OCR text
-    let ocrTexts: string[] = [];
-    if (formData.attachments.length > 0) {
-      toast.info('Analyzing uploaded images...');
-      
-      for (const file of formData.attachments) {
-        if (file.type.startsWith('image/')) {
-          try {
-            // Upload image temporarily to get URL
-            const uploadFormData = new FormData();
-            uploadFormData.append('file', file);
-            
-            // You might need to upload to a temporary endpoint or use ImageKit
-            // For now, let's assume we have the analysis results from earlier
-            const analysisResult = imageAnalysisResults[file.name];
-            if (analysisResult?.ocr_text) {
-              ocrTexts.push(analysisResult.ocr_text);
-            }
-          } catch (error) {
-            console.error('Error processing image:', error);
-          }
-        }
-      }
-    }
-    
     try {
       const response = await fetch(`${API_URL}/api/ai/predict-incident`, {
         method: 'POST',
@@ -176,8 +149,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           title: formData.title || '',
           description: formData.description || '',
           context: { 
-            source: 'gemini_analysis',
-            ocr_text: ocrTexts.join('\n\n---\n\n')  // Combine all OCR texts
+            source: 'gemini_analysis'
           }
         })
       });
@@ -229,93 +201,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     }
   }, []);
 
-  const analyzeImageWithGemini = async (file: File) => {
-    if (!idToken) return;
-    
-    setIsAnalyzingImages(true);
-    try {
-      // First, upload the image to ImageKit to get a URL
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      
-      toast.info(`Uploading ${file.name} for analysis...`);
-      
-      // Upload to a temporary endpoint or ImageKit
-      // For now, we'll use a data URL approach
-      const reader = new FileReader();
-      const imageDataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      
-      // Store analyzing status
-      setImageAnalysisResults(prev => ({
-        ...prev,
-        [file.name]: {
-          status: 'analyzing',
-          ocr_text: '',
-          threat_indicators: []
-        }
-      }));
-      
-      toast.info(`Analyzing ${file.name} with OCR and Gemini AI...`);
-      
-      // Call the analyze-incident-image endpoint
-      const response = await fetch(`${API_URL}/api/ai/analyze-incident-image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          image_url: imageDataUrl,  // Send as data URL
-          context: 'use_gemini'
-        })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Image analysis result:', result);
-        
-        // Store the analysis results
-        setImageAnalysisResults(prev => ({
-          ...prev,
-          [file.name]: {
-            status: 'completed',
-            ocr_text: result.extracted_text || result.ocr_text || '',
-            threat_indicators: result.threat_indicators || [],
-            summary: result.summary || '',
-            confidence: result.confidence || 0,
-            recommendations: result.recommendations || []
-          }
-        }));
-        
-        toast.success(`Analysis complete for ${file.name}`);
-      } else {
-        const error = await response.text();
-        console.error('Analysis failed:', error);
-        throw new Error(`Analysis failed: ${response.status}`);
-      }
-      
-    } catch (error) {
-      console.error('Image analysis error:', error);
-      toast.error(`Failed to analyze ${file.name}`);
-      
-      // Update status to failed
-      setImageAnalysisResults(prev => ({
-        ...prev,
-        [file.name]: {
-          status: 'failed',
-          ocr_text: '',
-          threat_indicators: ['Analysis failed'],
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      }));
-    } finally {
-      setIsAnalyzingImages(false);
-    }
-  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -329,12 +214,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         attachments: [...prev.attachments, ...files]
       }));
       
-      // Analyze dropped images
-      files.forEach(file => {
-        if (file.type.startsWith('image/')) {
-          analyzeImageWithGemini(file);
-        }
-      });
     }
   }, [idToken]);
 
@@ -773,13 +652,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                       ...prev,
                       attachments: [...prev.attachments, ...validFiles]
                     }));
-                    
-                    // Analyze images immediately for OCR
-                    validFiles.forEach(file => {
-                      if (file.type.startsWith('image/')) {
-                        analyzeImageWithGemini(file);
-                      }
-                    });
                   }
                 }}
               />
@@ -801,21 +673,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                       <div className="flex-1">
                         <p className="text-sm text-white">{file.name}</p>
                         <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                        {/* Show OCR analysis status */}
-                        {file.type.startsWith('image/') && imageAnalysisResults[file.name] && (
-                          <div className="mt-1">
-                            {imageAnalysisResults[file.name].status === 'analyzing' ? (
-                              <p className="text-xs text-[#00D4FF] flex items-center">
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#00D4FF] mr-2"></div>
-                                Analyzing with OCR + Gemini AI...
-                              </p>
-                            ) : (
-                              <p className="text-xs text-green-400">
-                                ✓ OCR Complete - {imageAnalysisResults[file.name].threat_indicators?.length || 0} threats found
-                              </p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                     <button
