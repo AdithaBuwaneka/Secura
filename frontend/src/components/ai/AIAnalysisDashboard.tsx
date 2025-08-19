@@ -85,9 +85,15 @@ export default function AIAnalysisDashboard() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   const fetchIncidents = async () => {
+    if (!idToken) {
+      console.log('No idToken available, skipping incidents fetch');
+      return;
+    }
+    
     setIsLoadingIncidents(true);
     try {
-      const response = await fetch(`${API_URL}/api/incidents?limit=100`, {
+      // Use trailing slash for correct backend route
+      const response = await fetch(`${API_URL}/api/incidents/?limit=100`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
@@ -95,13 +101,32 @@ export default function AIAnalysisDashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setIncidents(data);
+        console.log('Incidents API response:', data);
+        
+        // Handle both array format (default) and paginated format
+        if (Array.isArray(data)) {
+          setIncidents(data);
+          console.log(`Successfully loaded ${data.length} incidents`);
+        } else if (typeof data === 'object' && data !== null && 'incidents' in data) {
+          setIncidents(data.incidents);
+          console.log(`Successfully loaded ${data.incidents.length} incidents from paginated response`);
+        } else {
+          console.error('Unexpected response format:', data);
+          setIncidents([]);
+          toast.error('Unexpected data format received');
+        }
       } else {
-        toast.error('Failed to fetch incidents');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        toast.error(`Failed to fetch incidents (${response.status}): ${response.statusText}`);
       }
     } catch (error) {
       console.error('Fetch incidents error:', error);
-      toast.error('Failed to load incidents');
+      toast.error('Network error while loading incidents');
     } finally {
       setIsLoadingIncidents(false);
     }
@@ -120,6 +145,11 @@ export default function AIAnalysisDashboard() {
   };
 
   const fetchThreatIntelligence = async () => {
+    if (!idToken) {
+      console.log('No idToken available, skipping threat intelligence fetch');
+      return;
+    }
+    
     setIsLoadingIntel(true);
     try {
       const response = await fetch(`${API_URL}/api/ai/threat-intelligence?days=30`, {
@@ -143,6 +173,11 @@ export default function AIAnalysisDashboard() {
   };
 
   const fetchPredictiveAnalytics = async () => {
+    if (!idToken) {
+      console.log('No idToken available, skipping predictive analytics fetch');
+      return;
+    }
+    
     setIsLoadingIntel(true);
     try {
       const response = await fetch(`${API_URL}/api/ai/predictive-analytics?timeframe_days=90`, {
@@ -170,16 +205,18 @@ export default function AIAnalysisDashboard() {
 
 
   React.useEffect(() => {
-    fetchIncidents();
+    if (idToken) {
+      fetchIncidents();
+    }
   }, [idToken]);
 
   React.useEffect(() => {
-    if (activeTab === 'intelligence' && !threatIntelligence) {
+    if (idToken && activeTab === 'intelligence' && !threatIntelligence) {
       fetchThreatIntelligence();
-    } else if (activeTab === 'predictive' && !predictiveAnalytics) {
+    } else if (idToken && activeTab === 'predictive' && !predictiveAnalytics) {
       fetchPredictiveAnalytics();
     }
-  }, [activeTab]);
+  }, [activeTab, idToken]);
 
   const handleAnalyze = async () => {
     if (!selectedIncident) {
