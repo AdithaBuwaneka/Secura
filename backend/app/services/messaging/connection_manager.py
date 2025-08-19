@@ -16,7 +16,7 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: str, room_id: Optional[str] = None):
         """Connect a user to WebSocket"""
-        await websocket.accept()
+        # Note: WebSocket should already be accepted before calling this method
         
         if room_id:
             # Room-based connection

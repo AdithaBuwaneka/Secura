@@ -24,6 +24,7 @@ import {
   X,
   ScanLine
 } from 'lucide-react';
+import IncidentChatButton from '@/components/messaging/IncidentChatButton';
 
 interface IncidentAttachment {
   file_id: string;
@@ -215,12 +216,23 @@ export default function IncidentDetailPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">Incident Details</h2>
-            <button
-              onClick={() => router.back()}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center space-x-4">
+              <IncidentChatButton 
+                incidentId={incident.id}
+                incidentTitle={incident.title || 'Untitled Incident'}
+                assignedToId={incident.assigned_to}
+                assignedToName={incident.assigned_to_name}
+                incidentStatus={incident.status}
+                size="md"
+                showLabel={true}
+              />
+              <button
+                onClick={() => router.back()}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Incident ID and Status */}

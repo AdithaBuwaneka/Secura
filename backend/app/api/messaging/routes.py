@@ -399,11 +399,11 @@ async def websocket_general_endpoint(websocket: WebSocket, token: str = Query(..
     """
     WebSocket endpoint for general messaging
     """
-    # Accept the WebSocket connection first
-    await websocket.accept()
-    
     current_time = time.time()
     print(f"DEBUG: WebSocket connection attempt for user_id: {user_id} at {current_time}")
+    
+    # Accept the WebSocket connection first
+    await websocket.accept()
     
     # Rate limiting: Allow max 5 connections per minute per user
     connection_attempts[user_id] = [t for t in connection_attempts[user_id] if current_time - t < 60]

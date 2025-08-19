@@ -34,6 +34,7 @@ interface MessageThreadProps {
   incidentId?: string;
   conversationId?: string;
   onClose?: () => void;
+  isModal?: boolean;
 }
 
 export default function MessageThread({ incidentId, conversationId, onClose }: MessageThreadProps) {
