@@ -63,6 +63,44 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   const [imageAnalysisResults, setImageAnalysisResults] = useState<Record<string, any>>({});
   const [isAnalyzingImages, setIsAnalyzingImages] = useState(false);
 
+  // Safe toast helper to handle potential bundling issues
+  const safeToast = {
+    success: (message: string) => {
+      try {
+        if (typeof toast?.success === 'function') {
+          toast.success(message);
+        } else {
+          console.log('SUCCESS:', message);
+        }
+      } catch (e) {
+        console.log('SUCCESS:', message);
+      }
+    },
+    error: (message: string) => {
+      try {
+        if (typeof toast?.error === 'function') {
+          toast.error(message);
+        } else {
+          console.error('ERROR:', message);
+        }
+      } catch (e) {
+        console.error('ERROR:', message);
+      }
+    },
+    info: (message: string) => {
+      try {
+        if (typeof toast?.success === 'function') {
+          // Use success as fallback if info doesn't exist
+          toast.success(message);
+        } else {
+          console.log('INFO:', message);
+        }
+      } catch (e) {
+        console.log('INFO:', message);
+      }
+    }
+  };
+
   // AI-powered suggestions based on description using our trained ML model
   const handleDescriptionChange = useCallback(async (description: string) => {
     setFormData(prev => ({ ...prev, description }));
@@ -134,7 +172,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   // Generate AI predictions for severity and incident type
   const generateAIPredictions = async () => {
     if (!formData.title && !formData.description) {
-      toast.error('Please provide a title or description first');
+      safeToast.error('Please provide a title or description first');
       return;
     }
 
@@ -143,7 +181,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     // First, analyze any uploaded images to get OCR text
     let ocrTexts: string[] = [];
     if (formData.attachments.length > 0) {
-      toast.info('Analyzing uploaded images...');
+      safeToast.info('Analyzing uploaded images...');
       
       for (const file of formData.attachments) {
         if (file.type.startsWith('image/')) {
@@ -207,13 +245,13 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           incident_type: prediction.incident_type
         }));
 
-        toast.success('AI predictions generated successfully!');
+        safeToast.success('AI predictions generated successfully!');
       } else {
-        toast.error('Failed to generate AI predictions');
+        safeToast.error('Failed to generate AI predictions');
       }
     } catch (error) {
       console.error('Failed to generate predictions:', error);
-      toast.error('Failed to generate AI predictions');
+      safeToast.error('Failed to generate AI predictions');
     } finally {
       setIsGeneratingPrediction(false);
     }
@@ -238,8 +276,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       const uploadFormData = new FormData();
       uploadFormData.append('file', file);
       
-      toast.info(`Uploading ${file.name} for analysis...`);
-      
       // Upload to a temporary endpoint or ImageKit
       // For now, we'll use a data URL approach
       const reader = new FileReader();
@@ -259,7 +295,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         }
       }));
       
-      toast.info(`Analyzing ${file.name} with OCR and Gemini AI...`);
+      safeToast.info(`Analyzing image with AI...`);
       
       // Call the analyze-incident-image endpoint
       const response = await fetch(`${API_URL}/api/ai/analyze-incident-image`, {
@@ -291,7 +327,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
           }
         }));
         
-        toast.success(`Analysis complete for ${file.name}`);
+        safeToast.success(`Image analysis complete`);
       } else {
         const error = await response.text();
         console.error('Analysis failed:', error);
@@ -300,7 +336,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       
     } catch (error) {
       console.error('Image analysis error:', error);
-      toast.error(`Failed to analyze ${file.name}`);
+      safeToast.error(`Image analysis failed`);
       
       // Update status to failed
       setImageAnalysisResults(prev => ({
@@ -351,12 +387,12 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idToken) {
-      toast.error('Authentication required');
+      safeToast.error('Authentication required');
       return;
     }
     
     if (!formData.title && !formData.description) {
-      toast.error('Please provide at least a title or description');
+      safeToast.error('Please provide at least a title or description');
       return;
     }
 
@@ -411,7 +447,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         console.log('All attachments uploaded successfully');
       }
 
-      toast.success('Incident reported successfully!');
+      safeToast.success('Incident reported successfully!');
       
       // Reset form
       setFormData({
@@ -440,7 +476,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
 
     } catch (error) {
       console.error('Failed to submit incident:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit incident');
+      safeToast.error(error instanceof Error ? error.message : 'Failed to submit incident');
     } finally {
       setIsSubmitting(false);
     }
@@ -485,7 +521,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       return results;
     } catch (error) {
       console.error('Failed to upload some attachments:', error);
-      toast.error('Incident submitted but some files failed to upload');
+      safeToast.error('Incident submitted but some files failed to upload');
       throw error;
     }
   };
@@ -764,7 +800,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                     // Check file size (10MB limit)
                     const validFiles = files.filter(file => {
                       if (file.size > 10 * 1024 * 1024) {
-                        toast.error(`${file.name} is too large. Maximum size is 10MB.`);
+                        safeToast.error(`${file.name} is too large. Maximum size is 10MB.`);
                         return false;
                       }
                       return true;

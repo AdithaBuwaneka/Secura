@@ -214,7 +214,15 @@ async def get_assigned_incidents(
     
     try:
         # Get all incidents and filter by currently assigned user (excluding resolved/closed)
-        all_incidents = await incident_service.get_all_incidents()
+        result = await incident_service.get_all_incidents()
+        
+        # Handle the new format that includes pagination
+        if isinstance(result, dict) and 'incidents' in result:
+            all_incidents = result['incidents']
+        else:
+            # Fallback for old format
+            all_incidents = result
+            
         assigned_incidents = [
             incident for incident in all_incidents 
             if incident.get('assigned_to') == user_id and 
@@ -256,7 +264,15 @@ async def get_resolved_incidents(
     
     try:
         # Get all incidents and filter by those resolved by this user
-        all_incidents = await incident_service.get_all_incidents()
+        result = await incident_service.get_all_incidents()
+        
+        # Handle the new format that includes pagination
+        if isinstance(result, dict) and 'incidents' in result:
+            all_incidents = result['incidents']
+        else:
+            # Fallback for old format
+            all_incidents = result
+            
         resolved_incidents = [
             incident for incident in all_incidents 
             if (incident.get('assigned_to') == user_id or incident.get('resolved_by') == user_id) and 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { 
   User, 
@@ -10,10 +10,6 @@ import {
   AlertTriangle, 
   X,
   Eye,
-  MessageSquare,
-  Calendar,
-  MapPin,
-  Paperclip,
   CheckCircle,
   AlertCircle,
   Trophy,
@@ -47,7 +43,7 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
   };
 
   // Fetch assigned incidents
-  const fetchAssignedIncidents = async () => {
+  const fetchAssignedIncidents = useCallback(async (showLoading = true) => {
     if (!idToken || !userProfile?.uid) {
       console.log('Missing idToken or userProfile.uid:', { idToken: !!idToken, uid: userProfile?.uid });
       return;
@@ -56,7 +52,7 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
     console.log('Fetching assigned incidents for user:', userProfile.uid);
     
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${API_URL}/api/incidents/assigned/${userProfile?.uid}`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -76,12 +72,12 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
       console.error('Failed to fetch assigned incidents:', error);
       toast.error('Failed to load assigned incidents');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [idToken, userProfile?.uid, API_URL]);
 
   // Fetch resolved incidents
-  const fetchResolvedIncidents = async () => {
+  const fetchResolvedIncidents = useCallback(async (showLoading = true) => {
     if (!idToken || !userProfile?.uid) {
       console.log('Missing idToken or userProfile.uid for resolved:', { idToken: !!idToken, uid: userProfile?.uid });
       return;
@@ -90,7 +86,7 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
     console.log('Fetching resolved incidents for user:', userProfile.uid);
     
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${API_URL}/api/incidents/resolved/${userProfile?.uid}`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -110,12 +106,12 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
       console.error('Failed to fetch resolved incidents:', error);
       toast.error('Failed to load resolved incidents');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [idToken, userProfile?.uid, API_URL]);
 
   // Calculate profile statistics
-  const calculateStats = () => {
+  const calculateStats = useCallback(() => {
     const totalAssigned = assignedIncidents.length + resolvedIncidents.length;
     const totalResolved = resolvedIncidents.length;
     const currentActive = assignedIncidents.filter(i => 
@@ -142,7 +138,7 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
       avgResolutionTime,
       currentActive
     });
-  };
+  }, [assignedIncidents, resolvedIncidents]);
 
   // Mark incident as resolved
   const markResolved = async (incidentId: string) => {
@@ -169,17 +165,34 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
     }
   };
 
+  // Fetch data on component mount to populate profile statistics
   useEffect(() => {
-    if (activeTab === 'assigned') {
+    const fetchInitialData = async () => {
+      if (idToken && userProfile?.uid) {
+        setLoading(true);
+        await Promise.all([
+          fetchAssignedIncidents(false),
+          fetchResolvedIncidents(false)
+        ]);
+        setLoading(false);
+      }
+    };
+    
+    fetchInitialData();
+  }, [idToken, userProfile?.uid, fetchAssignedIncidents, fetchResolvedIncidents]);
+
+  // Fetch additional data when tab changes (if not already loaded)
+  useEffect(() => {
+    if (activeTab === 'assigned' && assignedIncidents.length === 0) {
       fetchAssignedIncidents();
-    } else if (activeTab === 'resolved') {
+    } else if (activeTab === 'resolved' && resolvedIncidents.length === 0) {
       fetchResolvedIncidents();
     }
-  }, [activeTab, idToken, userProfile?.uid]);
+  }, [activeTab, assignedIncidents.length, resolvedIncidents.length, fetchAssignedIncidents, fetchResolvedIncidents]);
 
   useEffect(() => {
     calculateStats();
-  }, [assignedIncidents, resolvedIncidents]);
+  }, [assignedIncidents, resolvedIncidents, calculateStats]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
@@ -275,6 +288,13 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
         <div className="overflow-y-auto max-h-[calc(90vh-160px)]">
           {activeTab === 'profile' && (
             <div className="p-6 space-y-6">
+              {loading && assignedIncidents.length === 0 && resolvedIncidents.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00D4FF] mx-auto"></div>
+                  <p className="text-gray-400 mt-2">Loading profile data...</p>
+                </div>
+              ) : (
+                <>
               {/* Profile Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-[#2A2D35] p-6 rounded-lg border border-gray-700">
@@ -376,6 +396,8 @@ export default function SecurityTeamProfile({ onClose }: SecurityTeamProfileProp
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
 
