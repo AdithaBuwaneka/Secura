@@ -414,6 +414,28 @@ async def assign_incident(
             incident_id, assignee_id, current_user.uid
         )
         
+        # Create or update conversation for this incident
+        from app.services.messaging.conversation_service import ConversationService
+        conversation_service = ConversationService()
+        
+        # Get incident reporter info
+        reporter_id = incident.get('reporter_uid')
+        reporter_name = incident.get('reporter_name', 'Unknown User')
+        
+        if reporter_id:
+            # Create an incident conversation between reporter and assignee
+            try:
+                conversation = await conversation_service.create_incident_conversation(
+                    incident_id=incident_id,
+                    reporter_id=reporter_id,
+                    reporter_name=reporter_name,
+                    assigned_to=assignee_id,
+                    target_members=[assignee_id]
+                )
+                print(f"Created conversation {conversation.id} for incident {incident_id}")
+            except Exception as e:
+                print(f"Warning: Could not create conversation for incident {incident_id}: {e}")
+        
         # Send real-time notification to assignee
         await manager.send_to_user(assignee_id, json.dumps({
             "type": "incident_assigned",

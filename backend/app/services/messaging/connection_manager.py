@@ -16,7 +16,8 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: str, room_id: Optional[str] = None):
         """Connect a user to WebSocket"""
-        await websocket.accept()
+        # WebSocket should already be accepted by the route handler
+        # await websocket.accept()  # REMOVED - duplicate accept
         
         if room_id:
             # Room-based connection
@@ -95,3 +96,28 @@ class ConnectionManager:
             'room_connections': {room_id: len(connections) for room_id, connections in self.room_connections.items()},
             'total_rooms': len(self.room_connections)
         }
+    
+    async def send_to_user(self, user_id: str, message: str):
+        """Send a message to a specific user across all their connections"""
+        sent = False
+        
+        # Check general connections
+        if user_id in self.active_connections:
+            try:
+                await self.active_connections[user_id].send_text(message)
+                sent = True
+            except Exception as e:
+                print(f"Failed to send to user {user_id} in general connections: {str(e)}")
+                del self.active_connections[user_id]
+        
+        # Check room connections
+        for room_id, connections in self.room_connections.items():
+            if user_id in connections:
+                try:
+                    await connections[user_id].send_text(message)
+                    sent = True
+                except Exception as e:
+                    print(f"Failed to send to user {user_id} in room {room_id}: {str(e)}")
+                    del connections[user_id]
+        
+        return sent

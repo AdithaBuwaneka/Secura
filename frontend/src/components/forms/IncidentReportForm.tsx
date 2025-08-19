@@ -143,8 +143,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
     // First, analyze any uploaded images to get OCR text
     let ocrTexts: string[] = [];
     if (formData.attachments.length > 0) {
-      toast.info('Analyzing uploaded images...');
-      
       for (const file of formData.attachments) {
         if (file.type.startsWith('image/')) {
           try {
@@ -238,7 +236,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       const uploadFormData = new FormData();
       uploadFormData.append('file', file);
       
-      toast.info(`Uploading ${file.name} for analysis...`);
       
       // Upload to a temporary endpoint or ImageKit
       // For now, we'll use a data URL approach
@@ -259,7 +256,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
         }
       }));
       
-      toast.info(`Analyzing ${file.name} with OCR and Gemini AI...`);
       
       // Call the analyze-incident-image endpoint
       const response = await fetch(`${API_URL}/api/ai/analyze-incident-image`, {
@@ -300,7 +296,6 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
       
     } catch (error) {
       console.error('Image analysis error:', error);
-      toast.error(`Failed to analyze ${file.name}`);
       
       // Update status to failed
       setImageAnalysisResults(prev => ({

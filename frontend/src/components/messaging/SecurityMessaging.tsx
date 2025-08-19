@@ -70,12 +70,20 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
                 
                 if (response.ok) {
                   console.log(`SecurityMessaging: Conversation created/found for incident ${incident.id}`);
+                } else {
+                  console.error(`SecurityMessaging: Failed to create conversation for incident ${incident.id}: ${response.status}`);
+                  const errorText = await response.text();
+                  console.error('Error details:', errorText);
                 }
               } catch (error) {
                 console.error(`SecurityMessaging: Failed to create conversation for incident ${incident.id}:`, error);
               }
             }
           }
+        } else {
+          console.error('SecurityMessaging: Failed to fetch incidents:', incidentsResponse.status);
+          const errorText = await incidentsResponse.text();
+          console.error('Error details:', errorText);
         }
       } catch (error) {
         console.error('SecurityMessaging: Failed to create conversations for incidents:', error);
@@ -83,29 +91,51 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
     };
 
     try {
-      console.log('SecurityMessaging: Loading conversations for user role:', userProfile?.role);
+      console.log('SecurityMessaging: Starting to load conversations...');
+      console.log('API_URL:', API_URL);
+      console.log('idToken exists:', !!idToken);
+      console.log('userProfile:', userProfile);
+      
+      if (!idToken) {
+        console.error('SecurityMessaging: No idToken available');
+        setIsLoading(false);
+        return;
+      }
       
       const response = await fetch(`${API_URL}/api/messaging/conversations`, {
         headers: {
-          'Authorization': `Bearer ${idToken}`
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
         }
       });
 
+      console.log('SecurityMessaging: Response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('SecurityMessaging: Raw data from API:', data);
+        
+        // Check if data has the expected structure
+        const conversations = data.conversations || [];
+        console.log('SecurityMessaging: Total conversations:', conversations.length);
+        
         // Filter out team internal conversations - those belong in Team Chat only
-        const incidentConversations = data.conversations.filter((conv: any) => 
+        const incidentConversations = conversations.filter((conv: any) => 
           conv.conversation_type !== 'team_internal' && conv.conversation_type !== 'direct_message'
         );
+        
+        console.log('SecurityMessaging: Incident conversations:', incidentConversations.length);
         
         let formattedConversations: Conversation[] = incidentConversations.map((conv: any) => {
           const participantName = getOtherParticipantName(conv.participants);
           const participantRole = getOtherParticipantRole(conv.participants);
           
+          console.log(`Conversation ${conv.id}: participant_name=${participantName}, role=${participantRole}`);
+          
           return {
             id: conv.id,
             incident_id: conv.incident_id,
-            participant_name: participantName,
+            participant_name: participantName || 'Security Team',
             participant_role: participantRole,
             last_message: conv.last_message_content || 'No messages yet',
             last_message_time: conv.last_message_time || conv.created_at,
@@ -122,19 +152,21 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
           // Reload conversations after creating them
           const newResponse = await fetch(`${API_URL}/api/messaging/conversations`, {
             headers: {
-              'Authorization': `Bearer ${idToken}`
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
             }
           });
           if (newResponse.ok) {
             const newData = await newResponse.json();
+            const newConversations = newData.conversations || [];
             // Filter out team internal conversations - those belong in Team Chat only
-            const newIncidentConversations = newData.conversations.filter((conv: any) => 
+            const newIncidentConversations = newConversations.filter((conv: any) => 
               conv.conversation_type !== 'team_internal' && conv.conversation_type !== 'direct_message'
             );
             formattedConversations = newIncidentConversations.map((conv: any) => ({
               id: conv.id,
               incident_id: conv.incident_id,
-              participant_name: getOtherParticipantName(conv.participants),
+              participant_name: getOtherParticipantName(conv.participants) || 'Security Team',
               participant_role: getOtherParticipantRole(conv.participants),
               last_message: conv.last_message_content || 'No messages yet',
               last_message_time: conv.last_message_time || conv.created_at,
@@ -148,35 +180,66 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
         console.log('SecurityMessaging: Final formatted conversations:', formattedConversations);
         setConversations(formattedConversations);
       } else {
-        console.error('Failed to load conversations:', response.status);
+        console.error('SecurityMessaging: Failed to load conversations - status:', response.status);
+        const errorText = await response.text();
+        console.error('SecurityMessaging: Error response:', errorText);
         setConversations([]);
       }
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      console.error('SecurityMessaging: Exception while loading conversations:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       setConversations([]);
     } finally {
+      console.log('SecurityMessaging: Setting isLoading to false');
       setIsLoading(false);
     }
-  }, [idToken, API_URL, userProfile?.role]);
+  }, [idToken, API_URL, userProfile?.role, userProfile]);
 
   // Helper functions for participant handling
   const getOtherParticipantName = (participants: any[]) => {
     console.log('getOtherParticipantName: participants =', participants);
     console.log('getOtherParticipantName: current user uid =', userProfile?.uid);
+    console.log('getOtherParticipantName: current user role =', userProfile?.role);
     
-    // Show the name of the other participant (not the current user)
-    const currentUser = participants.find(p => p.user_id === userProfile?.uid);
-    const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
+    if (!participants || participants.length === 0) {
+      return 'Security Team';
+    }
     
-    console.log('getOtherParticipantName: currentUser =', currentUser);
-    console.log('getOtherParticipantName: otherParticipant =', otherParticipant);
-    
-    return otherParticipant?.user_name || 'Team Discussion';
+    // For employees, show the security team member
+    // For security team, show the employee
+    if (userProfile?.role === 'employee') {
+      // Find the security team member
+      const securityMember = participants.find(p => 
+        p.user_id !== userProfile?.uid && 
+        (p.user_role === 'security_team' || p.user_role === 'admin')
+      );
+      console.log('getOtherParticipantName: found security member =', securityMember);
+      return securityMember?.user_name || 'Security Team';
+    } else {
+      // For security team, show the employee
+      const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
+      console.log('getOtherParticipantName: otherParticipant =', otherParticipant);
+      return otherParticipant?.user_name || 'Unknown User';
+    }
   };
 
   const getOtherParticipantRole = (participants: any[]) => {
-    const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
-    return otherParticipant?.user_role || 'employee';
+    if (!participants || participants.length === 0) {
+      return 'security_team';
+    }
+    
+    if (userProfile?.role === 'employee') {
+      // Find the security team member
+      const securityMember = participants.find(p => 
+        p.user_id !== userProfile?.uid && 
+        (p.user_role === 'security_team' || p.user_role === 'admin')
+      );
+      return securityMember?.user_role || 'security_team';
+    } else {
+      // For security team, show the employee's role
+      const otherParticipant = participants.find(p => p.user_id !== userProfile?.uid);
+      return otherParticipant?.user_role || 'employee';
+    }
   };
 
   useEffect(() => {
@@ -332,7 +395,9 @@ export default function SecurityMessaging({ onClose }: SecurityMessagingProps) {
                     </div>
                     
                     {conversation.incident_id && (
-                      <p className="text-xs text-[#00D4FF] mb-1">{conversation.incident_id}</p>
+                      <p className="text-xs text-[#00D4FF] mb-1">
+                        Incident #{conversation.incident_id.substring(0, 8)}...
+                      </p>
                     )}
                     
                     <p className="text-xs text-gray-400 truncate mb-1">
