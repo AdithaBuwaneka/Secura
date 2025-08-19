@@ -594,7 +594,7 @@ export default function IncidentReportForm({ onClose, onSuccess }: IncidentRepor
                         {mlPrediction.gemini_analysis ? (
                           <>✨ Gemini AI Analysis</>
                         ) : (
-                          <>🤖 ML Model Predictions</>
+                          <>🤖 Gemini AI Analysis</>
                         )}
                       </p>
                       <span className="text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded">
