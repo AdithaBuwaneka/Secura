@@ -3,12 +3,14 @@ AI Engine API Routes - Rithara's Module
 Handles incident categorization, severity assessment, and mitigation strategies
 """
 
+print("AI routes module loaded")
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.models.common import IncidentType, IncidentSeverity
-from app.services.ai.ai_service import AIService
+from app.services.ai.ai_service import get_ai_service
 from app.utils.auth import get_current_user
 from app.models.user import User
 
@@ -57,7 +59,7 @@ class AIAnalysisResponse(BaseModel):
 async def analyze_incident(
     request: IncidentAnalysisRequest,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Analyze incident using AI for categorization, severity, and mitigation suggestions
@@ -92,7 +94,7 @@ async def categorize_incident(
     title: str,
     description: str,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Get category suggestions for an incident
@@ -113,7 +115,7 @@ async def assess_severity(
     description: str,
     category: IncidentType,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Assess incident severity level
@@ -134,7 +136,7 @@ async def get_mitigation_strategies(
     severity: IncidentSeverity,
     context: Dict[str, Any] = {},
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Get AI-generated mitigation strategies
@@ -156,7 +158,7 @@ async def get_threat_intelligence(
     category: IncidentType = None,
     days: int = 30,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Get threat intelligence and pattern analysis
@@ -182,12 +184,21 @@ async def get_threat_intelligence(
 async def predict_incident(
     request: IncidentAnalysisRequest,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Predict incident type and severity for incident reporting
     Available to all authenticated users
     """
+    print(f"\n=== /predict-incident endpoint called ===")
+    print(f"Title: {request.title}")
+    print(f"Description: {request.description[:50] if request.description else 'None'}...")
+    print(f"Context: {request.context}")
+    print(f"User: {current_user.email}")
+    print(f"AI Service instance: {ai_service}")
+    print(f"Gemini available in service: {ai_service.gemini_model is not None}")
+    print("=======================================\n")
+    
     try:
         # Perform AI analysis for prediction
         analysis_result = await ai_service.analyze_incident(
@@ -196,6 +207,13 @@ async def predict_incident(
             context=request.context,
             user_department=None  # User model doesn't have department
         )
+        
+        print(f"Analysis result keys: {list(analysis_result.keys())}")
+        print(f"Has gemini_analysis flag: {'gemini_analysis' in analysis_result}")
+        if 'gemini_analysis' in analysis_result:
+            print(f"gemini_analysis value: {analysis_result['gemini_analysis']}")
+        else:
+            print("WARNING: gemini_analysis flag is missing from response!")
         
         return analysis_result
         
@@ -213,7 +231,7 @@ async def get_predictive_analytics(
     organization_id: str = None,
     timeframe_days: int = 90,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Get predictive analytics for security threats
@@ -246,7 +264,7 @@ async def get_predictive_analytics(
 async def detect_anomalies(
     incident_data: Dict[str, Any],
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Detect anomalies in incident patterns
@@ -272,7 +290,7 @@ async def detect_anomalies(
 async def analyze_image(
     request: ImageAnalysisRequest,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Analyze image content for text extraction and threat analysis
@@ -308,7 +326,7 @@ async def analyze_image(
 async def analyze_incident_image(
     request: ImageAnalysisRequest,
     current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """
     Analyze image for incident reporting - Available to all authenticated users
@@ -339,16 +357,26 @@ async def analyze_incident_image(
 
 @router.get("/gemini-status")
 async def check_gemini_status(
-    current_user: User = Depends(get_current_user),
-    ai_service: AIService = Depends()
+    ai_service = Depends(get_ai_service)
 ):
     """Check if Gemini is properly initialized"""
     import os
     api_key = os.getenv("GEMINI_API_KEY")
+    
+    # Test Gemini with a simple prompt
+    test_result = None
+    if ai_service.gemini_model:
+        try:
+            test_response = ai_service.gemini_model.generate_content("Say 'Gemini is working!'")
+            test_result = test_response.text
+        except Exception as e:
+            test_result = f"Error: {str(e)}"
+    
     return {
         "gemini_available": ai_service.gemini_model is not None,
         "ml_model_available": ai_service.ml_model is not None,
         "api_key_exists": api_key is not None,
         "api_key_configured": api_key != "your_gemini_api_key_here" if api_key else False,
-        "message": "Gemini is ready" if ai_service.gemini_model else "Gemini not initialized"
+        "message": "Gemini is ready" if ai_service.gemini_model else "Gemini not initialized",
+        "gemini_test": test_result
     }

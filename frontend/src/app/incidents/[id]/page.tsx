@@ -25,6 +25,7 @@ import {
   ScanLine
 } from 'lucide-react';
 import IncidentChatButton from '@/components/messaging/IncidentChatButton';
+import AIImageAnalysis from '@/components/ai/AIImageAnalysis';
 
 interface IncidentAttachment {
   file_id: string;
@@ -84,6 +85,8 @@ export default function IncidentDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [analyzingImageIndex, setAnalyzingImageIndex] = useState<number | null>(null);
+  const [imageAnalysisResults, setImageAnalysisResults] = useState<{[key: number]: any}>({});
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   const IMAGEKIT_URL = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/secura';
@@ -360,7 +363,7 @@ export default function IncidentDetailPage() {
                             {attachment.file_size ? `${(attachment.file_size / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
                           </p>
                           {isImage && fileUrl && (
-                            <div className="mt-2">
+                            <div className="mt-2 space-y-3">
                               <img 
                                 src={fileUrl} 
                                 alt={attachment.original_filename || 'Attachment'}
@@ -371,6 +374,21 @@ export default function IncidentDetailPage() {
                                   (e.target as HTMLImageElement).style.display = 'none';
                                 }}
                               />
+                              
+                              {/* AI Image Analysis Component */}
+                              {idToken && (
+                                <AIImageAnalysis 
+                                  imageUrl={fileUrl}
+                                  incidentId={incident.id}
+                                  idToken={idToken}
+                                  onAnalysisComplete={(result) => {
+                                    setImageAnalysisResults(prev => ({
+                                      ...prev,
+                                      [index]: result
+                                    }));
+                                  }}
+                                />
+                              )}
                             </div>
                           )}
                         </div>

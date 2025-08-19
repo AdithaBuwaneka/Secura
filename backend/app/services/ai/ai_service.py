@@ -27,6 +27,17 @@ except ImportError:
 from app.models.common import IncidentType, IncidentSeverity
 from app.services.ai.threat_prediction_model import ThreatPredictionModel
 
+# Singleton instance
+_ai_service_instance = None
+
+def get_ai_service():
+    """Get singleton instance of AIService"""
+    global _ai_service_instance
+    if _ai_service_instance is None:
+        print("Creating new AIService instance...")
+        _ai_service_instance = AIService()
+    return _ai_service_instance
+
 class AIService:
     def __init__(self):
         # Initialize Firestore connection
@@ -51,6 +62,8 @@ class AIService:
         if GEMINI_AVAILABLE:
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             print(f"Gemini API key found: {gemini_api_key is not None}")
+            print(f"API key length: {len(gemini_api_key) if gemini_api_key else 0}")
+            print(f"API key starts with: {gemini_api_key[:10] if gemini_api_key else 'None'}")
             print(f"API key value check: {gemini_api_key != 'your_gemini_api_key_here' if gemini_api_key else False}")
             if gemini_api_key and gemini_api_key != "your_gemini_api_key_here":
                 try:
@@ -285,6 +298,7 @@ class AIService:
                 'summary': sections['summary'],
                 'assessment': sections['assessment'],
                 'gemini_full_analysis': gemini_text,
+                'gemini_analysis': True,  # Add this flag to indicate Gemini was used
                 'confidence_score': confidence
             }
             
@@ -307,23 +321,39 @@ class AIService:
             title = title or ""
             description = description or ""
             
-            # Check if Gemini analysis is requested (for Generate AI Predictions button)
-            use_gemini = context.get('use_gemini', False) or context.get('source') == 'gemini_analysis'
+            # Check request source to determine which AI to use
+            source = context.get('source', '')
+            use_gemini = context.get('use_gemini', False) or source == 'gemini_analysis'
             ocr_text = context.get('ocr_text', None)
             
+            print(f"=== AI Analysis Debug ===")
+            print(f"Source: {source}")
+            print(f"Use Gemini: {use_gemini}")
+            print(f"Gemini Model Available: {self.gemini_model is not None}")
+            print(f"Context: {context}")
+            print("========================")
+            
+            # For Generate AI Predictions button - use Gemini
             if use_gemini and self.gemini_model:
                 # Use Gemini for analysis
                 try:
-                    return await self.analyze_with_gemini(title, description, ocr_text)
+                    print("Using Gemini for analysis...")
+                    result = await self.analyze_with_gemini(title, description, ocr_text)
+                    print(f"Gemini analysis result has gemini_analysis flag: {'gemini_analysis' in result}")
+                    return result
                 except Exception as e:
                     print(f"Gemini analysis failed, falling back to ML model: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Fall through to ML model
+            elif use_gemini and not self.gemini_model:
+                print("WARNING: Gemini requested but model not available!")
             
             # Combine title and description for ML model
             full_text = f"{title} {description}"
             
-            # Use ML model if available
-            if self.ml_model and context.get('context') != 'real_time_suggestions':
+            # For real-time suggestions (light blue section) - use ML model
+            if self.ml_model and source != 'gemini_analysis':
                 try:
                     ml_prediction = self.ml_model.predict(full_text)
                     
@@ -423,12 +453,18 @@ class AIService:
                 'factors': factors[:5]  # Limit to 5 factors
             }
             
-            return {
+            response = {
                 'categories': formatted_categories,
                 'severity': formatted_severity,
                 'mitigation_strategies': mitigation_strategies,
                 'confidence_score': confidence_score
             }
+            
+            # Add gemini_analysis flag if this was a Gemini request but it fell back
+            if use_gemini:
+                response['gemini_analysis'] = False  # False because we fell back to ML
+                
+            return response
             
         except Exception as e:
             import traceback

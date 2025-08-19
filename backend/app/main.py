@@ -25,6 +25,12 @@ load_dotenv()
 # Initialize Firebase
 FirebaseConfig.initialize_firebase()
 
+# Initialize AI Service (to ensure Gemini loads at startup)
+from app.services.ai.ai_service import get_ai_service
+print("Initializing AI Service...")
+ai_service = get_ai_service()
+print("AI Service initialized")
+
 app = FastAPI(
     title="Secura API",
     description="AI-Powered Cyber Incident Reporting Platform",
